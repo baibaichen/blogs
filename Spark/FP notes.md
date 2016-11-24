@@ -1,5 +1,5 @@
-> 1. [ ][[video] Scalaz State Monad](https://www.youtube.com/watch?v=Jg3Uv_YWJqI)
-> 2. [ ] [[video] Scala Monads: Declutter Your Code With Monadic Design](https://www.youtube.com/watch?v=Mw_Jnn_Y5iA)
+> {0}. [ ] [ ][[video] Scalaz State Monad](https://www.youtube.com/watch?v=Jg3Uv_YWJqI)
+> {0}. [ ] [ ][[video] Scala Monads: Declutter Your Code With Monadic Design](https://www.youtube.com/watch?v=Mw_Jnn_Y5iA)
 
 
 **Functional programming is the practice of composing programs using functions**
