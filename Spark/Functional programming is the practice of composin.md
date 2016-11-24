@@ -59,37 +59,39 @@ PrintLine("Enter a temperature in degrees Fahrenheit: ").
 | `}`                                      | `}`                                      |
 
 
-    public static Object forever(Monad $this, Object a)
-    {
-      ObjectRef t$lzy = ObjectRef.zero();
-      VolatileByteRef bitmap$0 = VolatileByteRef.create((byte)0);
-      return t$1($this, t$lzy, a, bitmap$0);
+```scala
+public static Object forever(Monad $this, Object a)
+{
+  ObjectRef t$lzy = ObjectRef.zero();
+  VolatileByteRef bitmap$0 = VolatileByteRef.create((byte)0);
+  return t$1($this, t$lzy, a, bitmap$0);
+}
+public static final Object t$1(Monad $this, ObjectRef t$lzy$1, Object a$3, VolatileByteRef bitmap$0$1)
+{
+  return (byte)(bitmap$0$1.elem & 0x1) == 0 ? 
+            t$lzycompute$1($this, t$lzy$1, a$3, bitmap$0$1) : 
+            t$lzy$1.elem;
+}
+private static final Object t$lzycompute$1(Monad $this, ObjectRef t$lzy$1, Object a$3, VolatileByteRef bitmap$0$1)
+{
+  synchronized ($this){
+    if ((byte)(bitmap$0$1.elem & 0x1) == 0){
+      t$lzy$1.elem = $this.toMonadic(a$3).flatMap(new Monad$$anonfun$t$lzycompute$1$1($this, t$lzy$1, a$3, bitmap$0$1));
+      bitmap$0$1.elem = ((byte)(bitmap$0$1.elem | 0x1));
     }
-    public static final Object t$1(Monad $this, ObjectRef t$lzy$1, Object a$3, VolatileByteRef bitmap$0$1)
-    {
-      return (byte)(bitmap$0$1.elem & 0x1) == 0 ? 
-                t$lzycompute$1($this, t$lzy$1, a$3, bitmap$0$1) : 
-                t$lzy$1.elem;
-    }
-    private static final Object t$lzycompute$1(Monad $this, ObjectRef t$lzy$1, Object a$3, VolatileByteRef bitmap$0$1)
-    {
-      synchronized ($this){
-        if ((byte)(bitmap$0$1.elem & 0x1) == 0){
-          t$lzy$1.elem = $this.toMonadic(a$3).flatMap(new Monad$$anonfun$t$lzycompute$1$1($this, t$lzy$1, a$3, bitmap$0$1));
-          bitmap$0$1.elem = ((byte)(bitmap$0$1.elem | 0x1));
-        }
-        return t$lzy$1.elem;
-      }
-    }
-    public final class Monad$$anonfun$t$lzycompute$1$1
-      extends AbstractFunction1<A, F>
-      implements Serializable{
-      public static final long serialVersionUID = 0L;
-      public final F apply(A x$7){
-        return (F)Monad.class.t$1(this.$outer, this.t$lzy$1, this.a$3, this.bitmap$0$1);
-      }
-      public Monad$$anonfun$t$lzycompute$1$1(Monad<F> $outer) {}
-    }
+    return t$lzy$1.elem;
+  }
+}
+public final class Monad$$anonfun$t$lzycompute$1$1
+  extends AbstractFunction1<A, F>
+  implements Serializable{
+  public static final long serialVersionUID = 0L;
+  public final F apply(A x$7){
+    return (F)Monad.class.t$1(this.$outer, this.t$lzy$1, this.a$3, this.bitmap$0$1);
+  }
+  public Monad$$anonfun$t$lzycompute$1$1(Monad<F> $outer) {}
+}
+```
 ----------
     val genOrder: Gen[Order] = for {
       name <- Gen.stringN(3)
