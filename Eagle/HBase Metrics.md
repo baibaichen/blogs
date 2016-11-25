@@ -1,4 +1,14 @@
 - [ ] Gague, Histogram, Counter的<u>含义是什么</u>？
+- [ ] [HBase Metrics参数详解](http://www.binospace.com/index.php/interpretation-of-the-relevant-parameters-of-hbase-metrics/)
+
+
+# 指标的含义
+
+| 指标类型      |                               |              |
+| --------- | ----------------------------- | ------------ |
+| Gague     | 最简单的度量指标，只有一个简单的返回值，可增，可减，可设置 | 可以理解为**变化率** |
+| Counter   | 和Gague一样，**只能增加**。            | 可以理解为**总量**  |
+| Histogram |                               |              |
 
 # Master
 
@@ -44,7 +54,7 @@ JMX Context = `Master,sub=FileSystem`
 | metaHlogSplitSize | Histogram |
 | metaHlogSplitTime | Histogram |
 
-##`MetricsMaterSourceImpl`
+##`MetricsMasterSourceImpl`
 
 JMX Context = `Master,sub=Server`
 
@@ -54,10 +64,10 @@ JMX Context = `Master,sub=Server`
 | masterActiveTime     | Gauge   |
 | masterStartTime      | Gauge   |
 | averageLoad          | Gauge   |
-| liveRegionServers    | tag     |
 | numRegionServers     | Gauge   |
-| deadRegionServers    | tag     |
 | numDeadRegionServers | Gauge   |
+| liveRegionServers    | tag     |
+| deadRegionServers    | tag     |
 | zookeeperQuorum      | tag     |
 | serverName           | tag     |
 | clusterId            | tag     |
@@ -183,14 +193,14 @@ regionNamePrefix = "Namespace_" + regionWrapper.getNamespace() +
     "_metric_";
 ```
 
-| 指标                             | 类型          |
-| ------------------------------ | ----------- |
-| `regionNamePrefix+"mutate"`    | CounterLong |
-| `regionNamePrefix+"delete"`    | CounterLong |
-| `regionNamePrefix+"increment"` | CounterLong |
-| `regionNamePrefix+"append"`    | CounterLong |
-| `regionNamePrefix+"get"`       | Histogram   |
-| `regionNamePrefix+"scanNext"`  | Histogram   |
+| 指标                             | 类型          |                                    |
+| ------------------------------ | ----------- | ---------------------------------- |
+| `regionNamePrefix+"mutate"`    | CounterLong | `put` 操作                           |
+| `regionNamePrefix+"delete"`    | CounterLong | `delete` 操作                        |
+| `regionNamePrefix+"increment"` | CounterLong | `HRegion#increment` 操作             |
+| `regionNamePrefix+"append"`    | CounterLong | `HRegion#append` 操作                |
+| `regionNamePrefix+"get"`       | Histogram   | `HRegion#get`的成功操作次数和**get**的总量    |
+| `regionNamePrefix+"scanNext"`  | Histogram   | `ClientService#scan`的操作次数，以及扫描的字节数 |
 
 # IPC
 ##`MetricsHBaseServerSourceImpl`
