@@ -1,5 +1,6 @@
 - [ ] Gague, Histogram, Counter的<u>含义是什么</u>？
 - [ ] [HBase Metrics参数详解](http://www.binospace.com/index.php/interpretation-of-the-relevant-parameters-of-hbase-metrics/)
+- [ ] **org.apache.hadoop.hbase.regionserver.CompactSplitThread**
 
 
 # 指标的含义
