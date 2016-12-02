@@ -50,7 +50,7 @@ HBase的读流程目前看来比较复杂，主要由于：
 实现上，这两步都是通过堆完成。`RegionScanner`的读取通过下面的多个`StoreScanner`组成的堆
 完成，使用`RegionScanner`的成员变量`KeyValueHeap` `storeHeap`表示
 
-组成`StoreScanner`的多个**Scanner**在`RegionScannerImpl`构造函数中获得：
+组成`StoreScanner`的多个*Scanner*在`RegionScannerImpl`**构造函数**中获得：
 
 ```java
 for (Map.Entry<byte[], NavigableSet<byte[]>> entry :
@@ -69,10 +69,10 @@ for (Map.Entry<byte[], NavigableSet<byte[]>> entry :
 
 `store.getScanner(scan, entry.getValue(), this.readPt)`内部就是new 一个`StoreScanner`，逻辑都在`StoreScanner`的构造函数中
 
-构造函数内部其实就是找到相关的HFile和MemStore，然后建堆。注意，这个堆是StoreScanner级别的，一个StoreScanner一个堆，堆中的元素就是底下包含的HFile和MemStore对应的StoreFileScanner和MemStoreScanner
+<u>构造函数内部其实就是找到相关的HFile和MemStore，然后建堆。注意，这个堆是StoreScanner级别的，一个StoreScanner一个堆，堆中的元素就是底下包含的HFile和MemStore对应的StoreFileScanner和MemStoreScanner</u>
 得到相关的HFile和MemStore逻辑在StoreScanner::getScannersNoCompaction()中，内部会根据请求指定的TimeRange,KeyRange过滤掉不需要的HFile，同时也会利用**bloom filter**过滤掉不需要的HFIle.接着，调用
 
-```
+```java
 seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally,
         isParallelSeekEnabled);
 ```
@@ -80,15 +80,14 @@ seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEna
 对这些StoreFileScanner和MemStoreScanner分别进行seek，seekKey是matcher.getStartKey()，
 如下构造
 
-```
+```java
  return new KeyValue(row, family, null, HConstants.LATEST_TIMESTAMP,
         Type.DeleteFamily);
 ```
 
 ### Seek语义
 
-seek是针对KeyValue的，seek的语义是seek到指定KeyValue，如果指定KeyValue不存在，则seek到指定KeyValue的下一
-个。举例来说，假设名为X的column family里有两列a和b，文件中有两行rowkey分别为aaa和
+seek是针对**KeyValue**的，seek的语义是seek到指定**KeyValue**，如果指定**KeyValue**不存在，则seek到指定KeyValue的下一个。举例来说，假设名为X的column family里有两列a和b，文件中有两行rowkey分别为aaa和
 bbb，如下表所示.
 
 |        | Column Family X |          |
@@ -97,17 +96,14 @@ bbb，如下表所示.
 | aaa    | 1               | abc      |
 | bbb    | 2               | def      |
 
-HBase客户端设置scan请求的start key为aaa，那么matcher.getStartKey()会被初始化为(rowkey, family, qualifier,timestamp,type)=(aaa,X,null,LATEST_TIMESTAMP,Type.DeleteFamily)，根据KeyValue的比较原则，这个KeyValue比aaa行的第一个列a更
-小(因为没有qualifier)，所以对这个StoreFileScanner seek时，会seek到aaa这行的第一列a
+HBase客户端设置scan请求的start key为aaa，那么matcher.getStartKey()会被初始化为`(rowkey, family, qualifier,timestamp,type)=(aaa,X,null,LATEST_TIMESTAMP,Type.DeleteFamily)`，根据KeyValue的比较原则，这个KeyValue比aaa行的第一个列a更小（因为没有qualifier），所以对这个StoreFileScanner seek时，会seek到aaa这行的第一列a，实际上：
 
-实际上
-
-```
+```java
 seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally,
         isParallelSeekEnabled);
 ```
 
-有可能不会对StoreFileScanner进行实际的seek，而是进行lazy seek，seek的工作放到不得不做的时候。后续会专门说lazy seek
+有可能不会对`StoreFileScanner`进行实际的seek，而是进行lazy seek，seek的工作放到不得不做的时候。后续会专门说lazy seek。
 
 上面得到了请求scan涉及到的所有的column family对应的StoreScanner，随后调用如下函数进行建堆:
 
@@ -122,10 +118,9 @@ seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEna
     }
 ```
 
-KeyValueScanner是一个接口，表示一个可以向外迭代出KeyValue
-的Scanner，StoreFileScanner,MemStoreScanner和StoreScanner都实现了该接口。这里的comparator类型为KVScannerComparator，用于比较两个KeyValueScanner，实际上内部使用了KVComparator，它是用来比较两个KeyValue的。从后面可以看出，实际上，这个由KeyValueScanner组成的堆，堆顶KeyValueScanner满足的特征是： 它的堆顶(KeyValue)最小
+`KeyValueScanner`是一个接口，表示一个可以向外迭代出`KeyValue`的Scanner， `StoreFileScanner`， `MemStoreScanner`和`StoreScanner`都实现了该接口。这里的comparator类型为`KVScannerComparator`，用于比较两个`KeyValueScanner`，实际上内部使用了`KVComparator`，它是用来比较两个KeyValue的。从后面可以看出，实际上，这个由KeyValueScanner组成的堆，堆顶KeyValueScanner满足的特征是： 它的堆顶（KeyValue）最小
 
-堆用类KeyValueHeap表示,看KeyValueHeap构造函数做了什么
+堆用类`KeyValueHeap`表示,看`KeyValueHeap`构造函数做了什么
 
 ```java
     KeyValueHeap(List<? extends KeyValueScanner> scanners,
@@ -176,10 +171,9 @@ Store下有三个HFile和MemStore，按照时间顺序记作[HFile1,HFile2,HFile
 seekScanner()的逻辑，如果是lazy seek，则对于每个Scanner都调
 用requestSeek(seekKV)方法，方法内部首先进行rowcol类型的bloom filter过滤
 
-1. 如果结果判定seekKV在StoreFile中肯定不存在，则直接设置StoreFileScanner的peek(实际上StoreFileScanner不是一个
-   堆只是为了统一代码)为 kv.createLastOnRowCol()，并且将realSeekDone设置true，表示实际的seek完成.
+1. 如果结果判定seekKV在StoreFile中肯定不存在，则直接设置StoreFileScanner的peek(实际上StoreFileScanner不是一个   堆只是为了统一代码)为 kv.createLastOnRowCol()，并且将realSeekDone设置true，表示实际的seek完成.
 
-   ```
+   ```java
    public KeyValue createLastOnRowCol() {
    return new KeyValue(
        bytes, getRowOffset(), getRowLength(),
@@ -296,43 +290,82 @@ peek()操作非常简单，只需要调用堆的成员变量current的peek()方�
 
 内存中的Memstore被flush到文件系统或者compaction完成都会改变Store的HFile文件集合。
 在每次做完一批mutate操作后，会通过HRegion::isFlushSize(newSize)检查是否需要对当前HRegion内的memstore进行flush
-其实就是判断HRegion内的所有的memstore大小和是否大于hbase.hregion.memstore.flush.size，默认128MB，如果需要flush，会将请求放入后台flush线程(MemStoreFlusher)的队列中，由后台flush线程处理，调用路径HRegion::flushcache()->internalFlushcache(...)－>StoreFlushContext.flushCache(...)->StoreFlushContext.commit(...)=>HStore::updateStorefiles()，这块逻辑在[HBase Snapshot原理和实现](http://www.cnblogs.com/foxmailed/p/3914117.html)中有讲到，这里不赘述。只说一下最后一步的updateStorefiles()操作，该函数主要工作是拿住HStore级别的写锁，然后将新产生的HFile文件插入到StoreEngine中，解写锁，然后释放snapshot，最后调用
-notifyChangedReadersObservers()，如下：
+其实就是判断HRegion内的所有的memstore大小和是否大于hbase.hregion.memstore.flush.size，默认128MB，如果需要flush，会将请求放入后台flush线程(MemStoreFlusher)的队列中，由后台flush线程处理，调用路径
+
+````java
+HRegion.flushcache()
+  HRegion.internalFlushcache()
+    StoreFlushContext.flushCache()
+      StoreFlushContext.commit()
+        HStore.updateStorefiles()
+````
+
+这块逻辑在[HBase Snapshot原理和实现](http://www.cnblogs.com/foxmailed/p/3914117.html)中有讲到，这里不赘述。只说一下最后一步的`updateStorefiles()`操作，该函数主要工作是拿住`HStore`级别的写锁，然后将新产生的HFile文件插入到StoreEngine中，解写锁，然后释放snapshot，最后调用`notifyChangedReadersObservers()`，如下：
 
 ```java
- this.lock.writeLock().lock();
- try {
-   this.storeEngine.getStoreFileManager().insertNewFiles(sfs);
-   this.memstore.clearSnapshot(set);
- } finally {
-   // We need the lock, as long as we are updating the storeFiles
-   // or changing the memstore. Let us release it before calling
-   // notifyChangeReadersObservers. See HBASE-4485 for a possible
-   // deadlock scenario that could have happened if continue to hold
-   // the lock.
-   this.lock.writeLock().unlock();
- }
- // Tell listeners of the change in readers.
- notifyChangedReadersObservers();
+class HStore{
+  updateStorefiles(){
+    this.lock.writeLock().lock();
+    try {
+      this.storeEngine.getStoreFileManager().insertNewFiles(sfs);
+      this.memstore.clearSnapshot(set);
+    } finally {
+      // We need the lock, as long as we are updating the storeFiles
+      // or changing the memstore. Let us release it before calling
+      // notifyChangeReadersObservers. See HBASE-4485 for a possible
+      // deadlock scenario that could have happened if continue to hold
+      // the lock.
+      this.lock.writeLock().unlock();
+    }
+    // Tell listeners of the change in readers.
+    notifyChangedReadersObservers();
+    
+    //...
+  }
+}
 ```
 
-重点在于notifyChangedReadersObservers()，看看代码：
+重点在于`notifyChangedReadersObservers()`，看看代码：
 
-```
+````java
+class HStore{
   private void notifyChangedReadersObservers() throws IOException {
     for (ChangedReadersObserver o: this.changedReaderObservers) {
       o.updateReaders();
     }
   }
-```
+}
 
-实际上，每个observer类型都是StoreScanner，每次新开一个StoreScanner都会注册在Store内部的这个observer集合中，当Store下面的HFile集合变化时，通知这些注册上来的StoreScanner即可。
-具体的通知方式就是首先拿住StoreScanner的锁，将这个时候的堆顶保存在成员变量lastTop中，
-然后将StoreScanner内部的堆置为null(this.heap=null)最后解锁，而StoreScanner那边next/seek/reseek时，都会首先通过函数checkReseek()函数来检查是否this.heap为null，为null
-，为null说明当前Store下的HFile集合改变了，那么调用resetScannerStack(lastTop)，将当前
-Store下的所有StoreFileScanner/MemStoreScanner都seek到lastTop，然后重新建StoreScanner对应的堆。checkReseek()代码如下:
+class StoreScanner{
+  public void updateReaders() throws IOException {
+    lock.lock();
+    try {
+      if (this.closing) return;
+      // All public synchronized API calls will call 'checkReseek' which will cause
+      // the scanner stack to reseek if this.heap==null && this.lastTop != null.
+      // But if two calls to updateReaders() happen without a 'next' or 'peek' then we
+      // will end up calling this.peek() which would cause a reseek in the middle of a updateReaders
+      // which is NOT what we want, not to mention could cause an NPE. So we early out here.
+      if (this.heap == null) return;
+      
+      // this could be null.
+      this.lastTop = this.peek();
+  
+      // close scanners to old obsolete Store files
+      this.heap.close(); // bubble thru and close all scanners.
+      this.heap = null; // the re-seeks could be slow (access HDFS) free up memory ASAP
+  
+      // Let the next() call handle re-creating and seeking
+    } finally {
+        lock.unlock();
+    }
+  }
+}
+````
 
-```
+实际上每个 `observer` 类型都是 `StoreScanner`，每次新开一个 `StoreScanner` 都会注册在 `Store` 内部的这个`observer` 集合中，当 `Store` 下面的 `HFile` 集合变化时，通知这些注册上来的`StoreScanner`即可。具体的通知方式就是将此时的堆顶保存在成员变量`lastTop`中，然后关闭当前的堆，并将其置为`null`。而`StoreScanner`那边`next`、`seek`和`reseek`时，都会首先通过函数`checkReseek()`函数来检查当前的堆是否为`null`，为`null`说明当前Store下的HFile集合改变了，那么调用 `resetScannerStack(lastTop)`，将当前 `Store` 下的所有 `StoreFileScanner`，以及 `MemStoreScanner` 都 `seek `到 `lastTop`，然后重新建 `StoreScanner` 对应的堆。`checkReseek()` 代码如下:
+
+```java
   protected boolean checkReseek() throws IOException {
     if (this.heap == null && this.lastTop != null) {
       resetScannerStack(this.lastTop);
@@ -352,9 +385,15 @@ Store下的所有StoreFileScanner/MemStoreScanner都seek到lastTop，然后重�
 
 #### 参考资料
 
-[https://github.com/apache/hbase/tree/0.98](https://github.com/apache/hbase/tree/0.98)
+1. [https://github.com/apache/hbase/tree/0.98](https://github.com/apache/hbase/tree/0.98)
 
-[https://issues.apache.org/jira/browse/HBASE-4465](https://issues.apache.org/jira/browse/HBASE-4465)
+2. [https://issues.apache.org/jira/browse/HBASE-4465](https://issues.apache.org/jira/browse/HBASE-4465)
+3. [Prefix Compression - Trie data block encoding](https://issues.apache.org/jira/browse/HBASE-4676)
+   1. [HBase-0.96中新BlockEncoding算法-PREFIX_TREE压缩的初步探究及测试](http://zjushch.iteye.com/blog/1843793)
+4. HFile
+   1. [HFile V2介绍[0.92到0.98之前的版本]](http://blog.csdn.net/map_lixiupeng/article/details/40861791)
+   2. [存储文件HFile结构解析](http://hbasefly.com/2016/03/25/hbase-hfile/)
+   3. [探索HFile索引机制](http://hbasefly.com/2016/04/03/hbase_hfile_index/)
 
 ### 相关的代码
 
@@ -364,3 +403,13 @@ Store下的所有StoreFileScanner/MemStoreScanner都seek到lastTop，然后重�
 2. `RegionScanner`
 3. ​
 
+
+```
+InternalScanner
+  RegionScanner
+    RegionScannerImpl
+```
+
+`FixedFileTrailer`
+
+![](http://img.voidcn.com/vcimg/000/001/990/790_5d6_7e3.jpg)

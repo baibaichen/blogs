@@ -2,9 +2,9 @@
 
 [November 28, 2012](http://blog.cloudera.com/blog/2012/11/apache-hbase-assignmentmanager-improvements/)[By Jimmy Xiang](http://blog.cloudera.com/blog/author/jxiang/)
 
-`AssignmentManager` is a module in the Apache HBase [Master](http://hbase.apache.org/book/master.html) that manages [regions](http://hbase.apache.org/book/regions.arch.html) to [RegionServers](http://hbase.apache.org/book/regionserver.arch.html) assignment. (See HBase [architecture](http://hbase.apache.org/book.html#_architecture) for more information.) It ensures that all regions are assigned and each region is assigned to just one RegionServer.
+**`AssignmentManager`** is a module in the Apache HBase [Master](http://hbase.apache.org/book/master.html) that manages [regions](http://hbase.apache.org/book/regions.arch.html) to [RegionServers](http://hbase.apache.org/book/regionserver.arch.html) assignment. (See HBase [architecture](http://hbase.apache.org/book.html#_architecture) for more information.) It ensures that all regions are assigned and each region is assigned to just one RegionServer.
 
-Although the `AssignmentManager` generally does a good job, the existing implementation does not handle assignments as well as it could. For example, if a region was assigned to two or more RegionServers, some regions were stuck in transition and never got assigned, or unknown region exceptions were thrown in moving a region from one RegionServer to another.
+Although the **`AssignmentManager`** generally does a good job, the existing implementation does not handle assignments as well as it could. For example, if a region was assigned to two or more RegionServers, some regions were stuck in transition and never got assigned, or unknown region exceptions were thrown in moving a region from one RegionServer to another.
 
 In the past we tried to fix these bugs without changing the underlying design. Consequently, the AssignmentManager ended up having many band-aids, and the code base became hard to understand/maintain. Furthermore, the underlying issues had not been completely fixed.
 
@@ -22,7 +22,7 @@ A region can be in one of these states:
 - PENDING_OPEN: Sent RPC to a RegionServer to open but has not begun
 - OPENING: RegionServer has begun to open but not yet done
 - OPEN: RegionServer opened region and updated META
-- PENDING_CLOSE: Sent RPC to RegionServer to close but has not begun
+- **PENDING_CLOSE**: Sent RPC to RegionServer to close but has not begun
 - CLOSING: RegionServer has begun to close but not yet done
 - CLOSED: RegionServer closed region and updated meta
 - SPLITTING: RegionServer started split of a region
@@ -35,13 +35,14 @@ Region state is used to track the transition of a region from unassigned (a.k.a 
 - open:  OFFLINE -> PENDING_OPEN -> OPENING -> OPEN
 - close:  OPEN -> PENDING_CLOSE -> CLOSING -> CLOSED -> OFFLINE
 
-The state machine is tracked in three different places: META table, Master server memory, and Apache ZooKeeper unassign znodes. As it moves through the state machine, we update the different storage locations at different times. The AssignmentManager’s job is to try to keep the three pieces of storage synchronized.
+The state machine is tracked in three different places: **META table**, **Master server memory**, and **Apache ZooKeeper** unassign znodes. As it moves through the state machine, we update the different storage locations at different times. <u>The `AssignmentManager`’s job is to try to keep the three pieces of storage synchronized.</u>
 
-The information in ZooKeeper is transient. It is some temporary information about a region state transition, which is used to track the states while the region moves through from unassigned to assigned, or the reverse way.  If the corresponding RegionServer or the Master crashes in the middle, that information can be used to recover the transition.
+1. **The information in ZooKeeper is transient**. It is some temporary information about a region state transition, which is used to track the states while the region moves through from unassigned to assigned, or the reverse way.  If the corresponding RegionServer or the Master crashes in the middle, that information can be used to recover the transition.
 
-Final region assignment information is persisted in the META table. However, it doesn’t have the latest information of regions in transition. It only has the most recent RegionServer each region is assigned to. If a region is not online, e.g. is in transition, the META table knows the previous RegionServer the region used to be assigned to, but it doesn’t know what’s going on with the region and where it is opening now.
+2. **Final region assignment information is persisted in the META table**. However, it doesn’t have the latest information of regions in transition. It only has the most recent RegionServer each region is assigned to. If a region is not online, e.g. is in transition, the META table knows the previous RegionServer the region used to be assigned to, but it doesn’t know what’s going on with the region and where it is opening now.
 
-The Master holds all region states in memory. This information is used by the AssignmentManager to track where each region is, and its current state. Although region assignments are initiated by the Master and it knows a region is opening on a RegionServer, the Master depends on the ZooKeeper event update to find out if the opening is succeeded. When a region is opened on a RegionServer, this information is already in the META table. But it takes a very short time for the Master to find that out based on the region transition update from ZooKeeper.
+3. **The Master holds all region states in memory**. This information is used by the AssignmentManager to track where each region is, and its current state. Although region assignments are initiated by the Master and it knows a region is opening on a RegionServer, the Master depends on the ZooKeeper event update to find out if the opening is succeeded. When a region is opened on a RegionServer, this information is already in the META table. But it takes a very short time for the Master to find that out based on the region transition update from ZooKeeper.
+
 
 The region state in the Master memory is not always consistent with the information in the META table, or in ZooKeeper. The AssignmentManager is responsible for keeping track of the current status of each region, and make sure they are eventually consistent.
 
