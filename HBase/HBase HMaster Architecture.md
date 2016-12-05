@@ -35,11 +35,11 @@ A generic executor service abstracts a Event Queue where Events of different typ
 [![Hbase Executor Service](http://blog.zahoor.in/wp-content/uploads/2012/08/Screen-Shot-2012-08-08-at-1.29.07-PM-300x269.png)](http://blog.zahoor.in/wp-content/uploads/2012/08/Screen-Shot-2012-08-08-at-1.29.07-PM.png)
 
 ### Open Region Service (MASTER_OPEN_REGION)
-When the master (i.e. Assignment Manager) detects that a region was successfully opened (through zookeeper watch), it posts a event of type RS_ZK_REGION_OPENED to this service. This event is handled by the event handler OpenRegionHandler().
+When the master (i.e. Assignment Manager) detects that a region was successfully opened (<u>through zookeeper watch)</u>, it posts a event of type `RS_ZK_REGION_OPENED` to this service. This event is handled by the event handler `OpenedRegionHandler()`.
 
 ### Close Region Service (MASTER_CLOSE_REGION)
 
-When the master (i,e, Assignment Manager) detects that a region was successfully closed (through a watcher), it posts a event of type RS_ZK_REGION_CLOSED to this service. Also when a region open attempt fails an event of type RS_ZK_REGION_FAILED_OPEN is posted. These events are handled by the event handler ClosedRegionHandler().
+When the master (i,e, Assignment Manager) detects that a region was successfully closed (through a watcher), it posts a event of type `RS_ZK_REGION_CLOSED` to this service. Also when a region open attempt fails an event of type `RS_ZK_REGION_FAILED_OPEN` is posted. These events are handled by the event handler `ClosedRegionHandler()`.
 
 ### Server Operations Service (MASTER_SERVER_OPERATIONS)
 Master detects a region split through zookeeper watch and posts RS_ZK_REGION_SPLIT which is handled by SplitRegionHandler. Also when a master needs to expire a region server (which does not host ROOT or META) it posts an event M_SERVER_SHUTDOWN which is handled by an event handler ServerShutdownHandler.
@@ -137,3 +137,8 @@ The ServerManager class manages info about region servers.Maintains lists of onl
 
 ### Co-Processor Host
 Provides the common setup framework and runtime services for coprocessor invocation from HBase services.
+
+### 参考
+
+1. [Co-locate meta and master](https://issues.apache.org/jira/browse/HBASE-10569) : 这个commit之后，`HMaster`也是`HRegionServer` 
+2. [Generic framework for Master-coordinated tasks](https://issues.apache.org/jira/browse/HBASE-5487) : 按容错的方式执行需要`HMaster`协调的任务
