@@ -1,9 +1,5 @@
 # What are HBase znodes?
 
-[October 23, 2013](https://blog.cloudera.com/blog/2013/10/what-are-hbase-znodes/)[By Matteo Bertozzi](https://blog.cloudera.com/blog/author/mbertozzi/)[2 Comments](https://blog.cloudera.com/blog/2013/10/what-are-hbase-znodes/#comments)
-
-Categories: [General](https://blog.cloudera.com/blog/category/general/) [HBase](https://blog.cloudera.com/blog/category/hbase/) [ZooKeeper](https://blog.cloudera.com/blog/category/zookeeper/)
-
 [Apache ZooKeeper](http://zookeeper.apache.org/) is a client/server system for distributed coordination that exposes an interface similar to a filesystem, where each node (called a *znode*) may contain data and a set of children. Each znode has a name and can be identified using a filesystem-like path (for example, /root-znode/sub-znode/my-znode).
 
 In Apache HBase, ZooKeeper coordinates, communicates, and shares state between the Masters and RegionServers. HBase has a design policy of using ZooKeeper only for transient data (that is, for coordination and state communication). Thus if the HBase’s ZooKeeper data is removed, only the transient operations are affected — data can continue to be written and read to/from HBase.
@@ -27,11 +23,11 @@ ZooKeeper provides an interactive shell that allows you to explore the ZooKeeper
 > ...
 >
 
- 
+** 
 
 ## Operations
 
-The znodes that you’ll most often see are the ones that coordinate operations like Region Assignment, Log Splitting, and Master Failover, or keep track of the cluster state such as the ROOT table location, list of online RegionServers, and list of unassigned Regions.
+The znodes that you’ll most often see are the ones that coordinate operations like *Region Assignment*, *Log Splitting*, and *Master Failover*, or keep track of the cluster state such as the *ROOT table location*, *list of online RegionServers*, and *list of unassigned Regions*.
 
 | **/hbase** (zookeeper.znode.parent)      | The root znode that will contain all the znodes created/used by HBase |
 | ---------------------------------------- | ---------------------------------------- |
