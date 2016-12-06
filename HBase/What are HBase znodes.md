@@ -87,3 +87,11 @@ Online snapshots are coordinated by the Master using ZooKeeper to communicate wi
 As you can see, ZooKeeper is a fundamental part of HBase. All operations that require coordination, such as Regions assignment, Master-Failover, replication, and snapshots, are built on ZooKeeper. (You can learn more about why/how you would use ZooKeeper in your applications [here](http://blog.cloudera.com/blog/2013/02/how-to-use-apache-zookeeper-to-build-distributed-apps-and-why/).)
 
 Although most znodes are only useful to HBase, some — such as the list of RegionServers (/hbase/rs) or list of Unassigned Regions (/hbase/unassigned) — may be used for debugging or monitoring purposes. Or, as in the case with /hbase/draining, you may interact with them to let HBase know what you’re doing with the cluster.
+
+
+
+| Path               | ZooKeeperListener      |      |
+| ------------------ | ---------------------- | ---- |
+| /hbase/**running** | `ClusterStatusTracker` |      |
+| /hbase/master      | `MasterAddressTracker` |      |
+|                    |                        |      |
