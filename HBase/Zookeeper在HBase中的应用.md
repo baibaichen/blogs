@@ -1,32 +1,19 @@
 ## Zookeeper在HBase中的应用
-
-       HBase部署相对是一个较大的动作，其依赖于zookeeper cluster,hadoop HDFS。
+HBase部署相对是一个较大的动作，其依赖于zookeeper cluster,hadoop HDFS。
 
         ![http://images.cnblogs.com/cnblogs_com/reckzhou/201203/201203221739575422.jpg](http://support.huawei.com/huaweiconnect/enterprise/data/attachment/forum/dm/ecommunity/uploads/2015/0123/15/54c1fb276c6db.jpg)
 
-       Zookeeper作用在于：
+Zookeeper作用在于：
 
-                1、hbase regionserver 向zookeeper注册，提供hbase regionserver状态信息（是否在线）。
+1. hbase regionserver 向zookeeper注册，提供hbase regionserver状态信息（是否在线）。
 
-                2、hmaster启动时候会将hbase系统表-ROOT- 加载到 zookeeper cluster，通过zookeeper cluster可以获取当前系统表.META.的存储所对应的regionserver信息。
-
- 
+2. hmaster启动时候会将hbase系统表-ROOT- 加载到 zookeeper cluster，通过zookeeper cluster可以获取当前系统表.META.的存储所对应的regionserver信息。
 
 zookeeper是hbase集群的"**协调器**"。由于zookeeper的轻量级特性，因此我们可以将多个hbase集群共用一个zookeeper集群，以节约大量的服务器。多个hbase集群共用zookeeper集群的方法是使用同一组ip，修改不同hbase集群的"zookeeper.znode.parent"属性，让它们使用不同的根目录。比如cluster1使用/hbase-c1,cluster2使用/hbase-c2，等等。
 
- 
-
-        HMaster主要作用在于，通过HMaster维护系统表-ROOT-,.META.，记录regionserver所对应region变化信息。此外还负责监控处理当前hbase cluster中regionserver状态变化信息。
-
-        hbase regionserver则用于多个/单个维护region。
-
-        region则对应为hbase数据表的表分区数据维护。
-
-        
+ HMaster主要作用在于，通过HMaster维护系统表-ROOT-,.META.，记录regionserver所对应region变化信息。此外还负责监控处理当前hbase cluster中regionserver状态变化信息。hbase regionserver则用于多个/单个维护region。region则对应为hbase数据表的表分区数据维护。
 
 参考：[http://koven2049.iteye.com/blog/1150484](http://koven2049.iteye.com/blog/1150484)
-
- 
 
 ## hbase.zookeeper.zookeeperwatcher.java 类
 
@@ -178,7 +165,7 @@ ZooKeeper中读写数据都具有原子性。
 
 读数据的原子性是指读某个节点的数据时，会将该节点所有的数据都返回给客户端。
 
-写数据的原子性是指写数据不会部分失败或部分成功。一个成功的写操作必须保证被写入到**大部分****zookeeper****服务器**的永久存储上（不是上次说的所有服务器）。
+写数据的原子性是指写数据不会部分失败或部分成功。一个成功的写操作必须保证被写入到**大部分** zookeeper **服务器**的永久存储上（不是上次说的所有服务器）。
 
  
 
