@@ -23,8 +23,6 @@ ZooKeeper provides an interactive shell that allows you to explore the ZooKeeper
 > ...
 >
 
-** 
-
 ## Operations
 
 The znodes that you’ll most often see are the ones that coordinate operations like *Region Assignment*, *Log Splitting*, and *Master Failover*, or keep track of the cluster state such as the *ROOT table location*, *list of online RegionServers*, and *list of unassigned Regions*.
@@ -97,6 +95,25 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 |                               |                        |                                          |
 |                               |                        |                                          |
 
+- [x] meta-region-server, 
+
+- [ ] acl, 
+- [ ] backup-masters, 
+- [ ] table, 
+- [ ] draining, 
+- [ ] region-in-transition, 
+- [x] running,
+- [ ] table-lock, 
+- [x] master, 
+- [x] balancer, 
+- [ ] namespace, 
+- [ ] hbaseid, 
+- [ ] online-snapshot, 
+- [ ] replication, 
+- [ ] splitWAL, 
+- [ ] recovering-regions, 
+- [ ] rs, 
+- [ ] flush-table-proc
 
 
 1. [HBASE-10070](https://issues.apache.org/jira/browse/HBASE-10070)
