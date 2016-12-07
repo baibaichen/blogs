@@ -91,7 +91,7 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 | /hbase/**running**            | `ClusterStatusTracker` |                                          |
 | /hbase/**master**             | `MasterAddressTracker` |                                          |
 | /hbase/**balancer**           | `LoadBalancerTracker`  |                                          |
-| /hbase/**meta-region-server** |                        | [HBASE-3171](https://issues.apache.org/jira/browse/HBASE-3171) |
+| /hbase/**meta-region-server** | `MetaTableLocator`     | [HBASE-3171](https://issues.apache.org/jira/browse/HBASE-3171) |
 |                               |                        |                                          |
 |                               |                        |                                          |
 |                               |                        |                                          |
