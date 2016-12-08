@@ -72,14 +72,14 @@ Values
 
 When a table is in the process of splitting, two other columns will be created, called `info:splitA` and`info:splitB`. These columns represent the two daughter regions. The values for these columns are also serialized HRegionInfo instances. After the region has been split, eventually this row will be deleted.
 
-> Note on HRegionInfo
+> Note on `HRegionInfo`
 > The empty key is used to denote table start and table end. A region with an empty start key is the first region in a table. If a region has both an empty start and an empty end key, it is the only region in the table 
 
-In the (hopefully unlikely) event that programmatic processing of catalog metadata is required, see the [Writables](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/util/Writables.html#getHRegionInfo%28byte%5B%5D%29)utility.
+In the (hopefully unlikely) event that programmatic processing of catalog metadata is required, see the [Writables](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/util/Writables.html#getHRegionInfo%28byte%5B%5D%29) utility.
 
 ### 65.3. Startup Sequencing
 
-First, the location of `hbase:meta` is looked up in ZooKeeper. Next, `hbase:meta` is updated with server and startcode values.
+First, the location of `hbase:meta` is looked up in ZooKeeper. Next, `hbase:meta` is updated with server and **startcode** values.
 
 For information on region-RegionServer assignment, see [Region-RegionServer Assignment](http://hbase.apache.org/book.html#regions.arch.assignment).
 
@@ -97,7 +97,7 @@ The API changed in HBase 1.0. For connection configuration information, see [Cl
 
 #### 66.1.1. API as of HBase 1.0.0
 
-It’s been cleaned up and users are returned Interfaces to work against rather than particular types. In HBase 1.0, obtain a `Connection` object from `ConnectionFactory` and thereafter, get from it instances of `Table`, `Admin`, and`RegionLocator` on an as-need basis. When done, close the obtained instances. Finally, be sure to cleanup your`Connection` instance before exiting. `Connections` are heavyweight objects but thread-safe so you can create one for your application and keep the instance around. `Table`, `Admin` and `RegionLocator` instances are lightweight. Create as you go and then let go as soon as you are done by closing them. See the [Client Package Javadoc Description](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/package-summary.html) for example usage of the new HBase 1.0 API.
+It’s been cleaned up and users are returned Interfaces to work against rather than particular types. In HBase 1.0, obtain a `Connection` object from `ConnectionFactory` and thereafter, get from it instances of `Table`, `Admin`, and `RegionLocator` on an as-need basis. When done, close the obtained instances. Finally, be sure to cleanup your `Connection` instance before exiting. `Connections` are **heavyweight** objects but thread-safe so you can create one for your application and keep the instance around. `Table`, `Admin` and `RegionLocator` instances are lightweight. Create as you go and then let go as soon as you are done by closing them. See the [Client Package Javadoc Description](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/package-summary.html) for example usage of the new HBase 1.0 API.
 
 #### 66.1.2. API before HBase 1.0.0
 
@@ -136,14 +136,14 @@ try (Connection connection = ConnectionFactory.createConnection(conf)) {
 }
 ```
 
-Constructing HTableInterface implementation is very lightweight and resources are controlled.
+Constructing `HTableInterface` implementation is very lightweight and resources are controlled.
 
 > **`HTablePool`** is Deprecated
-> Previous versions of this guide discussed `HTablePool`, which was deprecated in HBase 0.94, 0.95, and 0.96, and removed in 0.98.1, by [HBASE-6500](https://issues.apache.org/jira/browse/HBASE-6580), or `HConnection`, which is deprecated in HBase 1.0 by `Connection`. Please use [Connection](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/Connection.html) instead.
+> Previous versions of this guide discussed `HTablePool`, which was deprecated in HBase 0.94, 0.95, and 0.96, and removed in 0.98.1, by [HBASE-6580](https://issues.apache.org/jira/browse/HBASE-6580), or `HConnection`, which is deprecated in HBase 1.0 by `Connection`. Please use [Connection](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/Connection.html) instead.
 
 ### 66.2. WriteBuffer and Batch Methods
 
-In HBase 1.0 and later, [HTable](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/client/HTable.html) is deprecated in favor of [Table](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/Table.html). `Table` does not use autoflush. To do buffered writes, use the BufferedMutator class.
+**In HBase 1.0 and later**, [HTable](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/client/HTable.html) is deprecated in favor of [Table](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/client/Table.html). `Table` does not use **autoflush**. To do buffered writes, use the BufferedMutator class.
 
 Before a `Table` or `HTable` instance is discarded, invoke either `close()` or `flushCommits()`, so `Put`s will not be lost.
 
@@ -192,7 +192,7 @@ scan.setFilter(list);
 
 #### 67.2.1. SingleColumnValueFilter
 
-A SingleColumnValueFilter (see:[http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/filter/SingleColumnValueFilter.html](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/filter/SingleColumnValueFilter.html)) can be used to test column values for equivalence (`CompareOp.EQUAL`), inequality (`CompareOp.NOT_EQUAL`), or ranges (e.g.,`CompareOp.GREATER`). The following is an example of testing equivalence of a column to a String value "my value"…​
+A [SingleColumnValueFilter](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/filter/SingleColumnValueFilter.html) can be used to test column values for equivalence (`CompareOp.EQUAL`), inequality (`CompareOp.NOT_EQUAL`), or ranges (e.g.,`CompareOp.GREATER`). The following is an example of testing equivalence of a column to a String value "my value"…
 
 ```java
 SingleColumnValueFilter filter = new SingleColumnValueFilter(
@@ -212,7 +212,7 @@ There are several Comparator classes in the Filter package that deserve special 
 
 [RegexStringComparator](http://hbase.apache.org/apidocs/org/apache/hadoop/hbase/filter/RegexStringComparator.html) supports regular expressions for value comparisons.
 
-```
+```java
 RegexStringComparator comp = new RegexStringComparator("my.");   // any value that starts with 'my'
 SingleColumnValueFilter filter = new SingleColumnValueFilter(
   cf,
@@ -362,15 +362,15 @@ This is primarily used for rowcount jobs. See [FirstKeyOnlyFilter](http://hbase
 
 ## 68. Master
 
-`HMaster` is the implementation of the Master Server. The Master server is responsible for monitoring all RegionServer instances in the cluster, and is the interface for all metadata changes. In a distributed cluster, the Master typically runs on the [NameNode](http://hbase.apache.org/book.html#arch.hdfs.nn). J Mohamed Zahoor goes into some more detail on the Master Architecture in this blog posting, [HBase HMaster Architecture ](http://blog.zahoor.in/2012/08/hbase-hmaster-architecture/).
+`HMaster` is the implementation of the Master Server. **The Master server is responsible for monitoring all RegionServer instances in the cluster, and is the interface for all metadata changes.** In a distributed cluster, the Master typically runs on the [NameNode](http://hbase.apache.org/book.html#arch.hdfs.nn). J Mohamed Zahoor goes into some more detail on the Master Architecture in this blog posting, [HBase HMaster Architecture ](http://blog.zahoor.in/2012/08/hbase-hmaster-architecture/).
 
 ### 68.1. Startup Behavior
 
-If run in a multi-Master environment, all Masters compete to run the cluster. If the active Master loses its lease in ZooKeeper (or the Master shuts down), then the remaining Masters jostle to take over the Master role.
+If run in a multi-Master environment, all Masters compete to run the cluster. If the active Master loses its lease in ZooKeeper (or the Master shuts down), then the remaining Masters <u>jostle</u> to take over the Master role.
 
 ### 68.2. Runtime Impact
 
-A common dist-list question involves what happens to an HBase cluster when the Master goes down. Because the HBase client talks directly to the RegionServers, the cluster can still function in a "steady state". Additionally, per[Catalog Tables](http://hbase.apache.org/book.html#arch.catalog), `hbase:meta` exists as an HBase table and is not resident in the Master. However, the Master controls critical functions such as RegionServer failover and completing region splits. So while the cluster can still run for a short time without the Master, the Master should be restarted as soon as possible.
+A common dist-list question involves what happens to an HBase cluster when the Master goes down. Because the HBase client talks directly to the RegionServers, the cluster can still function in a "steady state". Additionally, per [Catalog Tables](http://hbase.apache.org/book.html#arch.catalog), `hbase:meta` exists as an HBase table and is not resident in the Master. However, the Master controls critical functions such as RegionServer failover and completing region splits. So while the cluster can still run for a short time without the Master, the Master should be restarted as soon as possible.
 
 ### 68.3. Interface
 

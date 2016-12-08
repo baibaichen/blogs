@@ -14,23 +14,24 @@ In this post, I will explain some improvements that the Cloudera engineering tea
 
 ## Region States Overview
 
-Almost all of the issues discussed previously are caused by inconsistent region states. For example, a region is assigned to one RegionServer, but the Master thinks it is assigned to a different one, or not assigned at all and assigns it to somewhere else again. So before we move to each patch, let’s talk a little bit about the region states.
+**Almost all of the issues discussed previously are caused by inconsistent region states**. For example, a region is assigned to one RegionServer, but the Master thinks it is assigned to a different one, or not assigned at all and assigns it to somewhere else again. So before we move to each patch, let’s talk a little bit about the region states.
 
 A region can be in one of these states:
 
-- OFFLINE: Region is in an offline state
-- PENDING_OPEN: Sent RPC to a RegionServer to open but has not begun
-- OPENING: RegionServer has begun to open but not yet done
-- OPEN: RegionServer opened region and updated META
+- **OFFLINE**: Region is in an offline state
+- **PENDING_OPEN**: Sent RPC to a RegionServer to open but has not begun
+- **OPENING**: RegionServer has begun to open but not yet done
+- **OPEN**: RegionServer opened region and updated META
 - **PENDING_CLOSE**: Sent RPC to RegionServer to close but has not begun
-- CLOSING: RegionServer has begun to close but not yet done
-- CLOSED: RegionServer closed region and updated meta
-- SPLITTING: RegionServer started split of a region
-- SPLIT: RegionServer completed split of a region
+- **CLOSING**: RegionServer has begun to close but not yet done
+- **CLOSED**: RegionServer closed region and updated meta
+- **SPLITTING**: RegionServer started split of a region
+- **SPLIT**: RegionServer completed split of a region
 
-(The two states SPLITTING and SPLIT relate to region splitting, which is beyond the scope of this post.)
+> The two states SPLITTING and SPLIT relate to region splitting, which is beyond the scope of this post.
+>
 
-Region state is used to track the transition of a region from unassigned (a.k.a offline) to assigned (a.k.a open), and from assigned to unassigned. The transition path (state machine) looks like this:
+**Region state is used to track the transition of a region from unassigned (a.k.a offline) to assigned (a.k.a open), and from assigned to unassigned.** The transition path (state machine) looks like this:
 
 - open:  OFFLINE -> PENDING_OPEN -> OPENING -> OPEN
 - close:  OPEN -> PENDING_CLOSE -> CLOSING -> CLOSED -> OFFLINE
@@ -41,7 +42,7 @@ The state machine is tracked in three different places: **META table**, **Master
 
 2. **Final region assignment information is persisted in the META table**. However, it doesn’t have the latest information of regions in transition. It only has the most recent RegionServer each region is assigned to. If a region is not online, e.g. is in transition, the META table knows the previous RegionServer the region used to be assigned to, but it doesn’t know what’s going on with the region and where it is opening now.
 
-3. **The Master holds all region states in memory**. This information is used by the AssignmentManager to track where each region is, and its current state. Although region assignments are initiated by the Master and it knows a region is opening on a RegionServer, the Master depends on the ZooKeeper event update to find out if the opening is succeeded. When a region is opened on a RegionServer, this information is already in the META table. But it takes a very short time for the Master to find that out based on the region transition update from ZooKeeper.
+3. **The Master holds all region states in memory**. This information is used by the `AssignmentManager` to track where each region is, and its current state. Although region assignments are initiated by the Master and it knows a region is opening on a RegionServer, the Master depends on the ZooKeeper event update to find out if the opening is succeeded. When a region is opened on a RegionServer, this information is already in the META table. But it takes a very short time for the Master to find that out based on the region transition update from ZooKeeper.
 
 
 The region state in the Master memory is not always consistent with the information in the META table, or in ZooKeeper. The AssignmentManager is responsible for keeping track of the current status of each region, and make sure they are eventually consistent.
@@ -62,7 +63,7 @@ The second improvement is [HBASE-6381](https://issues.apache.org/jira/browse/HB
 
 Let’s look at the case where some RegionServers are still up and serving some regions, and the Master and any dead RegionServers restart. The Master then needs to figure out what regions are not in service, and if any regions are still in transition. If so, are they transitioning to/from dead/live RegionServers? There could be tables in the middle of enabling or disabling at this moment too. Things can get very complex. If just one RegionServer and the Master, or just the Master dies, we don’t want to bring down other RegionServers, as it may take quite some time to re-open all regions. This scenario is called “Master failover.”
 
-In failover mode, the Master has its own dead server recovery logic, which is different but similar in function to the dead server handling logic used to recover regions on a RegionServer that dies while the Master is online. One change we did is to reuse the dead server handling logic, as we don’t need to maintain similar logic in the AssignmentManager. So the Master now submits all of the dead RegionServers to the dead server handler to process.
+**In failover mode**, the Master has its own dead server recovery logic, which is different but similar in function to the dead server handling logic used to recover regions on a RegionServer that dies while the Master is online. One change we did is to reuse the dead server handling logic, as we don’t need to maintain similar logic in the AssignmentManager. So the Master now submits all of the dead RegionServers to the dead server handler to process.
 
 The other change we did is to suspend the dead server handler until the region states are fully recovered. The goal is to prevent the handler to race with the region state recovering. If the handler tries to reassign a region, the region transition ZooKeeper event comes to the AssignmentManager. If the region states are not fully recovered yet, we used to have some special logic to handle this scenario since we need to find out this region’s state if we don’t know it already. With this change, we removed the special logic and the code is now cleaner.
 
