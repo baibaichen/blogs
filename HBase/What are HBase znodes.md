@@ -88,9 +88,9 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 | ----------------------------- | ---------------------- | ---------------------------------------- |
 | /hbase/**running**            | `ClusterStatusTracker` |                                          |
 | /hbase/**master**             | `MasterAddressTracker` |                                          |
+| /hbase/**backup-masters**     | `MasterAddressTracker` |                                          |
 | /hbase/**balancer**           | `LoadBalancerTracker`  |                                          |
 | /hbase/**meta-region-server** | `MetaTableLocator`     | [HBASE-3171](https://issues.apache.org/jira/browse/HBASE-3171) |
-|                               |                        |                                          |
 |                               |                        |                                          |
 |                               |                        |                                          |
 |                               |                        |                                          |
@@ -98,7 +98,7 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 - [x] meta-region-server, 
 
 - [ ] acl, 
-- [ ] backup-masters, 
+- [x] backup-masters, 
 - [ ] table, 
 - [ ] draining, 
 - [ ] region-in-transition, 
@@ -116,4 +116,49 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 - [ ] flush-table-proc
 
 
-1. [HBASE-10070](https://issues.apache.org/jira/browse/HBASE-10070)
+1. [HBase read high-availability using timeline-consistent region replicas](https://issues.apache.org/jira/browse/HBASE-10070)
+2. [Abstract out ZooKeeper usage in HBase - phase 1](https://issues.apache.org/jira/browse/HBASE-10909)
+
+
+
+
+````java
+//Master startup
+//1.Main Thread
+HMarster.main()
+  HMasterCommandLine.run()
+    HMarster.HMaster()
+      HRegionServer.HRegionServer()
+        createTableLockManager
+      HMarster.startActiveMasterManager()  // ==>2 创建抢 master leader的线线程
+    HMasterCommandLine.startMaster() // ==> 3 创建服务 hbase:meta 的主线程
+
+//2
+Thread.run()
+  HMarster.finishActiveMasterInitialization() // 成为 leader之后
+    create MasterFileSystem
+    create ServerManager  // 管理 RegionServer
+    setupClusterConnection
+    ZKTableLockManager.reapWriteLocks() // Invalidate all write locks held previously
+    HMarster.initializeZKBasedSystemTrackers() //Initializing ZK system trackers
+      create LoadBalancer
+      create LoadBalancerTracker
+      create AssignmentManager  // zookeeper listener
+      create RegionServerTracker
+      create DrainingServerTracker
+      setup cluster is up       // after this region server can go ahead
+      create SnapshotManager
+      create MasterProcedureManagerHost
+    create MasterCoprocessorHost  // Initializing master coprocessors
+    startServiceThreads // Initializing master service threads
+    ServerManager.waitForRegionServers // Wait for region servers to report in
+  
+// 3
+HRegionServer.run
+  preRegistrationInitialization
+    initializeZooKeeper
+      blockAndCheckIfStopped(master)
+      blockAndCheckIfStopped(clusterup)
+      waitforMasterActive() // wait for becoming active master
+  
+````

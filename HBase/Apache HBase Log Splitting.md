@@ -44,7 +44,7 @@ Times to complete single threaded log splitting vary, but the process may take s
 
 ## Distributed log splitting
 
-HBase 0.90 log splitting is all done by the HMaster. For one log splitting invocation, all the log files are processed sequentially.  After a cluster restarts from crash, unfortunately, all region servers are idle and waiting for the master to finish the log splitting.  Instead of having all the region servers remain idle, why not make them useful and help in the log splitting process? This is the insight behind distributed log splitting
+HBase 0.90 log splitting is all done by the HMaster. For one log splitting invocation, all the log files are processed sequentially.  **After a cluster restarts from crash, unfortunately, all region servers are idle and waiting for the master to finish the log splitting.  Instead of having all the region servers remain idle, why not make them useful and help in the log splitting process?** This is the insight behind distributed log splitting
 
 With distributed log splitting, the master is the boss.  It has a split log manager to manage all log files which should be scanned and split. Split log manager puts all the files under the splitlog ZooKeeper node (/hbase/splitlog) as tasks. For example, while in zkcli, “ls /hbase/splitlog” returns:
 

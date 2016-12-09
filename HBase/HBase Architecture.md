@@ -56,7 +56,7 @@ Values
 
 ### 65.2. hbase:meta
 
-The `hbase:meta` table (previously called `.META.`) keeps a list of all regions in the system. The location of`hbase:meta` was previously tracked within the `-ROOT-` table, but is now stored in ZooKeeper.
+The `hbase:meta` table (previously called **.META.**) keeps a list of all regions in the system. The location of`hbase:meta` was previously tracked within the `-ROOT-` table, but is now stored in ZooKeeper.
 
 The `hbase:meta` table structure is as follows:
 
@@ -431,7 +431,7 @@ Coprocessors were added in 0.92. There is a thorough [Blog Overview of CoProces
 
 ### 69.4. Block Cache
 
-HBase provides two different BlockCache implementations: the default on-heap `LruBlockCache` and the`BucketCache`, which is (usually) off-heap. This section discusses benefits and drawbacks of each implementation, how to choose the appropriate option, and configuration options for each.
+HBase provides two different BlockCache implementations: the default on-heap `LruBlockCache` and the `BucketCache`, which is (usually) off-heap. This section discusses benefits and drawbacks of each implementation, how to choose the appropriate option, and configuration options for each.
 
 > *Block Cache Reporting: UI*
 > See the RegionServer UI for detail on caching deploy. Since HBase 0.98.4, the Block Cache detail has been significantly extended showing configurations, sizings, current usage, time-in-the-cache, and even detail on block counts and types. 
@@ -443,35 +443,37 @@ HBase provides two different BlockCache implementations: the default on-heap `L
 > *`BucketCache` is production ready as of HBase 0.98.6*
 > To run with BucketCache, you need [HBASE-11678](https://issues.apache.org/jira/browse/HBASE-11678). This was included in 0.98.6. 
 
-**Fetching will always be slower when fetching from `BucketCache`, as compared to the native on-heap `LruBlockCache`**. However, latencies tend to be less **<u>erratic</u>** across time, because there is less garbage collection when you use `BucketCache` since it is managing `BlockCache` allocations, not the GC. If the `BucketCache` is deployed in off-heap mode, this memory is not managed by the GC at all. This is why you’d use `BucketCache`, so your latencies are less erratic and to mitigate GCs and heap fragmentation. See Nick Dimiduk’s [BlockCache 101](http://www.n10k.com/blog/blockcache-101/)for comparisons running on-heap vs off-heap tests. Also see [Comparing BlockCache Deploys](http://people.apache.org/~stack/bc/) which finds that if your dataset fits inside your LruBlockCache deploy, use it otherwise if you are experiencing cache churn (or you want your cache to exist beyond the vagaries of java GC), use `BucketCache`.
+**Fetching will always be slower when fetching from `BucketCache`, as compared to the native on-heap `LruBlockCache`**. However, latencies tend to be less **<u>erratic</u>** across time, because there is less garbage collection when you use `BucketCache` since it is managing `BlockCache` allocations, not the GC. If the `BucketCache` is deployed in off-heap mode, this memory is not managed by the GC at all. This is why you’d use `BucketCache`, so your latencies are less erratic and to mitigate GCs and heap fragmentation. See Nick Dimiduk’s [BlockCache 101](http://www.n10k.com/blog/blockcache-101/) for comparisons running on-heap vs off-heap tests. Also see [Comparing BlockCache Deploys](http://people.apache.org/~stack/bc/) which finds that if your dataset fits inside your LruBlockCache deploy, use it otherwise if you are experiencing cache churn (or you want your cache to exist beyond the vagaries of java GC), use `BucketCache`.
 
-When you enable `BucketCache`, you are enabling a two tier caching system, an L1 cache which is implemented by an instance of LruBlockCache and an off-heap L2 cache which is implemented by BucketCache. Management of these two tiers and the policy that dictates how blocks move between them is done by `CombinedBlockCache`. It keeps all DATA blocks in the L2 BucketCache and meta blocks — INDEX and BLOOM blocks — on-heap in the L1`LruBlockCache`. See [Off-heap Block Cache](http://hbase.apache.org/book.html#offheap.blockcache) for more detail on going off-heap.
+**When you enable `BucketCache`, you are enabling a two tier caching system**, an **L1** cache which is implemented by an instance of `LruBlockCache` and an off-heap **L2** cache which is implemented by `BucketCache`. Management of these two tiers and the policy that dictates how blocks move between them is done by `CombinedBlockCache`. It keeps all DATA blocks in the L2 BucketCache and meta blocks — INDEX and BLOOM blocks — on-heap in the L1 `LruBlockCache`. See [Off-heap Block Cache](http://hbase.apache.org/book.html#offheap.blockcache) for more detail on going off-heap.
 
 #### 69.4.2. General Cache Configurations
 
-Apart from the cache implementation itself, you can set some general configuration options to control how the cache performs. See [http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CacheConfig.html](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CacheConfig.html). After setting any of these options, restart or rolling restart your cluster for the configuration to take effect. Check logs for errors or unexpected behavior.
+Apart from the cache implementation itself, you can set some general configuration options to control how the cache performs. See [`CacheConfig`](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CacheConfig.html). After setting any of these options, restart or rolling restart your cluster for the configuration to take effect. Check logs for errors or unexpected behavior.
 
 See also [Prefetch Option for Blockcache](http://hbase.apache.org/book.html#blockcache.prefetch), which discusses a new option introduced in [HBASE-9857](https://issues.apache.org/jira/browse/HBASE-9857).
 
 #### 69.4.3. LruBlockCache Design
 
-The LruBlockCache is an LRU cache that contains three levels of block priority to allow for scan-resistance and in-memory ColumnFamilies:
+The `LruBlockCache` is an LRU cache that contains three levels of block priority to allow for scan-resistance and in-memory ColumnFamilies:
 
-- Single access priority: The first time a block is loaded from HDFS it normally has this priority and it will be part of the first group to be considered during evictions. The advantage is that scanned blocks are more likely to get evicted than blocks that are getting more usage.
+- **Single access priority**: The first time a block is loaded from HDFS it normally has this priority and it will be part of the first group to be considered during evictions. The advantage is that scanned blocks are more likely to get evicted than blocks that are getting more usage.
 
-- Multi access priority: If a block in the previous priority group is accessed again, it upgrades to this priority. It is thus part of the second group considered during evictions.
+- **Multi access priority**: If a block in the previous priority group is accessed again, it upgrades to this priority. It is thus part of the second group considered during evictions.
 
-- In-memory access priority: If the block’s family was configured to be "in-memory", it will be part of this priority disregarding the number of times it was accessed. Catalog tables are configured like this. This group is the last one considered during evictions.
+- **In-memory access priority**: If the block’s family was configured to be "in-memory", it will be part of this priority disregarding the number of times it was accessed. Catalog tables are configured like this. This group is the last one considered during evictions.
 
   To mark a column family as in-memory, call
 
-````java
-HColumnDescriptor.setInMemory(true);
+  ````java
+    HColumnDescriptor.setInMemory(true);
+  ````
+
+If creating a table from java, or set `IN_MEMORY ⇒ true` when creating or altering a table in the shell: e.g.
+
+````shell
+hbase(main):003:0> create  't', {NAME => 'f', IN_MEMORY => 'true'}
 ````
-
-if creating a table from java, or set `IN_MEMORY ⇒ true` when creating or altering a table in the shell: e.g.
-
-> hbase(main):003:0> create  't', {NAME => 'f', IN_MEMORY => 'true'}
 
 For more information, see the `LruBlockCache` source
 
@@ -481,19 +483,21 @@ Block caching is enabled by default for all the user tables which means that any
 
 The way to calculate how much memory is available in HBase for caching is:
 
-> number of region servers * heap size * hfile.block.cache.size * 0.99
+$$
+number of region servers * heap size * hfile.block.cache.size * 0.99
+$$
 
 The default value for the block cache is 0.25 which represents 25% of the available heap. The last value (99%) is the default acceptable loading factor in the LRU cache after which eviction is started. The reason it is included in this equation is that it would be unrealistic to say that it is possible to use 100% of the available memory since this would make the process blocking from the point where it loads new blocks. Here are some examples:
 
 - One region server with the heap size set to 1 GB and the default block cache size will have 253 MB of block cache available.
-- 20 region servers with the heap size set to 8 GB and a default block cache size will have 39.6 of block cache.
+- 20 region servers with the heap size set to 8 GB and a default block cache size will have 39.6 GB of block cache.
 - 100 region servers with the heap size set to 24 GB and a block cache size of 0.5 will have about 1.16 TB of block cache.
 
-Your data is not the only resident of the block cache. Here are others that you may have to take into account:
+**Your data is not the only resident of the block cache**. Here are others that you may have to take into account:
 
 - **Catalog Tables**
 
-  The `-ROOT-` (prior to HBase 0.96, see [arch.catalog.root](http://hbase.apache.org/book.html#arch.catalog.root)) and `hbase:meta` tables are forced into the block cache and have the in-memory priority which means that they are harder to evict. The former never uses more than a few hundred bytes while the latter can occupy a few MBs (depending on the number of regions).
+  The **-ROOT-** (prior to HBase 0.96, see [arch.catalog.root](http://hbase.apache.org/book.html#arch.catalog.root)) and **hbase:meta** tables are forced into the block cache and have the in-memory priority which means that they are harder to evict. The former never uses more than a few hundred bytes while the latter can occupy a few MBs (depending on the number of regions).
 
 - **HFiles Indexes**
 
@@ -507,12 +511,12 @@ Your data is not the only resident of the block cache. Here are others that you 
 
   Just like the HFile indexes, those data structures (when enabled) are stored in the LRU.
 
-Currently the recommended way to measure HFile indexes and bloom filters sizes is to look at the region server web UI and checkout the relevant metrics. For keys, sampling can be done by using the HFile command line tool and look for the average key size metric. Since HBase 0.98.3, you can view details on BlockCache stats and metrics in a special Block Cache section in the UI.
+Currently the recommended way to measure HFile indexes and bloom filters sizes is to *look at the region server web UI and checkout the relevant metrics*. For keys, sampling can be done by using the HFile command line tool and look for the average key size metric. Since HBase 0.98.3, you can view details on BlockCache stats and metrics in a special Block Cache section in the UI.
 
-It’s generally bad to use block caching when the WSS doesn’t fit in memory. This is the case when you have for example 40GB available across all your region servers' block caches but you need to process 1TB of data. One of the reasons is that the churn generated by the evictions will trigger more garbage collections unnecessarily. Here are two use cases:
+It’s generally bad to use block caching when the WSS doesn’t fit in memory. <u>This is the case when you have for example 40GB available across all your region servers' block caches but you need to process 1TB of data</u>. One of the reasons is that the churn generated by the evictions will trigger more garbage collections unnecessarily. Here are two use cases:
 
-- Fully random reading pattern: This is a case where you almost never access the same row twice within a short amount of time such that the chance of hitting a cached block is close to 0. Setting block caching on such a table is a waste of memory and CPU cycles, more so that it will generate more garbage to pick up by the JVM. For more information on monitoring GC, see [JVM Garbage Collection Logs](http://hbase.apache.org/book.html#trouble.log.gc).
-- Mapping a table: In a typical MapReduce job that takes a table in input, every row will be read only once so there’s no need to put them into the block cache. The Scan object has the option of turning this off via the setCaching method (set it to false). You can still keep block caching turned on on this table if you need fast random read access. An example would be counting the number of rows in a table that serves live traffic, caching every block of that table would create massive churn and would surely evict data that’s currently in use.
+- **Fully random reading pattern**: This is a case where you almost never access the same row twice within a short amount of time such that the chance of hitting a cached block is close to 0. Setting block caching on such a table is a waste of memory and CPU cycles, more so that it will generate more garbage to pick up by the JVM. For more information on monitoring GC, see [JVM Garbage Collection Logs](http://hbase.apache.org/book.html#trouble.log.gc).
+- **Mapping a table**: In a typical MapReduce job that takes a table in input, every row will be read only once so there’s no need to put them into the block cache. **The Scan object has the option of turning this off via the setCaching method (set it to false)**. You can still keep block caching turned on on this table if you need fast random read access. An example would be counting the number of rows in a table that serves live traffic, caching every block of that table would create massive churn and would surely evict data that’s currently in use.
 
 ##### Caching META blocks only (DATA blocks in fscache)
 
@@ -522,13 +526,15 @@ An interesting setup is one where we cache META blocks only and we read DATA blo
 
 ##### How to Enable BucketCache
 
-The usual deploy of BucketCache is via a managing class that sets up two caching tiers: an L1 on-heap cache implemented by LruBlockCache and a second L2 cache implemented with BucketCache. The managing class is[CombinedBlockCache](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CombinedBlockCache.html) by default. The previous link describes the caching 'policy' implemented by CombinedBlockCache. In short, it works by keeping meta blocks — INDEX and BLOOM in the L1, on-heap LruBlockCache tier — and DATA blocks are kept in the L2, BucketCache tier. It is possible to amend this behavior in HBase since version 1.0 and ask that a column family have both its meta and DATA blocks hosted on-heap in the L1 tier by setting `cacheDataInL1` via `(HColumnDescriptor.setCacheDataInL1(true)` or in the shell, creating or amending column families setting `CACHE_DATA_IN_L1` to true: e.g.
+The usual deploy of BucketCache is via a managing class that sets up two caching tiers: an L1 on-heap cache implemented by LruBlockCache and a second L2 cache implemented with BucketCache. The managing class is [CombinedBlockCache](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CombinedBlockCache.html) by default. The previous link describes the caching 'policy' implemented by CombinedBlockCache. In short, it works by keeping meta blocks — INDEX and BLOOM in the L1, on-heap LruBlockCache tier — and DATA blocks are kept in the L2, BucketCache tier. It is possible to amend this behavior in HBase since version 1.0 and ask that a column family have both its meta and DATA blocks hosted on-heap in the L1 tier by setting `cacheDataInL1` via `(HColumnDescriptor.setCacheDataInL1(true)` or in the shell, creating or amending column families setting `CACHE_DATA_IN_L1` to true: e.g.
 
-> hbase(main):003:0> create 't', {NAME => 't', CONFIGURATION => {CACHE_DATA_IN_L1 => 'true'}}
+``` shell
+hbase(main):003:0> create 't', {NAME => 't', CONFIGURATION => {CACHE_DATA_IN_L1 => 'true'}}
+```
 
-The BucketCache Block Cache can be deployed on-heap, off-heap, or file based. You set which via the`hbase.bucketcache.ioengine` setting. Setting it to `heap` will have BucketCache deployed inside the allocated Java heap. Setting it to `offheap` will have BucketCache make its allocations off-heap, and an ioengine setting of`file:PATH_TO_FILE` will direct BucketCache to use a file caching (Useful in particular if you have some fast I/O attached to the box such as SSDs).
+The BucketCache Block Cache can be deployed on-heap, off-heap, or file based. You set which via the `hbase.bucketcache.ioengine` setting. Setting it to `heap` will have BucketCache deployed inside the allocated Java heap. Setting it to `offheap` will have BucketCache make its allocations off-heap, and an ioengine setting of`file:PATH_TO_FILE` will direct BucketCache to use a file caching (Useful in particular if you have some fast I/O attached to the box such as SSDs).
 
-It is possible to deploy an L1+L2 setup where we bypass the CombinedBlockCache policy and have BucketCache working as a strict L2 cache to the L1 LruBlockCache. For such a setup, set`CacheConfig.BUCKET_CACHE_COMBINED_KEY` to `false`. In this mode, on eviction from L1, blocks go to L2. When a block is cached, it is cached first in L1. When we go to look for a cached block, we look first in L1 and if none found, then search L2. Let us call this deploy format, *Raw L1+L2*.
+It is possible to deploy an L1+L2 setup where we bypass the CombinedBlockCache policy and have BucketCache working as a strict L2 cache to the L1 LruBlockCache. For such a setup, set `CacheConfig.BUCKET_CACHE_COMBINED_KEY` to `false`. In this mode, on eviction from L1, blocks go to L2. When a block is cached, it is cached first in L1. When we go to look for a cached block, we look first in L1 and if none found, then search L2. Let us call this deploy format, *Raw L1+L2*.
 
 Other BucketCache configs include: specifying a location to persist cache to across restarts, how many threads to use writing the cache, etc. See the [CacheConfig.html](https://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/hfile/CacheConfig.html) class for configuration options and descriptions.
 
@@ -542,7 +548,9 @@ Setting `hbase.bucketcache.ioengine` and `hbase.bucketcache.size` > 0 enable
 
 1. First, edit the RegionServer’s *hbase-env.sh* and set `HBASE_OFFHEAPSIZE` to a value greater than the off-heap size wanted, in this case, 4 GB (expressed as 4G). Let’s set it to 5G. That’ll be 4G for our off-heap cache and 1G for any other uses of off-heap memory (there are other users of off-heap memory other than BlockCache; e.g. DFSClient in RegionServer can make use of off-heap memory). See [Direct Memory Usage In HBase](http://hbase.apache.org/book.html#direct.memory).
 
-> HBASE_OFFHEAPSIZE=5G
+    ````
+    HBASE_OFFHEAPSIZE=5G
+    ````
 
 
 2. Next, add the following configuration to the RegionServer’s *hbase-site.xml*.
@@ -576,7 +584,7 @@ In the above, we set the BucketCache to be 4G. We configured the on-heap LruBloc
 ````
 
 > *Direct Memory Usage In HBase*
-> The default maximum direct memory varies by JVM. Traditionally it is 64M or some relation to allocated heap size (-Xmx) or no limit at all (JDK7 apparently). HBase servers use direct memory, in particular short-circuit reading, the hosted DFSClient will allocate direct memory buffers. If you do off-heap block caching, you’ll be making use of direct memory. Starting your JVM, make sure the `-XX:MaxDirectMemorySize` setting in *conf/hbase-env.sh* is set to some value that is higher than what you have allocated to your off-heap BlockCache (`hbase.bucketcache.size`). It should be larger than your off-heap block cache and then some for DFSClient usage (How much the DFSClient uses is not easy to quantify; it is the number of open HFiles \* `hbase.dfs.client.read.shortcircuit.buffer.size`  where `hbase.dfs.client.read.shortcircuit.buffer.size` is set to 128k in HBase — see *hbase-default.xml* default configurations). Direct memory, which is part of the Java process heap, is separate from the object heap allocated by -Xmx. The value allocated by `MaxDirectMemorySize` must not exceed physical RAM, and is likely to be less than the total available RAM due to other memory requirements and system constraints.You can see how much memory — on-heap and off-heap/direct — a RegionServer is configured to use and how much it is using at any one time by looking at the *Server Metrics: Memory* tab in the UI. It can also be gotten via JMX. In particular the direct memory currently used by the server can be found on the `java.nio.type=BufferPool,name=direct` bean. Terracotta has a [good write up](http://terracotta.org/documentation/4.0/bigmemorygo/configuration/storage-options) on using off-heap memory in Java. It is for their product BigMemory but a lot of the issues noted apply in general to any attempt at going off-heap. Check it out. 
+> The default maximum direct memory varies by JVM. Traditionally it is 64M or some relation to allocated heap size (-Xmx) or no limit at all (JDK7 apparently). HBase servers use direct memory, in particular short-circuit reading, the hosted DFSClient will allocate direct memory buffers. If you do off-heap block caching, you’ll be making use of direct memory. Starting your JVM, make sure the `-XX:MaxDirectMemorySize` setting in *conf/hbase-env.sh* is set to some value that is higher than what you have allocated to your off-heap BlockCache (`hbase.bucketcache.size`). It should be larger than your off-heap block cache and then some for DFSClient usage (How much the DFSClient uses is not easy to quantify; it is the `number of open HFiles * hbase.dfs.client.read.shortcircuit.buffer.size`  where `hbase.dfs.client.read.shortcircuit.buffer.size` is set to 128k in HBase — see *hbase-default.xml* default configurations). Direct memory, which is part of the Java process heap, is separate from the object heap allocated by -Xmx. The value allocated by `MaxDirectMemorySize` must not exceed physical RAM, and is likely to be less than the total available RAM due to other memory requirements and system constraints.You can see how much memory — on-heap and off-heap/direct — a RegionServer is configured to use and how much it is using at any one time by looking at the *Server Metrics: Memory* tab in the UI. It can also be gotten via JMX. In particular the direct memory currently used by the server can be found on the `java.nio.type=BufferPool,name=direct` bean. Terracotta has a [good write up](http://terracotta.org/documentation/4.0/bigmemorygo/configuration/storage-options) on using off-heap memory in Java. It is for their product BigMemory but a lot of the issues noted apply in general to any attempt at going off-heap. Check it out. 
 
 > *hbase.bucketcache.percentage.in.combinedcache*
 > This is a pre-HBase 1.0 configuration removed because it was confusing. It was a float that you would set to some value between 0.0 and 1.0. Its default was 0.9. If the deploy was using `CombinedBlockCache`, then the `LruBlockCache` L1 size was calculated to be `(1 - hbase.bucketcache.percentage.in.combinedcache) * size-of-bucketcache` and the `BucketCache` size was `hbase.bucketcache.percentage.in.combinedcache * size-of-bucket-cache`. where size-of-bucket-cache itself is **EITHER** the value of the configuration `hbase.bucketcache.size` IF it was specified as Megabytes OR `hbase.bucketcache.size` * `-XX:MaxDirectMemorySize` if `hbase.bucketcache.size` is between 0 and 1.0.
@@ -593,27 +601,27 @@ The compressed BlockCache is disabled by default. To enable it, set `hbase.bloc
 
 ### 69.5. RegionServer Splitting Implementation
 
-As write requests are handled by the region server, they accumulate in an in-memory storage system called the*memstore*. Once the memstore fills, its content are written to disk as additional store files. This event is called a*memstore flush*. As store files accumulate, the RegionServer will [compact](http://hbase.apache.org/book.html#compaction) them into fewer, larger files. After each flush or compaction finishes, the amount of data stored in the region has changed. The RegionServer consults the region split policy to determine if the region has grown too large or should be split for another policy-specific reason. A region split request is enqueued if the policy recommends it.
+As write requests are handled by the region server, they accumulate in an in-memory storage system called the **memstore**. Once the memstore fills, its content are written to disk as additional store files. This event is called a **memstore flush**. As store files accumulate, the RegionServer will [compact](http://hbase.apache.org/book.html#compaction) them into fewer, larger files. After each flush or compaction finishes, the amount of data stored in the region has changed. The RegionServer consults the region split policy to determine if the region has grown too large or should be split for another policy-specific reason. **A region split request is enqueued if the policy recommends it**.
 
-Logically, the process of splitting a region is simple. We find a suitable point in the keyspace of the region where we should divide the region in half, then split the region’s data into two new regions at that point. The details of the process however are not simple. When a split happens, the newly created *daughter regions* do not rewrite all the data into new files immediately. Instead, they create small files similar to symbolic link files, named [Reference files](http://www.google.com/url?q=http%3A%2F%2Fhbase.apache.org%2Fapidocs%2Forg%2Fapache%2Fhadoop%2Fhbase%2Fio%2FReference.html&sa=D&sntz=1&usg=AFQjCNEkCbADZ3CgKHTtGYI8bJVwp663CA), which point to either the top or bottom part of the parent store file according to the split point. The reference file is used just like a regular data file, but only half of the records are considered. The region can only be split if there are no more references to the immutable data files of the parent region. Those reference files are cleaned gradually by compactions, so that the region will stop referring to its parents files, and can be split further.
+Logically, the process of splitting a region is simple. We find a suitable point in the keyspace of the region where we should divide the region in half, then split the region’s data into two new regions at that point. The details of the process however are not simple. <u>When a split happens, the newly created *daughter regions* do not rewrite all the data into new files immediately.</u> Instead, they create small files similar to symbolic link files, named [Reference files](http://hbase.apache.org/devapidocs/org/apache/hadoop/hbase/io/Reference.html), which point to either the top or bottom part of the parent store file according to the split point. The reference file is used just like a regular data file, but only half of the records are considered. **The region can only be split if there are no more references to the immutable data files of the parent region**. Those reference files are cleaned gradually by compactions, so that the region will stop referring to its parents files, and can be split further.
 
-Although splitting the region is a local decision made by the RegionServer, the split process itself must coordinate with many actors. The RegionServer notifies the Master before and after the split, updates the `.META.` table so that clients can discover the new daughter regions, and rearranges the directory structure and data files in HDFS. Splitting is a multi-task process. To enable rollback in case of an error, the RegionServer keeps an in-memory journal about the execution state. The steps taken by the RegionServer to execute the split are illustrated in [RegionServer Split Process](http://hbase.apache.org/book.html#regionserver_split_process_image). Each step is labeled with its step number. Actions from RegionServers or Master are shown in red, while actions from the clients are show in green.
+Although splitting the region is a local decision made by the RegionServer, the split process itself must coordinate with many actors. The RegionServer notifies the Master before and after the split, updates the **.META.** table so that clients can discover the new daughter regions, and rearranges the directory structure and data files in HDFS. Splitting is a multi-task process. To enable rollback in case of an error, the RegionServer keeps an in-memory journal about the execution state. The steps taken by the RegionServer to execute the split are illustrated in [RegionServer Split Process](http://hbase.apache.org/book.html#regionserver_split_process_image). Each step is labeled with its step number. Actions from RegionServers or Master are shown in red, while actions from the clients are show in green.
 
 ![Region Split Process](http://hbase.apache.org/images/region_split_process.png)
 
 Figure 1. RegionServer Split Process
 
-1. The RegionServer decides locally to split the region, and prepares the split. **THE SPLIT TRANSACTION IS STARTED.** As a first step, the RegionServer acquires a shared read lock on the table to prevent schema modifications during the splitting process. Then it creates a znode in zookeeper under `/hbase/region-in-transition/region-name`, and sets the znode’s state to `SPLITTING`.
-2. The Master learns about this znode, since it has a watcher for the parent `region-in-transition` znode.
-3. The RegionServer creates a sub-directory named `.splits` under the parent’s `region` directory in HDFS.
-4. The RegionServer closes the parent region and marks the region as offline in its local data structures. **THE SPLITTING REGION IS NOW OFFLINE.** At this point, client requests coming to the parent region will throw`NotServingRegionException`. The client will retry with some backoff. The closing region is flushed.
+1. The RegionServer decides locally to split the region, and prepares the split. **THE SPLIT TRANSACTION IS STARTED.** As a first step, <u>the RegionServer acquires a shared read lock on the table to prevent schema modifications during the splitting process</u>. Then it creates a znode in zookeeper under ***/hbase/region-in-transition/region-name***, and sets the znode’s state to **SPLITTING**.
+2. The Master learns about this znode, since it has a watcher for the parent ***region-in-transition*** znode.
+3. The RegionServer creates a sub-directory named ***.splits*** under the **parent’s region** directory in HDFS.
+4. The RegionServer closes the parent region and marks the region as offline in its local data structures. **THE SPLITTING REGION IS NOW OFFLINE.** At this point, client requests coming to the parent region will throw `NotServingRegionException`. The client will retry with some backoff. The closing region is flushed.
 5. The RegionServer creates region directories under the `.splits` directory, for daughter regions A and B, and creates necessary data structures. Then it splits the store files, in the sense that it creates two Reference files per store file in the parent region. Those reference files will point to the parent region’s files.
 6. The RegionServer creates the actual region directory in HDFS, and moves the reference files for each daughter.
-7. The RegionServer sends a `Put` request to the `.META.` table, to set the parent as offline in the `.META.` table and add information about daughter regions. At this point, there won’t be individual entries in `.META.` for the daughters. Clients will see that the parent region is split if they scan `.META.`, but won’t know about the daughters until they appear in `.META.`. Also, if this `Put` to `.META`. succeeds, the parent will be effectively split. If the RegionServer fails before this RPC succeeds, Master and the next Region Server opening the region will clean dirty state about the region split. After the `.META.` update, though, the region split will be rolled-forward by Master.
+7. The RegionServer sends a `Put` request to the **.META.** table, to set the parent as offline in the **.META.** table and add information about daughter regions. At this point, there won’t be individual entries in **.META.** for the daughters. Clients will see that the parent region is split if they scan **.META.**, but won’t know about the daughters until they appear in **.META.**. Also, if this `Put` to **.META.** succeeds, the parent will be effectively split. If the RegionServer fails before this RPC succeeds, Master and the next Region Server opening the region will clean dirty state about the region split. After the **.META.** update, though, the region split will be rolled-forward by Master.
 8. The RegionServer opens daughters A and B in parallel.
-9. The RegionServer adds the daughters A and B to `.META.`, together with information that it hosts the regions.**THE SPLIT REGIONS (DAUGHTERS WITH REFERENCES TO PARENT) ARE NOW ONLINE.** After this point, clients can discover the new regions and issue requests to them. Clients cache the `.META.` entries locally, but when they make requests to the RegionServer or `.META.`, their caches will be invalidated, and they will learn about the new regions from `.META.`.
-10. The RegionServer updates znode `/hbase/region-in-transition/region-name` in ZooKeeper to state `SPLIT`, so that the master can learn about it. The balancer can freely re-assign the daughter regions to other region servers if necessary. **THE SPLIT TRANSACTION IS NOW FINISHED.**
-11. After the split, `.META.` and HDFS will still contain references to the parent region. Those references will be removed when compactions in daughter regions rewrite the data files. Garbage collection tasks in the master periodically check whether the daughter regions still refer to the parent region’s files. If not, the parent region will be removed.
+9. The RegionServer adds the daughters A and B to **.META.**, together with information that it hosts the regions.**THE SPLIT REGIONS (DAUGHTERS WITH REFERENCES TO PARENT) ARE NOW ONLINE.** After this point, clients can discover the new regions and issue requests to them. Clients cache the **.META.** entries locally, but when they make requests to the RegionServer or **.META.**, their caches will be invalidated, and they will learn about the new regions from **.META.**.
+10. The RegionServer updates znode ***/hbase/region-in-transition/region-name*** in ZooKeeper to state `SPLIT`, so that the master can learn about it. The balancer can freely re-assign the daughter regions to other region servers if necessary. **THE SPLIT TRANSACTION IS NOW FINISHED.**
+11. After the split, **.META.** and HDFS will still contain references to the parent region. Those references will be removed when compactions in daughter regions rewrite the data files. Garbage collection tasks in the master periodically check whether the daughter regions still refer to the parent region’s files. If not, the parent region will be removed.
 
 ### 69.6. Write Ahead Log (WAL)
 
@@ -659,33 +667,37 @@ TODO (describe).
 
 #### 69.6.4. WAL Splitting
 
-A RegionServer serves many regions. All of the regions in a region server share the same active WAL file. Each edit in the WAL file includes information about which region it belongs to. When a region is opened, the edits in the WAL file which belong to that region need to be replayed. Therefore, edits in the WAL file must be grouped by region so that particular sets can be replayed to regenerate the data in a particular region. The process of grouping the WAL edits by region is called *log splitting*. It is a critical process for recovering data if a region server fails.
+A RegionServer serves many regions. All of the regions in a region server share the same active WAL file. Each edit in the WAL file includes information about which region it belongs to. When a region is opened, the edits in the WAL file which belong to that region need to be replayed. Therefore, edits in the WAL file must be grouped by region so that particular sets can be replayed to regenerate the data in a particular region. **The process of grouping the WAL edits by region is called *log splitting***. It is a critical process for recovering data if a region server fails.
 
-Log splitting is done by the HMaster during cluster start-up or by the ServerShutdownHandler as a region server shuts down. So that consistency is guaranteed, affected regions are unavailable until data is restored. All WAL edits need to be recovered and replayed before a given region can become available again. As a result, regions affected by log splitting are unavailable until the process completes.
+Log splitting is done by the HMaster during cluster start-up or by the `ServerShutdownHandler` as a region server shuts down. So that consistency is guaranteed, affected regions are unavailable until data is restored. All WAL edits need to be recovered and replayed before a given region can become available again. As a result, regions affected by log splitting are unavailable until the process completes.
 
 Procedure: Log Splitting, Step by Step
 
-1. The */hbase/WALs/\<host>,\<port>,\<startcode>* directory is renamed.
+1. The `/hbase/WALs/<host>,<port>,<startcode>` directory is renamed.
 
-   Renaming the directory is important because a RegionServer may still be up and accepting requests even if the HMaster thinks it is down. If the RegionServer does not respond immediately and does not heartbeat its ZooKeeper session, the HMaster may interpret this as a RegionServer failure. Renaming the logs directory ensures that existing, valid WAL files which are still in use by an active but busy RegionServer are not written to by accident.
+   **Renaming the directory is important because a RegionServer may still be up and accepting requests even if the HMaster thinks it is down**. If the RegionServer does not respond immediately and does not heartbeat its ZooKeeper session, the HMaster *may interpret* this as a RegionServer failure. Renaming the logs directory ensures that existing, valid WAL files which are still in use by an active but busy RegionServer are not written to by accident.
 
    The new directory is named according to the following pattern:
 
-   > /base/WALs/\<host>,\<port>,\<startcode>-splitting
+   ```shell
+   /hbase/WALs/<host>,<port>,<startcode>-splitting
+   ```
 
    An example of such a renamed directory might look like the following:
 
-   > /hbase/WALs/srv.example.com,60020,1254173957298-splitting
+   ```shell
+   /hbase/WALs/srv.example.com,60020,1254173957298-splitting
+   ```
 
 2. Each log file is split, one at a time.
 
    The log splitter reads the log file one edit entry at a time and puts each edit entry into the buffer corresponding to the edit’s region. At the same time, the splitter starts several writer threads. Writer threads pick up a corresponding buffer and write the edit entries in the buffer to a temporary recovered edit file. The temporary edit file is stored to disk with the following naming pattern:
 
+   ```shell
+   hbase/<table_name>/<region_id>/recovered.edits/.temp
+   ```
 
-   > hbase/\<table_name>/\<region_id>/recovered.edits/.temp
-
-
-   This file is used to store all the edits in the WAL log for this region. After log splitting completes, the *.temp* file is renamed to the sequence ID of the first log written to the file.
+   This file is used to store all the edits in the WAL log for this region. **After log splitting completes, the *.temp* file is renamed to the sequence ID of the first log written to the file**.
 
    To determine whether all edits have been written, the sequence ID is compared to the sequence of the last edit that was written to the HFile. If the sequence of the last edit is greater than or equal to the sequence ID included in the file name, it is clear that all writes from the edit file have been completed.
 
@@ -709,7 +721,7 @@ If an `EOFException` occurs while splitting logs, the split proceeds even when 
 
 ##### Performance Improvements during Log Splitting
 
-WAL log splitting and recovery can be resource intensive and take a long time, depending on the number of RegionServers involved in the crash and the size of the regions. [Enabling or Disabling Distributed Log Splitting](http://hbase.apache.org/book.html#distributed.log.splitting)was developed to improve performance during log splitting.
+WAL log splitting and recovery can be resource intensive and take a long time, depending on the number of RegionServers involved in the crash and the size of the regions. [Enabling or Disabling Distributed Log Splitting](http://hbase.apache.org/book.html#distributed.log.splitting) was developed to improve performance during log splitting.
 
 Enabling or Disabling Distributed Log Splitting
 
@@ -717,7 +729,7 @@ Distributed log processing is enabled by default since HBase 0.92. The setting i
 
 Distributed Log Splitting, Step by Step
 
-After configuring distributed log splitting, the HMaster controls the process. The HMaster enrolls each RegionServer in the log splitting process, and the actual work of splitting the logs is done by the RegionServers. The general process for log splitting, as described in [Distributed Log Splitting, Step by Step](http://hbase.apache.org/book.html#log.splitting.step.by.step) still applies here.
+**After configuring distributed log splitting, the HMaster controls the process**. The HMaster enrolls each RegionServer in the log splitting process, and *the actual work of splitting the logs is done by the RegionServers*. The general process for log splitting, as described in [Distributed Log Splitting, Step by Step](http://hbase.apache.org/book.html#log.splitting.step.by.step) still applies here.
 
 1. If distributed log processing is enabled, the HMaster creates a *split log manager* instance when the cluster is started.
 
@@ -847,7 +859,8 @@ Table                    (HBase table)
         Store            (Store per ColumnFamily for each Region for the table)
             MemStore     (MemStore for each Store for each Region for the table)
             StoreFile    (StoreFiles for each Store for each Region for the table)
-                Block    (Blocks within a StoreFile within a Store for each Region for the table)
+                Block    (Blocks within a StoreFile within a Store for each Region 
+                          for the table)
 ```
 
 For a description of what HBase files look like when written to HDFS, see [Browsing HDFS for HBase Objects](http://hbase.apache.org/book.html#trouble.namenode.hbase.objects).
