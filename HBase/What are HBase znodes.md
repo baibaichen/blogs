@@ -130,14 +130,15 @@ HMarster.main()
     HMarster.HMaster()
       HRegionServer.HRegionServer()
         createTableLockManager
-      HMarster.startActiveMasterManager()  // ==>2 创建抢 master leader的线线程
-    HMasterCommandLine.startMaster() // ==> 3 创建服务 hbase:meta 的主线程
+      HMarster.startActiveMasterManager() // 2 创建抢 master leader的线线程
+    HMasterCommandLine.startMaster() //3 创建RegionServer主线程, [for hbase:meta] 
 
 //2
 Thread.run()
   HMarster.finishActiveMasterInitialization() // 成为 leader之后
     create MasterFileSystem
       create SplitLogManager //!!!
+        create TimeoutMonitor daemon //管理split tasks
     create ServerManager  // 管理 RegionServer
     setupClusterConnection
     ZKTableLockManager.reapWriteLocks() // Invalidate all write locks held previously
@@ -153,16 +154,31 @@ Thread.run()
     create MasterCoprocessorHost  // Initializing master coprocessors
     startServiceThreads // Initializing master service threads
     ServerManager.waitForRegionServers // Wait for region servers to report in
+  
     // Check zk for region servers that are up but didn't register
-    MasterFileSystem.getFailedServersFromLogFolders// get a list for previously failed 
-                                                   //  RS which need log splitting work
-    MasterFileSystem.removeStaleRecoveringRegionsFromZK // remove stale recovering
+    
+    MasterFileSystem#getFailedServersFromLogFolders // get a list for previously 
+                                                    //  failed RS which need log
+                                                    //  splitting work
+    MasterFileSystem#removeStaleRecoveringRegionsFromZK // remove stale recovering
                                                         //  regions from previous run
-    // Wait for regionserver to finish initialization.
-    // initialize load balancer
-    HMaster.assignMeta  //Assigning Meta Region, i.e. hbase:meta
-    //Submitting log splitting work for previously failed region servers
-    AssignmentManager.joinCluster // Starting assignment manager ???
+    //log splitting for hbase:meta server
+    get meta server location
+    if meta server is dead 
+      split it before assignment
+    
+    if there are tables on active master
+      Wait for "regionserver" to finish initialization
+  
+    initialize load balancer
+    
+    HMaster#assignMeta  //Assigning Meta Region, i.e. hbase:meta
+      
+    
+    ServerManager#processDeadServer //Submitting log splitting work for previously
+                                    // failed region servers
+                                    // 开始做 『WAL split』工作
+    AssignmentManager#joinCluster // Starting assignment manager ???
     LoadBalancer#setClusterStatus // set cluster status again after user 
                                   //  regions are assigned
     //Starting balancer and catalog janitor Chore
