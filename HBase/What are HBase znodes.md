@@ -120,7 +120,7 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 2. [Abstract out ZooKeeper usage in HBase - phase 1](https://issues.apache.org/jira/browse/HBASE-10909)
 
 
-
+SSH => ServerShutdownHandler
 
 ````java
 //Master startup
@@ -137,21 +137,38 @@ HMarster.main()
 Thread.run()
   HMarster.finishActiveMasterInitialization() // 成为 leader之后
     create MasterFileSystem
+      create SplitLogManager //!!!
     create ServerManager  // 管理 RegionServer
     setupClusterConnection
     ZKTableLockManager.reapWriteLocks() // Invalidate all write locks held previously
     HMarster.initializeZKBasedSystemTrackers() //Initializing ZK system trackers
       create LoadBalancer
       create LoadBalancerTracker
-      create AssignmentManager  // zookeeper listener
+      create AssignmentManager  //!!! zookeeper listener
       create RegionServerTracker
       create DrainingServerTracker
-      setup cluster is up       // after this region server can go ahead
+      setup cluster is up       // after setting this flag region server can go ahead
       create SnapshotManager
       create MasterProcedureManagerHost
     create MasterCoprocessorHost  // Initializing master coprocessors
     startServiceThreads // Initializing master service threads
     ServerManager.waitForRegionServers // Wait for region servers to report in
+    // Check zk for region servers that are up but didn't register
+    MasterFileSystem.getFailedServersFromLogFolders// get a list for previously failed 
+                                                   //  RS which need log splitting work
+    MasterFileSystem.removeStaleRecoveringRegionsFromZK // remove stale recovering
+                                                        //  regions from previous run
+    // Wait for regionserver to finish initialization.
+    // initialize load balancer
+    HMaster.assignMeta  //Assigning Meta Region, i.e. hbase:meta
+    //Submitting log splitting work for previously failed region servers
+    AssignmentManager.joinCluster // Starting assignment manager ???
+    LoadBalancer#setClusterStatus // set cluster status again after user 
+                                  //  regions are assigned
+    //Starting balancer and catalog janitor Chore
+    HMaster.initNamespace  // Starting namespace manager
+    HMaster.initQuotaManager // Starting quota manager
+    // almost done...
   
 // 3
 HRegionServer.run
