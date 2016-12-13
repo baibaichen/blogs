@@ -166,19 +166,17 @@ Thread.run()
     get meta server location
     if meta server is dead 
       split it before assignment
-    
     if there are tables on active master
       Wait for "regionserver" to finish initialization
-  
     initialize load balancer
-    
     HMaster#assignMeta  //Assigning Meta Region, i.e. hbase:meta
       
-    
     ServerManager#processDeadServer //Submitting log splitting work for previously
                                     // failed region servers
                                     // 开始做 『WAL split』工作
-    AssignmentManager#joinCluster // Starting assignment manager ???
+    AssignmentManager#joinCluster   // Starting assignment manager 
+      rebuildUserRegions
+        RegionStates#regionOnline          
     LoadBalancer#setClusterStatus // set cluster status again after user 
                                   //  regions are assigned
     //Starting balancer and catalog janitor Chore
