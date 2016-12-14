@@ -90,7 +90,7 @@ Although most znodes are only useful to HBase, some — such as the list of Regi
 | /hbase/**master**             | `MasterAddressTracker` |                                          |
 | /hbase/**backup-masters**     | `MasterAddressTracker` |                                          |
 | /hbase/**balancer**           | `LoadBalancerTracker`  |                                          |
-| /hbase/**meta-region-server** | `MetaTableLocator`     | [HBASE-3171](https://issues.apache.org/jira/browse/HBASE-3171) |
+| /hbase/**meta-region-server** | `MetaTableLocator`     | [HBASE-3171 Drop ROOT and instead store META location(s) directly in ZooKeeper](https://issues.apache.org/jira/browse/HBASE-3171) |
 |                               |                        |                                          |
 |                               |                        |                                          |
 |                               |                        |                                          |
@@ -165,7 +165,7 @@ Thread.run()
     //log splitting for hbase:meta server
     get meta server location
     if meta server is dead 
-      split it before assignment
+      split log before assignment
     if there are tables on active master
       Wait for "regionserver" to finish initialization
     initialize load balancer
