@@ -175,8 +175,9 @@ Thread.run()
                                     // failed region servers
                                     // 开始做 『WAL split』工作
     AssignmentManager#joinCluster   // Starting assignment manager 
-      rebuildUserRegions
-        RegionStates#regionOnline          
+      rebuildUserRegions            // 重建 RegionStates
+        RegionStates#regionOnline
+      processDeadServersAndRegionsInTransition // 开始分配
     LoadBalancer#setClusterStatus // set cluster status again after user 
                                   //  regions are assigned
     //Starting balancer and catalog janitor Chore
