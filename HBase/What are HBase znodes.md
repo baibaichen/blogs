@@ -177,7 +177,9 @@ Thread.run()
     AssignmentManager#joinCluster   // Starting assignment manager 
       rebuildUserRegions            // 重建 RegionStates
         RegionStates#regionOnline
-      processDeadServersAndRegionsInTransition // 开始分配
+      processDeadServersAndRegionsInTransition 
+        //判断是否为failover模式
+        failoverCleanupDone       // 如果是failover，从这开始让SSH开始工作。
     LoadBalancer#setClusterStatus // set cluster status again after user 
                                   //  regions are assigned
     //Starting balancer and catalog janitor Chore
@@ -194,3 +196,7 @@ HRegionServer.run
       waitforMasterActive() // wait for becoming active master
   
 ````
+
+
+- [ ] 如何判断Master是否处于容灾模式？ 参见`AssignmentManager#processDeadServersAndRegionsInTransition`
+- [ ] ServerManager 如何判断RS 挂了？在enable SSH之前，如果有RS挂了怎么处理？
