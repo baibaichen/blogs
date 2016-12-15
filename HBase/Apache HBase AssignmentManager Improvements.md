@@ -76,8 +76,8 @@ The second improvement is [HBASE-6381](https://issues.apache.org/jira/browse/HB
 > 容灾模式下，Master 有自己的宕机服务器恢复逻辑。 正常工作时，Master 也有宕机服务器的处理逻辑，用于恢复 Region，这两套逻辑不同但类似。我们做的第一个改变是重用宕机服务器的处理逻辑，这样，`AssignmentManager`就不再需要维护类似的逻辑。现在，Master 将所有宕机的  RegionServer 交由 `ServerShutdownHandler` 去处理。
 >
 > 我们做的第二个改变是在完整恢复 region 的状态之前，暂停 `ServerShutdownHandler` 的工作。主要目的是避免其和 region 状态恢复之间的竞争。如果 `ServerShutdownHandler`  尝试重新分配 region，`AssignmentManager` 也会收到 region 转换的 ZK 事件。如果还没有完整地恢复 region 的状态，就需要找到该 region 的状态，过去这块使用特殊的处理逻辑。有了这个改变，我们删除了特殊的处理逻辑，代码现在更加简洁了。
-> 
-> 第三个改变涉及到 ZK 事件。Master 重启之后，当它正在恢复 region 的状态时，由于某些 region 可能正处于状态转换之中，因此  ZK 上 region 的状态转换数据会被更新。基于同样的原因，在恢复 region 状态之前，不去监听 ZK 上的 分配节点（那个Znode？）。我们不想在不知道 region 的状态情况下 – 即， region 状态恢复完之前 – 处理 region 的状态转换。
+>
+> 第三个改变涉及到 ZK 事件。Master 重启之后，当它正在恢复 region 的状态时，由于某些 region 可能正处于状态转换之中，因此  ZK 上 region 的状态转换数据会被更新。基于同样的原因，在恢复 region 状态之前，不去监听 ZK 上的 分配节点（那个Znode？）。在不知道 region 的状态情况下，即， region 状态恢复完之前，不去处理 region 的状态转换。
 
 In this improvement, we also cleaned up and consolidated the bulk assigner. Bulk assignment is a good idea to reduce the number of RPC calls to a RegionServer. However, it is not as reliable as the individual assignment. We would like to fix that eventually, via HBASE-6611. As the first step, however, we did some cleanup: We moved the bulk assigner out of AssignmentManager to a standalone class. Some useful logic in a bulk assignment method used for RegionServer recovery is folded into the standalone bulk assigner. The new bulk assigner is used for all bulk assigning, and redundant bulk assignment logic is removed.
 
