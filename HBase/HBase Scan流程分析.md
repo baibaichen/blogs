@@ -412,4 +412,6 @@ InternalScanner
 
 `FixedFileTrailer`
 
+[HBase的基础类型KeyValue](http://yangbolin.cn/2014/07/20/hbase-keyvalue-type/)
+
 ![](http://img.voidcn.com/vcimg/000/001/990/790_5d6_7e3.jpg)
