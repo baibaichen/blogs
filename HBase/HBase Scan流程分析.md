@@ -388,12 +388,17 @@ class StoreScanner{
 1. [https://github.com/apache/hbase/tree/0.98](https://github.com/apache/hbase/tree/0.98)
 
 2. [https://issues.apache.org/jira/browse/HBASE-4465](https://issues.apache.org/jira/browse/HBASE-4465)
-3. [Prefix Compression - Trie data block encoding](https://issues.apache.org/jira/browse/HBASE-4676)
-   1. [HBase-0.96中新BlockEncoding算法-PREFIX_TREE压缩的初步探究及测试](http://zjushch.iteye.com/blog/1843793)
-4. HFile
+3. HFile
    1. [HFile V2介绍[0.92到0.98之前的版本]](http://blog.csdn.net/map_lixiupeng/article/details/40861791)
    2. [存储文件HFile结构解析](http://hbasefly.com/2016/03/25/hbase-hfile/)
    3. [探索HFile索引机制](http://hbasefly.com/2016/04/03/hbase_hfile_index/)
+   4. [Change the HFile Format](https://issues.apache.org/jira/browse/HBASE-3857)
+   5. [Apache HBase I/O – HFile](http://blog.cloudera.com/blog/2012/06/hbase-io-hfile-input-output/)
+4. Prefix tree
+   1. [Data Block Encoding of KeyValues (aka delta encoding / prefix compression](https://issues.apache.org/jira/browse/HBASE-4218)
+
+   2. [Prefix Compression - Trie data block encoding](https://issues.apache.org/jira/browse/HBASE-4676)
+   3. [HBase-0.96中新BlockEncoding算法-PREFIX_TREE压缩的初步探究及测试](http://zjushch.iteye.com/blog/1843793)
 
 ### 相关的代码
 
@@ -415,3 +420,15 @@ InternalScanner
 [HBase的基础类型KeyValue](http://yangbolin.cn/2014/07/20/hbase-keyvalue-type/)
 
 ![](http://img.voidcn.com/vcimg/000/001/990/790_5d6_7e3.jpg)
+
+```java
+NonLazyKeyValueScanner#doRealSeek
+  StoreFileScanner#reseek
+    StoreFileScanner#reseekAtOrAfter
+      AbstractScannerV2#reseekTo
+        EncodedScannerV2#loadBlockAndSeekToKey
+          PrefixTreeSeeker#seekToKeyInBlock
+            PrefixTreeSeeker#seekToOrBeforeUsingPositionAtOrAfter
+              PrefixTreeArraySearcher#seekForwardToOrAfter
+                PrefixTreeArraySearcher#positionAtOrAfter
+```
