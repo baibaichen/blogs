@@ -5,7 +5,7 @@
 1. 首先尝试重启 Region 所在的 RS（Region Sever）之后，发现没有效果。
 2. 接着尝试重启Master，Master重启后报错。由于是早上高峰期，马上Google，然后按搜索到的内容快速修复问题，重启成功。
 
-11月28日早上发现HBase Common快不能用了，该集群所有RS的Compaction 队列都到3000+以上，很快我们就推断出Compaction 队列持续增长的原因**大概率**是 compaction 出现死循环了。怀疑和『修复24日Master不能重启的事』有关。
+11月28日早上发现HBase Common快不能用了，该集群所有RS的Compaction 队列都到3000+以上，很快我们就推断出Compaction 队列持续增长的原因**大概率**是 compaction 出现死循环了。怀疑和『修复24日Master不能重启的操作』有关。
 
 > Tips：
 > Region 处于RIT时，HBase 的负载平衡不会工作。因此，一旦有 region 长时间处于 RIT状态，都需要及时处理。
@@ -17,7 +17,7 @@
 
 ##HBase 前缀树的BUG
 
-###Compaction 队列为什么会无限增长?
+###为什么猜测 Compaction 过程出现了死循环?
 
 
 28日早上发现HBase Common不能用了，该集群所有RS的Compaction 队列都到3000+以上的长度，下图是10.17.28.179的压缩队列：
@@ -63,12 +63,12 @@
 
 下载10.17.28.204的日志，**仔细观察**发现和10.17.28.179不同，并没有长时运行的major compaction，观察到的现象如下：
 
-1. <u>某个时间点</u>之后，日志里再没有starting compaction的信息了，也就是只看见队列在增长，但是compaction线程不在从队列中取任务了。
+1. <u>某个时间点</u>之后，日志里再没有starting compaction的信息了，也就是只看见队列在增长，但是compaction线程不再从队列中取任务了。
 2. CPU负载比平常高许多，不像是死锁。
    ![204 CPU负载](204-cpuload.PNG)
 3. 分析重启10.17.28.204之前dump的堆栈，major compaction的队列是空的，因为一旦调用 `sun.misc.Unsafe.park` 就意味着线程交出了控制权：
 
-   ```
+   ```java
    "regionserver/yhd-jqhadoop204.int.yihaodian.com/10.17.28.204:60020-longCompactions-1480066457887" daemon prio=10 tid=0x00007f78f6928000 nid=0x59c7 waiting on condition [0x00007f7906ed5000]
    java.lang.Thread.State: WAITING (parking)
    at sun.misc.Unsafe.park(Native Method)
@@ -84,11 +84,17 @@
 4. minor compaction 线程在work，应该是正在扫描文件。
 
 
-因此我的猜测是minor compaction 死循环了，Google发现了这个jira： [HBASE-12949 Scanner can be stuck in infinite loop if the HFile is corrupted](https://issues.apache.org/jira/browse/HBASE-12949)。然而，我们根据 **HBASE-12949** 提供的方法检查数据文件，数据文件是对的！
+因此我的猜测是minor compaction 死循环了，Google发现了这个jira： [HBASE-12949 Scanner can be stuck in infinite loop if the HFile is corrupted](https://issues.apache.org/jira/browse/HBASE-12949)。然而，我们根据 **HBASE-12949** 提供的方法检查数据文件，数据文件并没有被损坏
 
 >死循环和死锁的区别
 >
->
+
+### 定位BUG
+
+判断出大概率是死循环之后，且重启不能解决问题，我直觉只能通过Remote Debug才能定位问题。由于集群只能通过不断重启RS才能对外提供服务，于是决定新建集群，将所有的服务迁移出去。老集群留下，用于定位BUG。
+
+
+
 
 
 -----
