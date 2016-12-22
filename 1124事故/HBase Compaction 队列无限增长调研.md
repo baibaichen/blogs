@@ -55,7 +55,7 @@
 
 > 2016-11-26 14:41:29,414 INFO org.apache.hadoop.hbase.client.AsyncProcess: #2705, table=SYSTEM.STATS, attempt=**349/350** failed=1ops, last exception: org.apache.hadoop.net.ConnectTimeoutException: 10000 millis timeout while waiting for channel to be ready for connect. ch : java.nio.channels.SocketChannel[connection-pending remote=yhd-jqhadoop204.int.yihaodian.com/**10.17.28.204**:60020] on yhd-jqhadoop204.int.yihaodian.com,60020,1479956235061, tracking started null, retrying after=20074ms, replay=1ops
 
-不明白为什么更新失败**需要重试350次**，且重试的间隔不到两分钟，但整个重试时间刚好9个小时，更重要的问题是：**为什么更新System.stats表会失败**？这个问题把**疑点指向了10.17.28.204**。
+不明白为什么更新失败**需要重试350次**，且重试的间隔不到两分钟，但整个重试时间刚好9个小时，更重要的问题是：**为什么更新System.stats表会失败**？这个问题把疑点指向了**10.17.28.204**。
 
 10.17.28.204的压缩队列变化趋势如下图：
 
@@ -67,6 +67,7 @@
 2. CPU负载比平常高许多，不像是死锁。
    ![204 CPU负载](204-cpuload.PNG)
 3. 分析重启10.17.28.204之前dump的堆栈，major compaction的队列是空的，因为一旦调用 `sun.misc.Unsafe.park` 就意味着线程交出了控制权：
+
    ```
    "regionserver/yhd-jqhadoop204.int.yihaodian.com/10.17.28.204:60020-longCompactions-1480066457887" daemon prio=10 tid=0x00007f78f6928000 nid=0x59c7 waiting on condition [0x00007f7906ed5000]
    java.lang.Thread.State: WAITING (parking)
@@ -90,7 +91,7 @@
 >
 
 
-
+-----
 
 
 HBase CDH 5.4.3 的 Compaction Queue Size  这个监控指标的计算方式如下（参见 `CompactSplitThread`）
