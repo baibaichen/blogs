@@ -81,7 +81,7 @@
    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
    at java.lang.Thread.run(Thread.java:745)
    ```
-4. minor compaction 线程在work，应该是正在扫描文件。
+4. 而当时minor compaction 线程在work，应该是正在扫描文件。
 
 
 因此我的猜测是minor compaction 死循环了，Google发现了这个jira： [HBASE-12949 Scanner can be stuck in infinite loop if the HFile is corrupted](https://issues.apache.org/jira/browse/HBASE-12949)。然而，我们根据 **HBASE-12949** 提供的方法检查数据文件，数据文件并没有被损坏
@@ -104,13 +104,57 @@
 
 暂且不表新建集群过程遇到的各种情况，可以远程调试之后，很快我们就定位到这和 **Prefix tree** 压缩有关。
 
-#### HBase 表的逻辑结构和HFile的物理结构
+#### 一些背景
 
-HBase的表可以看作一个稀疏的2维数组
+HBase的表可以看作一个稀疏的二维数组，用\<row,col\>定位每一个cell：
+
+![logical structure](logical structure.png)
+
+但在实际存储时，数据是按 **Block** 组织的。逻辑上，块内的数据按 row 排列的：
+
+```
+row1 col1 v
+row1 col2 v
+...
+row1 coln v
+row2 col1 v
+...
+rowm coln v
+```
+
+在引入 [HBase-4218 Data Block Encoding](https://issues.apache.org/jira/browse/HBASE-4218) 之前，块内的数据就是按这么 **native** 的方式存储，由于 key （即<row , col>）按**字节**排序，某些场景下，如 ，『cell 仅仅保存的是一个数值，而Key是UUID』，专用的压缩算法比通用的压缩算法较好。在[HBase-4218](https://issues.apache.org/jira/browse/HBASE-4218)里谈到两个优点：一是解压速度更快了，二是内存需求更少了，提高了 Block Cache 的利用率。但是引入的压缩算法存在两个问题：
+
+1. 没有前缀压缩，仍然存在内存膨胀可能。
+2. 在 Block 内只能顺序扫描，不能随机检索。如此，如果Block的大小从 4KB 变为 64KB，那么 Block 内的平均检索速度下降10倍。
+
+如果Block的大小定为4KB又会在其它地方带来问题。因此在 [HBase-4676](https://issues.apache.org/jira/browse/HBASE-4676) 引入了前缀树压缩。
+
+> Notes：
+> 1. HBase-4218 其实引入了一个 `PrefixKeyDeltaEncoder` 压缩算法，HBase-4676既然说没有前缀压缩算法，那就没有吧。
+> 2. 前缀树的介绍请参见
+
+#### 实现
+
+采用Prefix Tree 压缩的Block，数据结构如下：
+
+![Block](Block.png)
+
+Row trie中每一个 Row node 的数据结构如下：
+
+![row trie](row trie.png)
+
+几个重要的字段：
+1. Token ：这里表示**前缀** ，如果**Token Length** 为0，则不会保存 Token 字段。
+2. fan：**fanout Number**表示有几个子节点，如果为0，则表示为**叶子节点** ，同时不会保存 fanout 字段。
+3. Cell numbers：表示该 row 有几列。
+
+下面来看一个实际的例子：
+
+![row trie example](row trie example.PNG)
+
+1. ​
 
 -----
-
-
 HBase CDH 5.4.3 的 Compaction Queue Size  这个监控指标的计算方式如下（参见 `CompactSplitThread`）
 
 ````java
