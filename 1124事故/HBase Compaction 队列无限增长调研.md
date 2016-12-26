@@ -110,7 +110,7 @@ HBase的表可以看作一个稀疏的二维数组，用\<row,col\>定位每一�
 
 ![logical structure](logical structure.png)
 
-但在实际存储时，数据是按 **Block** 组织的。逻辑上，块内的数据按 row 排列的：
+但在实际存储时，数据是按 **Block** 组织的。逻辑上，块内的数据按 row  key 排列的：
 
 ```
 row1 col1 v
@@ -133,7 +133,7 @@ rowm coln v
 > 1. HBase-4218 其实引入了一个 `PrefixKeyDeltaEncoder` 压缩算法，HBase-4676既然说没有前缀压缩算法，那就没有吧。
 > 2. 前缀树的介绍请参见
 
-#### 实现
+#### 数据结构
 
 采用Prefix Tree 压缩的Block，数据结构如下：
 
@@ -143,16 +143,49 @@ Row trie中每一个 Row node 的数据结构如下：
 
 ![row trie](row trie.png)
 
-几个重要的字段：
-1. Token ：这里表示**前缀** ，如果**Token Length** 为0，则不会保存 Token 字段。
-2. fan：**fanout Number**表示有几个子节点，如果为0，则表示为**叶子节点** ，同时不会保存 fanout 字段。
+几个和 Prefix Tree 相关的字段：
+1. Token ：可以理解为其子节点的**公共前缀** ，如果**Token Length** 为0，表示没有公共前缀，同时Token 字段不保存 。
+2. fan：**fanout Number**表示有几个子节点，如果为0，则表示为**叶子节点** ，同时不保存 fanout 字段。
 3. Cell numbers：表示该 row 有几列。
+4. nextNode Offsets：用于定位到子节点
 
 下面来看一个实际的例子：
 
+![logical structure-example](logical structure-example.png)
+
+假设 Block 内有四行数据（A，Aaeeee，Abc，Abde），每行有两列（a，v），那么总共有8个Cell，具体的值是多少不重要，这里假设都是1，
+
+```
+<A,a> 1
+<A,v> 1
+<Aaeeee,a> 1
+<Aaeeee,v> 1
+<Abc,a> 1
+<Abc,v> 1
+<Abde,a> 1
+<Abde,v> 1
+```
+查询分成两步的，1）先使用 Prefix Tree 定位到具体的行，2）在行内使用二叉搜索再定位到具体的Cell。下面是这四个row key构成的前缀树：
+
 ![row trie example](row trie example.PNG)
 
-1. ​
+前缀树一共有三种类型的节点：
+- **branch**（内部节点，上图中的3）：不代表实际数据，必定含有子节点。
+- **leaf**（叶子节点，上图中的2、4、5）: 没有子节点，代表着实际数据。
+- **nub**（上图中的1）：branch与leaf的混合，既代表了实际数据，又含有子节点。
+
+
+假设要取 `<Abc,a>` 的值，需要首先定位到节点4，定位的过程如下：
+
+1. 先从这颗树的根节点（即节点1）开始，根节点的row key是A，有两个fanout，即a，b
+2. 沿着节点1的fanout b 找到节点3，该节点Token为空（说明它的子节点没有公共前缀），因此该节点的row key是**Ab** ，即父节点的Row key + fanout b，这里的 **+** 表示拼接。
+3. 沿着节点3的fanout c 找到节点4，该节点是叶子节点，row key 是 **Abc** 。
+
+#### Bug
+
+`PrefixTreeArrayReversibleScanner#previousRowInternal` 函数出现了Bug，这个函数返回当前行的上一行。 比如当前行是 `Abc`，上一行显然是 `Aaeeee` ，即**节点2**。然而，在上面的case中，该函数返回的是`A`，即**节点1**。
+
+
 
 -----
 HBase CDH 5.4.3 的 Compaction Queue Size  这个监控指标的计算方式如下（参见 `CompactSplitThread`）
