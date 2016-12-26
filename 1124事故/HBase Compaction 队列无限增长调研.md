@@ -185,7 +185,7 @@ Row trie中每一个 Row node 的数据结构如下：
 
 `PrefixTreeArrayReversibleScanner#previousRowInternal` 函数出现了Bug，这个函数返回当前行的上一行。 比如当前行是 `Abc`，上一行显然是 `Aaeeee` ，即**节点2**。然而，在上面的case中，该函数返回的是`A`，即**节点1**。
 
-
+https://issues.apache.org/jira/browse/HBASE-17375
 
 -----
 HBase CDH 5.4.3 的 Compaction Queue Size  这个监控指标的计算方式如下（参见 `CompactSplitThread`）
