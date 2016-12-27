@@ -12,7 +12,7 @@
 
 后续经过近一个月的调研，我们基本确定：
 
-1. 死循环是HBase Prefix Tree的Bug，可以通过[代码](https://github.com/baibaichen/HBase-PrefixScan)重现，这个BUG目前仍没修复。
+1. 死循环是HBase Prefix Tree的Bug，可以通过[代码](https://issues.apache.org/jira/browse/HBASE-17375)重现，这个BUG目前在最新的分支仍未修复。
 2. 24日Master没有重启成功，**大概率**是因为这个死循环导致的。
 
 ##HBase 前缀树的BUG
@@ -81,10 +81,10 @@
    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
    at java.lang.Thread.run(Thread.java:745)
    ```
-4. 而当时minor compaction 线程在work，应该是正在扫描文件。
+4. 而当时minor compaction 线程正在扫描文件。
 
 
-因此我的猜测是minor compaction 死循环了，Google发现了这个jira： [HBASE-12949 Scanner can be stuck in infinite loop if the HFile is corrupted](https://issues.apache.org/jira/browse/HBASE-12949)。然而，我们根据 **HBASE-12949** 提供的方法检查数据文件，数据文件并没有被损坏
+因此我的猜测minor compaction 死循环了，Google发现了这个jira： [HBASE-12949 Scanner can be stuck in infinite loop if the HFile is corrupted](https://issues.apache.org/jira/browse/HBASE-12949)。然而，我们根据 **HBASE-12949** 提供的方法检查数据文件，数据文件并没有被损坏
 
 >死循环和死锁的区别
 >1. **死锁**，指两个线程按相反的顺序获取同样的两个锁。由于相互持有对方需要的锁，不得不永远等待，所以CPU的利用率为 0%
@@ -94,13 +94,13 @@
 
 至此，我们已经知道：
 
-1. 大概率是死循环
+1. Compaction 队列一直增长，大概率是死循环引起的
 2. 重启不能解决问题，可以稳定重现在某个Region上，说明是和“状态”相关的问题，不应该是并发导致的。
 
 我直觉能通过 **Remote Debug** 才能定位问题。此时，集群只能通过不断重启RS才能对外提供服务，于是决定新建集群，将所有的表迁移出去，留下老集群用于定位BUG。
 
 > 如何快速的构建新集群？
-> HBase Common 集群上的导数平台，是经典的 Lambda 架构。新建集群（可以理解为容灾），并从HDFS恢复数据，理论上应该很容易，但是本次实战表现不好。
+> HBase Common 上的导数平台基于经典的 Lambda 架构。新建集群（可以理解为容灾），并从HDFS恢复数据，理论上应该很容易，但是本次实战表现不好。
 
 暂且不表新建集群过程遇到的各种情况，可以远程调试之后，很快我们就定位到这和 **Prefix tree** 压缩有关。
 
@@ -131,7 +131,7 @@ rowm coln v
 
 > Notes：
 > 1. HBase-4218 其实引入了一个 `PrefixKeyDeltaEncoder` 压缩算法，HBase-4676既然说没有前缀压缩算法，那就没有吧。
-> 2. 前缀树的介绍请参见
+> 2. 前缀树的介绍请参见wiki
 
 #### 数据结构
 
@@ -185,23 +185,11 @@ Row trie中每一个 Row node 的数据结构如下：
 
 `PrefixTreeArrayReversibleScanner#previousRowInternal` 函数出现了Bug，这个函数返回当前行的上一行。 比如当前行是 `Abc`，上一行显然是 `Aaeeee` ，即**节点2**。然而，在上面的case中，该函数返回的是`A`，即**节点1**。
 
-https://issues.apache.org/jira/browse/HBASE-17375
+#### 代码
 
------
-HBase CDH 5.4.3 的 Compaction Queue Size  这个监控指标的计算方式如下（参见 `CompactSplitThread`）
+- [ ] 这里把相关的代码贴出来
 
-````java
-  public int getCompactionQueueSize() {
-    return longCompactions.getQueue().size() + shortCompactions.getQueue().size();
-  }
-````
-
-其它JIRA
-
-1. [HFile intermediate block level indexes might recurse forever creating multi TB files](https://issues.apache.org/jira/browse/HBASE-16288)，[milliseconds metrics may cause the compaction hang and huge region tmp files and region server down](https://github.com/OpenTSDB/opentsdb/issues/490)
-
-
-调试方法
+## 调试方法
 
 > Log = debug
 > org.apache.hadoop.hbase.regionserver.CompactSplitThread
