@@ -172,3 +172,141 @@ Each element in a `PCollection` has an associated **timestamp**. Timestamps a
 #### Windowing
 
 The timestamps associated with each element in a `PCollection` are used for a concept called **Windowing**. Windowing **divides the elements of a `PCollection` according to their timestamps**. Windowing can be used on all `PCollection`s, but **is required for some computations over unbounded `PCollection`s in order to divide the continuous data stream in finite chunks for processing.**
+
+> **Caution:** Dataflow's default windowing behavior is to assign all elements of a `PCollection` to a single, global window, *even for unbounded PCollections.* Before you use a grouping transform such as `GroupByKey` on an **unbounded** `PCollection`, **you must set a non-global windowing function.** See [Setting Your PCollection's Windowing Function.](https://cloud.google.com/dataflow/model/windowing#Setting) <u>If you don't set a non-global windowing function for your unbounded `PCollection` and subsequently use a grouping transform such as `GroupByKey` or `Combine`, your pipeline will generate an error upon construction and your Dataflow job will fail</u>. You can alternatively set a non-default [Trigger](https://cloud.google.com/dataflow/model/triggers) for a `PCollection` to allow the global window to emit "early" results under some other conditions. Triggers can also be used to allow for conditions such as late-arriving data.
+
+See the section on [Windowing](https://cloud.google.com/dataflow/model/windowing) for more information on how to use Dataflow's Windowing concepts in your pipeline.
+
+### 创建 `PCollection`
+
+- [ ] Reading External Data
+- [ ] Creating a PCollection from Data in Local Memory
+
+
+### Using PCollection with Custom Data Types
+
+You can create a `PCollection` where the element type is a **custom data type** that you provide. This can be useful if you need to create a collection of your own class or structure with specific fields, like a Java class that holds a customer's name, address, and phone number.
+
+When you create a `PCollection` of a custom type, you'll need to provide a `Coder` for that custom type. The `Coder` tells the [Dataflow service](https://cloud.google.com/dataflow/service/dataflow-service-desc) how to **serialize** and **deserialize** the elements of your `PCollection` as your dataset is parallelized and partitioned out to multiple pipeline worker instances; see [data encoding](https://cloud.google.com/dataflow/model/data-encoding) for more information.
+
+Dataflow will attempt to infer a `Coder` for any `PCollection` for which you do not explictly set a `Coder`. The default `Coder` for a custom type is `SerializableCoder`, which uses Java serialization. However, Dataflow recommends using `AvroCoder` as the `Coder` when possible.
+
+You can register `AvroCoder` as the default coder for your data type by using your `Pipeline` object's [CoderRegistry](https://cloud.google.com/dataflow/model/data-encoding#coder-registry). Annotate your class as follows:
+
+```java
+@DefaultCoder(AvroCoder.class)
+public class MyClass {
+  ...
+}
+```
+
+To ensure that your custom class is compatible with `AvroCoder`, you might need to add some additional annotations—for example, you must annotate null fields in your data type with `org.apache.avro.reflect.Nullable`. See the API for Java reference documentation for [`AvroCoder`](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/coders/AvroCoder) and the [package documentation for `org.apache.avro.reflect`](http://avro.apache.org/docs/current/api/java/org/apache/avro/reflect/package-summary.html) for more information.
+
+Dataflow's [TrafficRoutes example pipeline](https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/complete/TrafficRoutes.java) creates a `PCollection` whose element type is a custom class called `StationSpeed`.  `StationSpeed` registers `AvroCoder` as its default coder as follows:
+
+```java
+/**
+ * This class holds information about a station reading's average speed.
+ */
+@DefaultCoder(AvroCoder.class)
+static class StationSpeed {
+  @Nullable String stationId;
+  @Nullable Double avgSpeed;
+
+  public StationSpeed() {}
+
+  public StationSpeed(String stationId, Double avgSpeed) {
+    this.stationId = stationId;
+    this.avgSpeed = avgSpeed;
+  }
+
+  public String getStationId() {
+    return this.stationId;
+  }
+  public Double getAvgSpeed() {
+    return this.avgSpeed;
+  }
+}
+```
+
+###Windowing
+
+The Dataflow SDKs use a concept called **Windowing** to subdivide a [PCollection](https://cloud.google.com/dataflow/model/pcollection) according to the timestamps of its individual elements. Dataflow [transforms](https://cloud.google.com/dataflow/model/transforms) that aggregate multiple elements, such as [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) and [Combine](https://cloud.google.com/dataflow/model/combine), work implicitly on a per-window basis—that is, they process each `PCollection` as a succession of multiple, finite windows, though the entire collection itself may be of unlimited or infinite size.
+
+>1.  a succession of :  一系列的、一连串、一个接一个
+
+The Dataflow SDKs use a related concept called **Triggers** to determine when to "close" each finite window as unbounded data arrives. Using a trigger can help to refine the windowing strategy for your `PCollection` to deal with late-arriving data or to provide early results. See [Triggers](https://cloud.google.com/dataflow/model/triggers) for more information.
+
+#### Windowing 基础
+
+Windowing is most useful with an **unbounded** `PCollection`, which represents a *continuously updating data set of unknown/unlimited size* (e.g. streaming data). Some Dataflow transforms, such as [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) and [Combine](https://cloud.google.com/dataflow/model/combine), group multiple elements by a common key. Ordinarily, that grouping operation groups all of the elements that have the same key *in the entire data set*. With an unbounded data set, it is impossible to collect all of the elements, since new elements are constantly being added.
+
+ In the Dataflow model, any `PCollection` can be subdivided into logical **windows**. Each element in a `PCollection` gets assigned to one or more windows according to the `PCollection`'s **windowing function**, and each individual window contains a finite number of elements. Grouping transforms then consider each `PCollection`'s elements on a per-window basis. `GroupByKey`, for example, implicitly groups the elements of a `PCollection` by *key and window*. Dataflow *only* groups data within the same window, and doesn't group data in other windows.
+
+> **Caution:** Dataflow's default windowing behavior is to assign all elements of a `PCollection` to a single, global window, *even for unbounded PCollections.* Before you use a grouping transform such as `GroupByKey` on an unbounded `PCollection`, **you must set a non-global windowing function.** See [Setting Your PCollection's Windowing Function.](https://cloud.google.com/dataflow/model/windowing#Setting)
+>
+> If you don't set a non-global windowing function for your unbounded `PCollection` and subsequently use a grouping transform such as `GroupByKey` or `Combine`, your pipeline will generate an error upon construction and your Dataflow job will fail.
+>
+> You can alternatively set a non-default [Trigger](https://cloud.google.com/dataflow/model/triggers) for a `PCollection` to allow the global window to emit "early" results under some other conditions.
+
+##### Windowing Constraints
+Once you set the windowing function for a PCollection, the elements' windows are used the next time you apply a grouping transform to that PCollection. Dataflow performs the actual window grouping on an as-needed basis; if you set a windowing function using the Window transform, each element is assigned to a window, but the windows are not considered until you group the PCollection with GroupByKey or Combine. This can have different effects on your pipeline.
+
+Consider the example pipeline in Figure 1 below:
+
+![windowing-pipeline-unbounded](D:\SourceCode\blogs\windowing-pipeline-unbounded.png) Figure 1: Pipeline Applying Windowing
+
+In the above pipeline, we create an unbounded `PCollection` by reading a set of key/value pairs using [PubsubIO](https://cloud.google.com/dataflow/model/pubsub-io), and then apply a windowing function to that collection using the `Window` transform. We then apply a `ParDo` to the the collection, and then later group the result of that `ParDo` using `GroupByKey`. The windowing function *has no effect on the ParDo transform*, because the windows are not actually used until they're needed for the `GroupByKey`.
+
+Subsequent transforms, however, are applied to the result of the `GroupByKey`--that is, data grouped by *both key and window.*
+
+------
+
+# 关于WithXXX
+
+Google "java naming convention withXXX"
+
+Here's another example you'll see for builder patterns.
+
+```
+public class Thing {
+    String name;
+
+    public Thing () {
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Thing withName(String name) {
+        this.name = name;
+        return this;
+    }
+}
+```
+
+The "withName(String name)" method allows you to do stuff like this:
+
+```
+Thing t = new Thing().withName("bob");
+
+```
+
+This becomes especially useful when there are lots of properties to set:
+
+```
+Thing t = new Thing()
+             .withName("bob")
+             .withAge(40)
+             .withGender("M");
+
+```
+
+The reason you can do this kind of chaining, is because each "withXXX(...)" method itself returns the "new Thing()" you just created (using the "this" keyword). Think of it as a way for the method to say "Okay you called me. Now I'll return a pointer to the object you used to call me so you can call it right back if you want instead of having to use a new line of code after a colon (;)."
+
+You'll see this a lot for complex objects which can be instantiated various different ways (e.g. query objects). You'll also see this in mocking frameworks. Generally, the chaining makes creating objects more versatile and easier to read.
+
+Note, in the examples above I use the method naming convention "withXXX(...)" so as to not violate POJO specifications which certain frameworks rely on (e.g. Spring).
+
+There are some other edge cases where usage of "this" gets weird when using anonymous classes, but that's a whole other topic.
