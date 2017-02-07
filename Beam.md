@@ -2,6 +2,7 @@
 - [ ] [Side Inputs](#side-inputs)
 - [ ] [Side Outputs](#side-outputs)
 - [ ] [Data Encoding](#data-encoding)
+- [ ] [Handling Multiple PCollections](#Handling-Multiple-PCollections)
 
 # 编程模型
 
@@ -300,7 +301,7 @@ The Dataflow SDKs let you define different kinds of windows to divide the elemen
 - Per-Session Windows
 - Single Global Window
 
-> Note that each element can logically belong to *more than one window*, depending on the windowing function you use. **Sliding time windowing, for example, creates overlapping windows wherein a single element can be assigned to multiple windows**.
+> **Note** that each element can logically belong to *more than one window*, depending on the windowing function you use. **Sliding time windowing, for example, creates overlapping windows wherein a single element can be assigned to multiple windows**.
 
 ##### Fixed Time Windows
 
@@ -722,7 +723,7 @@ When you create or output pipeline data, you'll need to specify how the elements
 
 ##Transforms
 
-###Overview
+###Overview of transform
 
 In a Dataflow pipeline, a **transform** represents a step, or a processing operation that transforms data. A transform can perform nearly any kind of processing operation, including *performing mathematical computations on data*, *converting data from one format to another*, *grouping data together*, *reading and writing data*, *filtering data to output only the elements you want*, or *combining data elements into single values*.
 
@@ -1123,7 +1124,639 @@ From our previous example, here's the `DoFn` emitting to the main and side out
 
 After your `ParDo`, you'll need to extract the resulting main and side output `PCollection`s from the returned `PCollectionTuple`. See the section on [`PCollectionTuple`](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous)s for some examples that show how to extract individual `PCollection`s from a tuple.
 
+### GroupByKey and Join
+
+The `GroupByKey` **core** transform is a parallel **<u>reduction</u> operation** used to process collections of key/value pairs. You use `GroupByKey` with an input `PCollection` of key/value pairs *that represents a multimap*, where the collection contains multiple pairs that have the same key, but different values. The `GroupByKey` transform lets you gather together all of the values in the multimap that share the same key.
+
+`GroupByKey` is **analogous to the Shuffle phase of a Map/Shuffle/Reduce-style algorithm**. You use `GroupByKey` to collect all of the values associated with a unique key.
+
+`GroupByKey` is a good way to aggregate data that has something in common. For example, you might want to group together customer orders from the same postal code (wherein the "key" would be the zip code of each individual order, and the "value" would be the remainder of the order). Or, perhaps you might want to group together all user queries by user ID, or by the time of day they occurred.
+
+You can also **join** multiple collections of key/value pairs, when those collections share a common key (even if the value types are different). There are two ways to perform a join. One way is by [using the CoGroupByKey transform](https://cloud.google.com/dataflow/model/group-by-key#join), which lets you group together all of the values (of any type) in multiple collections that share a common key. The other way is to join multiple collections of key/value pairs by [using a ParDo with one or more side inputs](https://cloud.google.com/dataflow/model/group-by-key#join-side-inputs). In some cases, this second way can be more efficient than using a `CoGroupByKey`.
+
+**Joins are useful when you have multiple data sets, possibly from multiple sources, that provide information about related things**. For example, let's say you have two different files with auction data: one file has the <u>auction</u> ID, bid data, and pricing data; the other file has the auction ID and an item description. You can join those two data sets, using the auction ID as a common key and the other attached data as the associated values. After the join, you have one data set that contains all the information (bid, price, and item) associated with each auction ID.
+
+> 1. reduction
+> 2. auction
+>
+> ANSI 标准一共有5种 **join** 类型：`LEFT OUTER`、`RIGHT OUTER`、`FULL OUTER` 和 `CROSS`（`CROSS`也可称为`CARTESIAN`）。参见[Beyond traditional join with Apache Spark](http://kirillpavlov.com/blog/2016/04/23/beyond-traditional-join-with-apache-spark/)，这些类型的join，Beam都支持吗？
+
+#### GroupByKey
+
+Let's examine the mechanics of `GroupByKey` with a simple example case, where our data set consists of words from a text file and the line on which they appear. We want to group together all the line numbers (values) that share the same word (key), letting us see all the places in the text where one particular word appears.
+
+Our input is a `PCollection` of key/value pairs where each word is a key, and the value is a line number in the file where the word appears. Here's a list of the key/value pairs in our input collection:
+
+```spreadsheet
+  cat, 1
+  dog, 5
+  and, 1
+  jump, 3
+  tree, 2
+  cat, 5
+  dog, 2
+  and, 2
+  cat, 9
+  and, 6
+  ...
+```
+
+The `GroupByKey` transform gathers up all of the values with the same key, and creates a new pair consisting of the unique key and a collection of all the values that were associated with that key in the input `PCollection`. If we were to apply `GroupByKey` on the collection of key/value pairs above, the output collection would look like this:
+
+```spreadsheet
+  cat, [1,5,9]
+  dog, [5,2]
+  and, [1,2,6]
+  jump, [3]
+  tree, [2]
+  ...
+```
+
+Thus, `GroupByKey` represents a transform from a **multi-map**, which is a map of multiple keys to individual values, to a **uni-map**, which is a map of unique keys to collections of values.
+
+> **A Note on Representing Key/Value Pairs:**
+> In the Dataflow Java SDK, you represent a key/value pair with an object of type `KV<K,V>.KV` is a specialty class with keys of type `K` and values of type `V`.
+
+A common processing pattern for key-grouped collections (the result of a `GroupByKey` transform) is to combine the values associated with each key into a single, merged value associated with that key. The Dataflow SDKs encapsulate this entire pattern (key-grouping, and then combining the values for each key) as the  `Combine` transform. See [Combining Collections and Values](https://cloud.google.com/dataflow/model/combine.html) for more information.
+
+##### Applying a GroupByKey Transform
+
+You must apply a `GroupByKey` to **an input `PCollection` of key/value pairs**. `GroupByKey` returns a new `PCollection`of key/value pairs; in the new collection, the keys are unique, and each associated value element is actually a value stream that contains one or more values associated with the key.
+
+- The following example code shows how to apply `GroupByKey` to a `PCollection` of `KV<K,v>` objects, ***where*** each element pair represents a key of type `K` and a single value of type `V`.
+- The return value of `GroupByKey` is a new `PCollection` of type `KV<K, Iterable<V>>`, ***where*** each element pair represents a key and a collection of values as a Java `Iterable`.
+
+```java
+// A PCollection of key/value pairs: words and line numbers.
+PCollection<KV<String, Integer>> wordsAndLines = ...;
+
+// Apply a GroupByKey transform to the PCollection "wordsAndLines".
+PCollection<KV<String, Iterable<Integer>>> groupedWords = wordsAndLines.apply(
+  GroupByKey.<String, Integer>create());
+```
+Java 8 is able to infer the parameter types of `GroupByKey.create`, but they may need to be specified explicitly in earlier versions of Java.
+
+##### GroupByKey with Windowing
+
+`GroupByKey` behaves a bit differently when the input `PCollection` is divided [into multiple windows](#windowing)— instead of a single global window.
+
+The `GroupByKey` transform also considers the window to which each element belongs when performing the reduction. **The window(s) (as determined by each key/value pair's timestamp) essentially acts as a secondary key**.  `GroupByKey` with windowing thus **groups by both key and window**. When all elements are part of a single global window, `GroupByKey` degenerates to the simple semantics [described above](#GroupByKey ).
+
+While an element's window(s) acts as a **secondary** key for grouping, it can be potentially more powerful. Elements might belong to more than one window, and overlapping windows may be merged. This allows you to create [more complex groupings](#windowing-Functions).
+
+Let's apply windowing to our previous example:
+
+```spreadsheet
+  cat, 1 (window 0)
+  dog, 5 (window 0)
+  and, 1 (window 0)
+
+  jump, 3 (window 1)
+  tree, 2 (window 1)
+  cat, 5  (window 1)
+
+  dog, 2 (window 2)
+  and, 2 (window 2)
+  cat, 9 (window 2)
+  and, 6 (window 2)
+  ...
+```
+
+`GroupByKey` gathers up all the elements with the same key *and window*, generating an output collection like this:
+
+```spreadsheet
+  cat, [1] (window 0)
+  dog, [5] (window 0)
+  and, [1] (window 0)
+
+  jump, [3] (window 1)
+  tree, [2] (window 1)
+  cat, [5]  (window 1)
+
+  dog, [2]   (window 2)
+  and, [2,6] (window 2)
+  cat, [9]   (window 2)
+```
+
+Note that the window now affects the output groups; key/value pairs in different windows **are not** grouped together.
+
+> **Note:** Either non-global [Windowing](https://cloud.google.com/dataflow/model/windowing) or an [aggregation trigger](#triggers) is required in order to perform a `GroupByKey` on an unbounded `PCollection`. This is because a bounded `GroupByKey` must wait for all the data with a certain key to be collected; but with an unbounded collection, the data is unlimited. Windowing and/or Triggers allow grouping to operate on logical, finite bundles of data within the unbounded data stream.
+>
+> If you apply `GroupByKey` to an unbounded `PCollection` without setting either a non-global windowing strategy, a trigger strategy, or both, Dataflow will generate an `IllegalStateException` error when your pipeline is constructed.
+
+#### Joins with CoGroupByKey
+
+The `CoGroupByKey` transform performs a **relational join** of two or more data sets. `CoGroupByKey` groups together the values from multiple `PCollection`s of key/value pairs, where each `PCollection` in the input has the same key type.
+
+For type safety, Dataflow requires you to pass each `PCollection` as part of a `KeyedPCollectionTuple`. You'll need to declare a [`TupleTag`](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous) for each input `PCollection` that you want to pass to `CoGroupByKey`.
+
+`CoGroupByKey` bundles the joined output together in a [`CoGbkResult`](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGbkResult) object.
+
+Let's use a simple example to demonstrate the mechanics of a `CoGroupByKey`. We have two input collections to bundle into a `KeyedPCollectionTuple`. The first is a `PCollection<K,V1>`, so we'll assign a `TupleTag<V1>` called `tag1`. The key-value pairs in this `PCollection` are:
+
+```
+  key1 ↦ v1
+  key2 ↦ v2
+  key2 ↦ v3
+```
+
+The second is a `PCollection`, so we'll assign a `TupleTag` called `tag2`. This collection contains:
+
+```
+  key1 ↦ x1
+  key1 ↦ x2
+  key3 ↦ x3
+```
+
+The resulting `CoGbkResult` collection contains **all** the data associated with each unique key from **any** of the input collections. The returned data type is `PCollection>`, with the following contents:
+
+```json
+  key1 -> {
+    tag1 ↦ [v1]
+    tag2 ↦ [x1, x2]
+  }
+  key2 -> {
+    tag1 ↦ [v2, v3]
+    tag2 ↦ []
+  }
+  key3 -> {
+    tag1 ↦ []
+    tag2 ↦ [x3]
+  }
+```
+
+> After applying `CoGroupByKey`, you can look up the data from each collection by using the appropriate **`TupleTag`**.
+
+##### Applying CoGroupByKey
+
+`CoGroupByKey` accepts a tuple of keyed `PCollection`s (`PCollection<KV<K,V>`) as input. As output, `CoGroupByKey` returns a special type called `CoGbkResult`s, which groups values from all the input `PCollection`s by their common keys. You index the `CoGbkResult`s using the `TupleTag` mechanism for [multiple collections](#Handling-Multiple-PCollections). You can access a specific collection in the `CoGbkResult`s object by using the `TupleTag` that you supplied with the initial collection.
+
+Here's an example that joins two different data sets (perhaps from different sources) that have been read into separate `PCollection`s:
+
+```java
+// Each data set is represented by key-value pairs in separate PCollections.
+// Both data sets share a common key type ("K").
+PCollection<KV<K, V1>> pc1 = ...;
+PCollection<KV<K, V2>> pc2 = ...;
+
+// Create tuple tags for the value types in each collection.
+final TupleTag<V1> tag1 = new TupleTag<V1>();
+final TupleTag<V2> tag2 = new TupleTag<V2>();
+
+// Merge collection values into a CoGbkResult collection.
+PCollection<KV<K, CoGbkResult>> coGbkResultCollection =
+  KeyedPCollectionTuple.of(tag1, pc1)
+                       .and(tag2, pc2)
+                       .apply(CoGroupByKey.<K>create());
+```
+
+> In the resulting `PCollection>` each key (all of type K) will have a different `CoGbkResult`. In other words, `CoGbkResult` is a map from `TupleTag` to `Iterable`.
+
+Here is another example of using `CoGroupByKey`, followed by a `ParDo` that consumes the resulting `CoGbkResult`; the `ParDo` might, for example, format the data for later processing:
+
+```java
+// Each BigQuery table of key-value pairs is read into separate PCollections.
+// Each shares a common key ("K").
+PCollection<KV<K, V1>> pt1 = ...;
+PCollection<KV<K, V2>> pt2 = ...;
+
+// Create tuple tags for the value types in each collection.
+final TupleTag<V1> t1 = new TupleTag<V1>();
+final TupleTag<V2> t2 = new TupleTag<V2>();
+
+//Merge collection values into a CoGbkResult collection
+PCollection<KV<K, CoGbkResult>> coGbkResultCollection =
+  KeyedPCollectionTuple.of(t1, pt1)
+  .and(t2, pt2)
+  .apply(CoGroupByKey.<K>create());
+
+// Access results and do something.
+PCollection<T> finalResultCollection =
+  coGbkResultCollection.apply(ParDo.of(
+    new DoFn<KV<K, CoGbkResult>, T>() {
+      @Override
+      public void processElement(ProcessContext c) {
+        KV<K, CoGbkResult> e = c.element();
+        // Get all collection 1 values
+        Iterable<V1> pt1Vals = e.getValue().getAll(t1);
+        // Now get collection 2 values
+        V2 pt2Val = e.getValue().getOnly(t2);
+        ... Do Something ....
+          c.output(...some T...);
+      }
+    }));
+```
+
+##### Using CoGroupByKey with Unbounded PCollections
+
+>**Note:** Either non-global [Windowing](https://cloud.google.com/dataflow/model/windowing) or an [aggregation trigger](#triggers) is required in order to perform a `CoGroupByKey` with unbounded `PCollection`s. This is because a bounded `CoGroupByKey` must wait for all the data with a certain key to be collected; but with unbounded collections, the data is unlimited. Windowing and/or Triggers allow grouping to operate on logical, finite bundles of data within the unbounded data streams.
+>
+>If you apply `CoGroupByKey` to a group of unbounded `PCollection` without setting either a non-global windowing strategy, a trigger strategy, or both for each collection, Dataflow will generate an `IllegalStateException` error when your pipeline is constructed.
+
+When using `CoGroupByKey` to group `PCollection`s that have a [windowing strategy](https://cloud.google.com/dataflow/model/windowing) applied, **all of** the `PCollection`s you want to group *must use the same windowing strategy* and window sizing. For example, all the collections you're merging must use (hypothetically) identical 5-minute fixed windows or 4-minute sliding windows starting every 30 seconds. 
+
+>  注意：用于join 的 `PCollection`s，它们窗口的定义要一致
+
+If your pipeline attempts to use `CoGroupByKey` to merge `PCollection`s with incompatible windows, Dataflow will generate an `IllegalStateException` error when your pipeline is constructed.
+
+#### Joins with ParDo and Side Inputs
+
+Instead of using `CoGroupByKey`, you can apply a `ParDo` with one or more [side inputs](#side-inputs) to perform a join. A side input is an additional input, other than the main input, that you can provide to your `PCollection` . Your `DoFn` can access the side input each time it processes an element in the input `PCollection`.
+
+Performing a join this way can be more efficient than using `CoGroupByKey` in some cases, such as:
+
+- The `PCollection`s you are joining are <u>disproportionate</u> in size and the smaller `PCollection`s could fit into memory. （这个类似于Spark中的**broadcast join**）
+- You have a large table which you want to join against multiple times at different places in the pipeline. Instead of doing a `CoGroupByKey` several times, you can create one side input and pass it to multiple `ParDo`s. For example, you'd like to join two tables to generate a third. Then you'd like to join the first table with the third and so on.
+
+To perform a join this way, apply a `ParDo` to one of the `PCollection`s and pass the other `PCollection`(s) as side inputs. The following code sample shows how to perform such a join.
+
+```java
+// Each BigQuery table of key-value pairs is read into separate PCollections.
+PCollection<KV<K1, V1>> mainInput = ...
+PCollection<KV<K2, V2>> sideInput = ...
+
+// Create a view from your side input data
+final PCollectionView<Map<K2, V2>> view = sideInput.apply(View.<K2, V2>asMap());
+
+// Access side input and perform join logic
+PCollection<T> joinedData =
+mainInput.apply("SideInputJoin", ParDo.withSideInputs(view).of(new DoFn<KV<K1, V1>, T>() {
+  @Override
+  public void processElement(ProcessContext c) {
+    K2 sideInputKey = ... transform c.element().getKey() into K2 ...
+    V2 sideInputValue = c.sideInput(view).get(sideInputKey);
+    V1 mainInputValue = c.element().getValue();
+    ... Do Something ...
+    c.output(...some T...);
+  }
+}));
+```
+### Combining Collections and Values
+
+Often in the course of a pipeline, you'll want to combine or otherwise merge collections of values in your data. For example, you may have a collection of sales data consisting of orders for a given month, each with a dollar value. In your pipeline, you might want to combine all of the order values into a single value that represents the total dollar value of orders for that month, or the largest order, or the average dollar value per order. To obtain this kind of data, you **combine** the values in your collection.
+
+The Dataflow SDKs contains a number of operations you can use to combine the values in your pipeline's  `PCollection` objects or to combine [key-grouped](#groupbykey-and-join) values.
+
+The `Combine` core transform encapsulates various generic methods you can use to combine the elements or values in a `PCollection`. `Combine` has variants that work on entire `PCollection`s, and some that combine the individual value streams in `PCollection`s of key/value pairs. `Combine` also has subclasses for specific [numeric combining operations](#using-the-included-statistical-combination-functions), such as sums, minimums, maximums, and mean averages.
+
+When you apply a `Combine` transform, you must provide the function that **contains the actual logic for combining the elements or values**. See [Creating and Specifying a Combine Function](https://cloud.google.com/dataflow/model/combine#Creating-a-CombineFn) later in this section for more information.
+
+> In this sense, `Combine` transforms are similar to the `ParDo` transform that applies the logic in a processing function you provide to each element.
+
+#### Combining a PCollection into a Single Value
+
+You can combine all of the elements in a given `PCollection` into a single value, represented in your pipeline as a new `PCollection` containing one element. To combine the elements of a `PCollection`, you use the global combine transform.
+
+> `Combine` behaves differently if the input `PCollection` is divided using [windowing](https://cloud.google.com/dataflow/model/windowing). **In that case, global combine returns a *single element per window***.
+
+Global combine uses a combining function that you supply to combine each element value. See [Creating and Specifying a Combine Function](https://cloud.google.com/dataflow/model/combine#Creating-a-CombineFn) later in this section for more details.
+
+> The Dataflow SDKs provide some pre-built combine functions for common numeric combination operations, such as sums, minimums, maximums, and mean averages. You can use these functions with global combine instead of creating your own combine function. See [Using the Included Statistical Combine Operations](#using-the-included-statistical-combination-functions) for more information.
+
+The following example code shows how to `apply` a `Combine.globally` transform to produce a single sum value for a `PCollection` of type `Integer`:
+
+```java
+  PCollection<Integer> pc = ...;
+  PCollection<Integer> sum = pc.apply(
+    Combine.globally(new Sum.SumIntegerFn()));
+```
+
+In the example, `Sum.SumIntegerFn()` is the `CombineFn` that the transform uses to combine the elements in the input `PCollection`. The resulting `PCollection`, called `sum`, will contain one value: the sum of all the elements in the input `PCollection`.
+
+> **Combine with Empty Input:** When you apply a global `Combine` transform (or any other Dataflow transform built on `Combine`, such as `Top`) you should consider cases in which the input is empty. This could either mean that the entire input `PCollection` is empty, or that some windows in a non-globally [windowed](https://cloud.google.com/dataflow/model/windowing)  `PCollection` are empty.
+
+##### Global Windowing
+
+If your input `PCollection` uses the default [global windowing](https://cloud.google.com/dataflow/model/windowing#Functions), Dataflow's default behavior is to return **a `PCollection` containing one item**. That item's value comes from the **accumulator** in the [combine function](https://cloud.google.com/dataflow/model/combine#combFn) that you specified when applying `Combine`. For example, Dataflow's `Sum` combine function returns a zero value (the sum of an empty input), while `Min` combine function returns a maximal or infinite value.
+
+To have `Combine` instead return an empty `PCollection` if the input is empty, specify `.withoutDefaults` when you apply your `Combine` transform, as in the following code example:
+
+```java
+  PCollection<Integer> pc = ...;
+  PCollection<Integer> sum = pc.apply(
+    Combine.globally(new Sum.SumIntegerFn()).withoutDefaults());
+```
+
+##### Non-Global Windowing
+
+If your `PCollection` uses any [non-global windowing](#windowing-Functions) function, Dataflow does not provide the default behavior. You **must** specify one of the following options when applying `Combine`:
+
+- Specify `.withoutDefaults`, where windows that are empty in the input `PCollection` will likewise be empty in the output collection.
+- Specify `.asSingletonView`, in which the output is immediately converted to a `PCollectionView`, which will provide a default value for each empty window when used as a [side input](#side-inputs). You'll generally only need to use this option if the result of your pipeline's `Combine` is to be used as a side input later in the pipeline.
+
+#### Creating and Specifying a Combine Function
+
+When you use a `Combine` transform, regardless of variant, you'll need to provide some processing logic that specifies how to combine the multiple elements into a single value.
+
+**When you design a combine function, note that the function is not necessarily invoked exactly once on all values with a given key**. Because the input data (including the value collection) may be distributed across multiple worker instances, the combining function might be called multiple times to perform partial combining on subsets of the value collection. **Generally speaking, the combine might be repeatedly applied in a tree structure**. Because the tree structure is unspecified, ***your combining function should be commutative and associative***.
+
+> 组合函数需要满足结合律和交换律
+
+>  Much like `ParDo`'s `DoFn`, any `CombineFn` you create is subject to [requirements for user-provided function objects](#requirements-for-user-provided-function-objects). If your `CombineFn` doesn't meet these requirements, your pipeline might fail with an error or fail to produce correct results.
+
+You have a few options when creating a combine function. Simple combine operations, such as sums, can usually be implemented as a simple function from a set of values to a single value of the same type. Your function must be associative and commutative. In other words, for a combining function *f* and a set of values *v1, ..., vn*, it should be the case that, logically, *f(v1, v2, ... , vn) = f(v1, v2, ... , f(vk, ... , vn)) = f(f(v1, v2), ... , f(vk, ... , vn)) = f(f(vk, ... , vn), ... , f(v2, v1))* etc.
+
+More complex combination operations might require you to create a subclass of `CombineFn` that has an accumulation type distinct from the input/output type. Finally, the Dataflow SDK provides some common functions that handle different statistical combinations, such as `Sum`, `Min`, `Max`, and `Mean`. See [Using the Included Statistical Combine Operations](#using-the-included-statistical-combination-functions) for more information.
+
+##### Simple Combinations Using Simple Functions
+
+For **simple combine functions**, such as summing a collection of `Integer` values into a single `Integer`, you can create a simple function that implements the `SerializableFunction` interface. Your `SerializableFunction` should convert an `Iterable<v>` to a single value of type `V`.
+
+The following example code shows a simple combine function to sum a collection of `Integer` values; the function `SumInts`implements the interface `SerializableFunction`:
+
+```java
+public static class SumInts implements SerializableFunction<Iterable<Integer>, Integer> {
+  @Override
+  public Integer apply(Iterable<Integer> input) {
+    int sum = 0;
+    for (int item : input) {
+      sum += item;
+    }
+    return sum;
+  }
+}
+```
+##### Advanced Combinations using CombineFn
+
+For more complex combine functions, you can define a subclass of the SDK class `CombineFn`. You should use `CombineFn` when your combining function must perform additional pre- or post-processing, which might change the output type, require a more sophisticated accumulator, or take the key into account.
+
+> Consider the distributed nature of the computation. The full key/collection-of-values for each element might not exist on the same Compute Engine instance at any given moment. **You should use `CombineFn` for any calculation that cannot be performed properly without considering all of the values**.
+>
+> For example, consider computing the mean average of the collection of values associated with a given key. To compute the mean, your combine function must sum all of the values, and then divide the resulting sum by the number of values it has added. However, if the division were to take place in multiple distributed locations, the resulting mean average would be incorrect. Using `CombineFn` lets the Cloud Dataflow service accumulate both the running sum and the number of elements seen, and save the final computation (in this case, the division) until all of the elements have been accumulated.
+
+A general combining operation consistes of four operations When you create a subclass of `CombineFn`, you'll need to provide four operations by overriding the corresponding methods:
+
+- Create Accumulator
+- Add Input
+- Merge Accumulators
+- Extract Output
+
+> If, for any reason, your combine function needs access to the key in the key/collection-of-values pair, you can use `KeyedCombineFn` instead. `KeyedCombineFn` passes in the key as an additional type parameter.
+
+**Create Accumulator** creates a new "local" accumulator. In the example case, taking a mean average, a local accumulator tracks the running sum of values (the numerator value for our final average division) and the number of values summed so far (the denomintator value). It may be called any number of times in a distributed fashion.
+
+**Add Input** adds an input element to an accumulator, returning the accumulator value. In our example, it would update the sum and increment the count. It may also be invoked in parallel.
+
+**Merge Accumultators** merges several accumulators into a single accumulator; this is how data in multiple accumulators is combined before the final calculation. In the case of the mean average computation, the accumulators representing each portion of the division are merged together. It may be called again on its outputs any number of times.
+
+**Extract Output** performs the final computation. In the case of computing a mean average, this means dividing the combined sum of all the values by the number of values summed. It is called once on the final, merged accumulator.
+
+The following example code shows how to define a `CombineFn` to compute a mean average:
+
+```java
+public class AverageFn extends CombineFn<Integer, AverageFn.Accum, Double> {
+  public static class Accum {
+    int sum = 0;
+    int count = 0;
+  }
+
+  @Override
+  public Accum createAccumulator() { return new Accum(); }
+
+  @Override
+  public Accum addInput(Accum accum, Integer input) {
+      accum.sum += input;
+      accum.count++;
+      return accum;
+  }
+
+  @Override
+  public Accum mergeAccumulators(Iterable<Accum> accums) {
+    Accum merged = createAccumulator();
+    for (Accum accum : accums) {
+      merged.sum += accum.sum;
+      merged.count += accum.count;
+    }
+    return merged;
+  }
+
+  @Override
+  public Double extractOutput(Accum accum) {
+    return ((double) accum.sum) / accum.count;
+  }
+}
+PCollection<Integer> pc = ...;
+PCollection<Double> average = pc.apply(Combine.globally(new AverageFn()));
+```
+
+See the [API for Java reference documentation for CombineFn](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn) for full details on the required type parameters and generics you'll need to subclass `CombineFn`.
+
+The accumulator type `AccumT` must be encodable. See [Data Encoding](#data-encoding) for details on how to specify a default coder for a data type.
+
+##### Using the Included Statistical Combination Functions
+
+The Dataflow SDKs contain several classes that provide basic mathematical combination functions. You can use combine functions from these classes as the combine function when using `Combine.globally` or `Combine.perKey`. The functions include:
+
+- `Sum`: add all values together to produce a single sum value.
+- `Min`: keep only the minimum value from all available values
+- `Max`: keep only the maximum value from all available values
+- `Mean`: compute a single mean average value from all available values
+
+Each class defines combine functions for `Integer`, `Long`, and `Double` types (excepting the `Mean` class, which defines a generic accumulating combine function, to which you'll need to pass a type parameter).
+
+For example, you can use the `Sum.SumIntegerFn` to sum a collection of `Integer` values (per key, in this example):
+
+```java
+  PCollection<KV<String, Integer>> playerScores = ...;
+  PCollection<KV<String, Integer>> totalPointsPerPlayer =
+    playerScores.apply(Combine.<String, Integer, Integer>perKey(
+      new Sum.SumIntegerFn()));
+```
+
+Likewise, you can use `Max.MaxLongFn` to compute the maximum `Long` value in a `PCollection` as shown:
+
+```java
+  PCollection<Long> waitTimes = ...;
+  PCollection<Long> longestWaitTime = waitTimes.apply(
+    Combine.globally(new Max.MaxLongFn()));
+```
+
+The `Sum`, `Min`, `Max`, and `Mean` classes are all defined in the package [com.google.cloud.dataflow.sdk.transforms](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/package-summary). See the [Cloud Dataflow Java API reference](https://cloud.google.com/dataflow/java-sdk/JavaDoc/index) for more information.
+
+### Creating Composite Transforms
+
+**Transforms in the Dataflow SDK can have a nested structure, in which you can compose a complex transform from multiple simpler transforms**. Such a transform might be composed of multiple other transform operations (i.e., they might perform more than one `ParDo`, `Combine`, or `GroupByKey`). These transforms are called **composite transforms**. Composite transforms are useful if you want to create a reusable transform consisting of multiple steps.
+
+Nesting multiple transforms inside a single composite transform can provide multiple benefits to your Dataflow pipeline:
+
+- **Composite transforms can make your code more modular and easier to understand, promoting code reuse**.
+- The [Dataflow Monitoring Interface](https://cloud.google.com/dataflow/pipelines/dataflow-monitoring-intf) can refer to composite transforms by name, making it easier for you to track and understand your pipeline's progress at runtime.
+
+#### An Example of a Composite Transform
+
+Many of the [pre-written transforms](https://cloud.google.com/dataflow/model/library-transforms) in the Dataflow SDKs are composite transforms.
+
+The `CountWords` transform in the Dataflow SDK [WordCount example program](https://cloud.google.com/dataflow/examples/wordcount-example.html) is an example of a composite transform. `CountWords` is a `PTransform` subclass that is made up of multiple nested transforms.
+
+In its  `apply` method, the `CountWords` transform applies the following transform operations:
+
+1. It applies a `ParDo` on the input `PCollection` of text lines, producing an output `PCollection` of individual words.
+2. It applies the Dataflow SDK library transform `Count`* on the `PCollection` of words, producing a `PCollection` of key/value pairs. Each key represents a word in the text, and each value represents the number of times that word appeared in the original data.
+3. It applies a final `ParDo` to the `PCollection` of key/value pairs to produce a `PCollection` of printable strings suitable for writing to an output file.
+
+Figure 1 shows a diagram of how the pipeline containing `CountWords` is structured using composite transforms.
+
+![The CountWords transform is a composite transform that uses two ParDo              operations and uses the SDK-provided transform called Count.](composite-transforms.png)Figure 1: A breakdown of the composite CountWords transform
+
+**Your composite transform's parameters and return value must match the initial input type and final return type for the entire transform**. For example, `CountWords.apply` accepts an input `PCollection<String>` and returns a  `PCollection<String>`, even though the transform's intermediate data changes type multiple times:
+
+```java
+static class CountWords
+  extends PTransform<PCollection<String>, PCollection<String>> {
+  @Override
+  public PCollection<String> apply(PCollection<String> lines) {
+    PCollection<String> words = lines.apply(
+      ParDo
+      .named("ExtractWords")
+      .of(new ExtractWordsFn()));
+
+    PCollection<KV<String, Integer>> wordCounts =
+      words.apply(Count.<String>perElement());
+
+    PCollection<String> results = wordCounts.apply(
+      ParDo
+      .named("FormatCounts")
+      .of(new DoFn<KV<String, Integer>, String>() {
+        @Override
+        public void processElement(ProcessContext c) {
+          c.output(c.element().getKey() + ": " + c.element().getValue());
+        }
+      }));
+
+    return results;
+  }
+}
+```
+
+#### Creating a Composite Transform
+
+You can create your own composite transform by creating a subclass of the `Ptransform` class in the Dataflow SDK and overriding the `apply` method to specify the actual processing logic. You can then use this transform just as you would a built-in transform from the SDK.
+
+For the `PTransform` class type parameters, you pass the `PCollection` types that your transform takes as input and produces as output. To take multiple PCollections as input, or produce multiple PCollections as output, use one of the [multi-collection types](#Handling-Multiple-PCollections) for the relevant type parameter.
+
+The following code sample shows how to declare a `PTransform` that accepts a `PCollection` of  `String`s for input and outputs a`PCollection` of `Integer`s:
+
+```java
+static class ComputeWordLengths
+  extends PTransform<PCollection<String>, PCollection<Integer>> {
+  ...
+}
+```
+
+##### Overriding the Apply Method
+
+Within your `PTransform` subclass, you'll need to override the `apply` method. **`apply` is where you add the processing logic for the `PTransform`**. Your override of  `apply`  must accept the appropriate type of input `PCollection` as a parameter, and specify the output `PCollection` as the return value.
+
+The following code sample shows how to override `apply` for the `ComputeWordLengths` class declared in the previous example:
+
+```java
+static class ComputeWordLengths
+  extends PTransform<PCollection<String>, PCollection<Integer>> {
+  @Override
+  public PCollection<Integer> apply(PCollection<String>) {
+    ...
+      // transform logic goes here
+      ...
+  }
+```
+
+As long as you override the `apply` method in your `PTransform` subclass to accept the appropriate input `PCollection`(s) and return the corresponding output `PCollection`(s), you can include as many transforms as you want. These transforms can include core transforms, composite transforms, or the transforms included in the libraries in the Dataflow SDKs.
+
+> The `apply` method of a `PTransform` is not meant to be invoked directly by the user of a transform. Instead, you should [call the `apply` method](#overview-of-transform) on the `PCollection` itself with the transform as an argument. This allows transforms to be nested within the structure of your pipeline.
+>
+> **注意**：`PTransform.apply` 已经被重命名为 `PTransform.expamd`，参见[Rename one of PTransform.apply and PInput.apply](https://issues.apache.org/jira/browse/BEAM-438)
+
+### Pre-Written Transforms in the Cloud Dataflow SDK
+
+The Dataflow SDKs provide a library of pre-written transforms that represent common and useful data processing operations. These transforms are either [core transforms](#types-of-transforms-in-the-dataflow-sdks) with generic processing functions already written for you, or [composite transforms](#creating-composite-transforms) that combine simple pre-written transforms to perform useful processing functions.
+
+> In the Dataflow SDK for Java, you can find these transforms in the package  [com.google.cloud.dataflow.sdk.transforms](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/package-summary).
+
+You can use any of the pre-written transforms in the Dataflow SDKs as-is in your own pipelines. These transforms are generic and convenient operations that can perform common data processing steps, such as counting elements in a collection, <u>dividing a collection into quantiles</u>, finding the top (or bottom) *N* elements in a collection, and performing basic mathematical combinations on numerical data.
+
+Many of the pre-written transforms in the Dataflow SDKs are genericized [composite transforms](#creating-composite-transforms) that can take different data types. They are made up of nested core transforms like [ParDo](#Parallel-Processing-with-ParDo), [GroupByKey](#GroupByKey-and-Join), and [Combine](#Combining-Collections-and-Values).
+
+> The Dataflow SDK for Java can represent most common data processing operations using core transforms. The pre-written transforms provided in the SDKs are essentially pre-built wrappers for generic `ParDo`, `Combine`, etc. transforms organized in such a way that they count elements or do basic mathematical combinations. `Sum.integersGlobally`, for example, wraps the `Combine.Globally` core transform for `Integer` types, and provides a pre-written `CombineFn` that computes the sum of all input elements. Rather than writing your own version of `Combine.Globally` with a sum`CombineFn`, you can use the pre-built provided in the SDK.
+
+If the transforms included in the Dataflow SDKs don't fit your pipeline's use case exactly, you can create your own generic, reusable composite transforms. The source code for the included transforms can serve as a model for creating your own composite transforms using `ParDo`, `Combine`, and other core transforms. See [Creating Composite Transforms](#creating-composite-transforms) for more information.
+
+#### Common Processing Patterns
+
+The transforms included in the Dataflow SDKs provide convenient mechanisms to perform common data processing operations in your pipelines. The source code for these transforms illustrate how the core transforms like `ParDo` can be used (or re-used) for various operations.
+
+##### Simple ParDo Wrappers
+
+Some of the simplest transforms provided in the Dataflow SDKs are utility transforms for dealing with key/value pairs. Given a `PCollection` of key/value pairs, the `Keys` transform returns a `PCollection` containing only the keys; the `Values` transform returns a `PCollection` containing only the values. The `KvSwap` transform swaps the key element and the value element for each key/value pair, and returns a `PCollection` of the reversed pairs.
+
+`Keys`, `Values`, `KvSwap`, `MapElements`, `FlatMapElements`, `Filter`, and `Partition` are simple transforms composed of a single `ParDo`. In each case, the `ParDo` invokes a relatively simple `DoFn` to produce the elements of the output `PCollection`.
+
+Here's the `apply` method for the [`Keys`](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Keys) transform, which accepts a generic `PCollection` of `KV` elements, and returns a `PCollection` of only the keys from the key/value pairs:
+
+```java
+@Override
+public PCollection<K> apply(PCollection<? extends KV<K, ?>> in) {
+  return
+    in.apply(ParDo.named("Keys")
+             .of(new DoFn<KV<K, ?>, K>() {
+               @Override
+               public void processElement(ProcessContext c) {
+                 c.output(c.element().getKey());
+               }
+             }));
+}
+```
+
+In the example, the `apply` method applies a `ParDo` transform to the input collection (`in`). That `ParDo` invokes a simple `DoFn` to output the key part of the key/value pair. The `DoFn` is trivial, and can be defined as an anonymous inner class instance.
+
+##### Patterns That Combine Elements
+
+The Dataflow SDKs contain a number of convenient transforms that perform common statistical and mathematical combinations on elements. For example, there are transforms that accept a `PCollection` of numerical data (such as integers) and perform a mathematical combination: finding the sum of all elements, the mean average of all elements, or the largest/smallest of all elements in the collection. Examples of transforms of this kind are `Sum` and `Mean`.
+
+Other transforms perform basic statistical analysis on a collection: finding the top *N* elements, for example, or returning a random sample of every *N* elements in a given `PCollection`. Examples of transforms of this kind include `Top` and `Sample`.
+
+These transforms are based on the [Combine](#Combining-Collections-and-Values) core transform. They include variants that work on `PCollection`s of individual values (using `Combine.globally`) and `PCollection`s of key/value pairs (using `Combine.perKey`).
+
+See the source and API for Java reference documentation for the [Top](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Top) transform for an example of a combining transform with both global and per-key variants.
+
+##### Map/Shuffle/Reduce-Style Processing
+
+Some of the transforms included in the Dataflow SDKs perform processing similar to a Map/Shuffle/Reduce-style algorithm. These transforms include `Count`, which accepts a potentially non-unique collection of elements and returns a reduced collection of just the unique elements paired with an occurrence count for each. The `RemoveDuplicates`transform likewise reduces a non-unique collection to just the unique elements, but does not provide an occurrence count.
+
+These transforms make use of the core `ParDo` and `Combine.perKey` transforms. `Combine.perKey` is itself a composite operation that performs a `GroupByKey` and combines the resulting value stream for each key into a single value. The `ParDo` represents the Map phase of Map/Shuffle/Reduce; `Combine.perKey` represents the Shuffle and Reduce phases.
+
+Here's the `apply` method for the [Count](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count) transform, showing the processing logic in the nested `ParDo` and `Combine.perKey`transforms:
+
+```java
+@Override
+public PCollection<KV<T, Long>> apply(PCollection<T> in) {
+  return
+    in
+    .apply(ParDo.named("Init")
+           .of(new DoFn<T, KV<T, Long>>() {
+             @Override
+             public void processElement(ProcessContext c) {
+               c.output(KV.of(c.element(), 1L));
+             }
+           }))
+
+    .apply(Combine.<T, Long>perKey(
+      new SerializableFunction<Iterable<Long>, Long>() {
+        @Override
+        public Long apply(Iterable<Long> values) {
+          long sum = 0;
+          for (Long value : values) {
+            sum += value;
+          }
+          return sum;
+        }
+      }));
+}
+```
+
+In the example, the `apply` method uses a `ParDo` transform to attach an occurrence count to each element in the input `PCollection`, creating a key/value pair for each element—this is the Map phase of Map/Shuffle/Reduce. `Count` then applies a `Combine.perKey`transform to perform the Shuffle and Reduce logic, and produce a `PCollection` of unique elements with a combined count of occurrences.
+
 ------
+
 #Beam用到的 JAVA 语法和模式
 
 ## java静态类
