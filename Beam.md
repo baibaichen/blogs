@@ -1674,7 +1674,7 @@ The Dataflow SDKs provide a library of pre-written transforms that represent com
 
 You can use any of the pre-written transforms in the Dataflow SDKs as-is in your own pipelines. These transforms are generic and convenient operations that can perform common data processing steps, such as counting elements in a collection, <u>dividing a collection into quantiles</u>, finding the top (or bottom) *N* elements in a collection, and performing basic mathematical combinations on numerical data.
 
-Many of the pre-written transforms in the Dataflow SDKs are genericized [composite transforms](#creating-composite-transforms) that can take different data types. They are made up of nested core transforms like [ParDo](#Parallel-Processing-with-ParDo), [GroupByKey](#GroupByKey-and-Join), and [Combine](#Combining-Collections-and-Values).
+Many of the pre-written transforms in the Dataflow SDKs are genericized [composite transforms](#creating-composite-transforms) that can take different data types. They are made up of nested core transforms like [ParDo](#parallel-processing-with-parDo), [GroupByKey](#groupbykey-and-join), and [Combine](#combining-collections-and-values).
 
 > The Dataflow SDK for Java can represent most common data processing operations using core transforms. The pre-written transforms provided in the SDKs are essentially pre-built wrappers for generic `ParDo`, `Combine`, etc. transforms organized in such a way that they count elements or do basic mathematical combinations. `Sum.integersGlobally`, for example, wraps the `Combine.Globally` core transform for `Integer` types, and provides a pre-written `CombineFn` that computes the sum of all input elements. Rather than writing your own version of `Combine.Globally` with a sum`CombineFn`, you can use the pre-built provided in the SDK.
 
@@ -1714,7 +1714,7 @@ The Dataflow SDKs contain a number of convenient transforms that perform common 
 
 Other transforms perform basic statistical analysis on a collection: finding the top *N* elements, for example, or returning a random sample of every *N* elements in a given `PCollection`. Examples of transforms of this kind include `Top` and `Sample`.
 
-These transforms are based on the [Combine](#Combining-Collections-and-Values) core transform. They include variants that work on `PCollection`s of individual values (using `Combine.globally`) and `PCollection`s of key/value pairs (using `Combine.perKey`).
+These transforms are based on the [Combine](#combining-collections-and-values) core transform. They include variants that work on `PCollection`s of individual values (using `Combine.globally`) and `PCollection`s of key/value pairs (using `Combine.perKey`).
 
 See the source and API for Java reference documentation for the [Top](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Top) transform for an example of a combining transform with both global and per-key variants.
 
