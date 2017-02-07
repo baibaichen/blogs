@@ -1200,7 +1200,7 @@ Java 8 is able to infer the parameter types of `GroupByKey.create`, but they may
 
 `GroupByKey` behaves a bit differently when the input `PCollection` is divided [into multiple windows](#windowing)— instead of a single global window.
 
-The `GroupByKey` transform also considers the window to which each element belongs when performing the reduction. **The window(s) (as determined by each key/value pair's timestamp) essentially acts as a secondary key**.  `GroupByKey` with windowing thus **groups by both key and window**. When all elements are part of a single global window, `GroupByKey` degenerates to the simple semantics [described above](#GroupByKey ).
+The `GroupByKey` transform also considers the window to which each element belongs when performing the reduction. **The window(s) (as determined by each key/value pair's timestamp) essentially acts as a secondary key**.  `GroupByKey` with windowing thus **groups by both key and window**. When all elements are part of a single global window, `GroupByKey` degenerates to the simple semantics [described above](#groupbykey).
 
 While an element's window(s) acts as a **secondary** key for grouping, it can be potentially more powerful. Elements might belong to more than one window, and overlapping windows may be merged. This allows you to create [more complex groupings](#windowing-Functions).
 
