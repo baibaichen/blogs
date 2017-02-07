@@ -36,7 +36,7 @@ A **transform** is a step in your pipeline. Each transform takes one or more 
 
 The Dataflow SDKs contain a number of **core transforms**. A core transform is a generic operation that represents a basic or common processing operation that you perform on your pipeline data. Most core transforms provide a processing pattern, and require you to create and supply the actual processing logic that gets applied to the input `PCollection`.
 
-For example, the [ParDo](#parallel-processing-with-pardo) core transform provides a generic processing pattern: for every element in the input `PCollection`, perform a user-specified processing function on that element. The Dataflow SDKs supply core transforms such as [ParDo](#parallel-processing-with-pardo) and [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key), as well as other core transforms for combining, merging, and splitting data sets.
+For example, the [ParDo](#parallel-processing-with-pardo) core transform provides a generic processing pattern: for every element in the input `PCollection`, perform a user-specified processing function on that element. The Dataflow SDKs supply core transforms such as [ParDo](#parallel-processing-with-pardo) and [GroupByKey](#groupbykey-and-join), as well as other core transforms for combining, merging, and splitting data sets.
 
 >  See [Transforms](https://cloud.google.com/dataflow/model/transforms.html) for a complete discussion of how to use transforms in your pipeline.
 
@@ -241,7 +241,7 @@ static class StationSpeed {
 
 ###Windowing
 
-The Dataflow SDKs use a concept called **Windowing** to subdivide a [PCollection](https://cloud.google.com/dataflow/model/pcollection) according to the timestamps of its individual elements. Dataflow [transforms](https://cloud.google.com/dataflow/model/transforms) that aggregate multiple elements, such as [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) and [Combine](https://cloud.google.com/dataflow/model/combine), work implicitly on a per-window basis—that is, they process each `PCollection` as a succession of multiple, finite windows, though the entire collection itself may be of unlimited or infinite size.
+The Dataflow SDKs use a concept called **Windowing** to subdivide a [PCollection](https://cloud.google.com/dataflow/model/pcollection) according to the timestamps of its individual elements. Dataflow [transforms](https://cloud.google.com/dataflow/model/transforms) that aggregate multiple elements, such as [GroupByKey](#groupbykey-and-join) and [Combine](https://cloud.google.com/dataflow/model/combine), work implicitly on a per-window basis—that is, they process each `PCollection` as a succession of multiple, finite windows, though the entire collection itself may be of unlimited or infinite size.
 
 >1.  a succession of :  一系列的、一连串、一个接一个
 
@@ -249,7 +249,7 @@ The Dataflow SDKs use a related concept called **Triggers** to determine when 
 
 #### Windowing 基础
 
-Windowing is most useful with an **unbounded** `PCollection`, which represents a *continuously updating data set of unknown/unlimited size* (e.g. streaming data). Some Dataflow transforms, such as [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) and [Combine](https://cloud.google.com/dataflow/model/combine), group multiple elements by a common key. Ordinarily, that grouping operation groups all of the elements that have the same key *in the entire data set*. With an unbounded data set, it is impossible to collect all of the elements, since new elements are constantly being added.
+Windowing is most useful with an **unbounded** `PCollection`, which represents a *continuously updating data set of unknown/unlimited size* (e.g. streaming data). Some Dataflow transforms, such as [GroupByKey](#groupbykey-and-join) and [Combine](https://cloud.google.com/dataflow/model/combine), group multiple elements by a common key. Ordinarily, that grouping operation groups all of the elements that have the same key *in the entire data set*. With an unbounded data set, it is impossible to collect all of the elements, since new elements are constantly being added.
 
  In the Dataflow model, any `PCollection` can be subdivided into logical **windows**. Each element in a `PCollection` gets assigned to one or more windows according to the `PCollection`'s **windowing function**, and each individual window contains a finite number of elements. Grouping transforms then consider each `PCollection`'s elements on a per-window basis. `GroupByKey`, for example, implicitly groups the elements of a `PCollection` by *key and window*. Dataflow *only* groups data within the same window, and doesn't group data in other windows.
 
@@ -336,7 +336,7 @@ The simplest kind of session windowing specifies a *minimum gap duration*. All 
 
 By default, all data in a `PCollection` is assigned to a single global window. If your data set is of a fixed size, you can leave the global window default for your `PCollection`. If the elements of your `PCollection` all belong to a single global window, your pipeline will execute much like a batch processing job (as in MapReduce-based processing).
 
->You can use a single global window if you are working with an unbounded data set, e.g. from a streaming data source; however, use caution when applying aggregating transforms such as [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) and [Combine](https://cloud.google.com/dataflow/model/combine). A single global window with a default trigger generally requires the entire data set to be available before processing, which is not possible with continuously updating data.
+>You can use a single global window if you are working with an unbounded data set, e.g. from a streaming data source; however, use caution when applying aggregating transforms such as [GroupByKey](#groupbykey-and-join) and [Combine](https://cloud.google.com/dataflow/model/combine). A single global window with a default trigger generally requires the entire data set to be available before processing, which is not possible with continuously updating data.
 >
 >To perform aggregations on an unbounded `PCollection` that uses global windowing, you should specify a **non-default** [trigger](https://cloud.google.com/dataflow/model/triggers) for that `PCollection`. If you attempt to perform an aggregation such as `GroupByKey` on an unbounded, globally windowed `PCollection` with default triggering, the Cloud Dataflow service will generate an exception when your pipeline is constructed.
 
@@ -612,7 +612,7 @@ In general, a trigger set to `.accumulatingFiredPanes` always outputs all data
 
 ##### Trigger Continuation
 
-When you apply an aggregating transform such as [`GroupByKey`](https://cloud.google.com/dataflow/model/group-by-key) or [`Combine.perKey`](https://cloud.google.com/dataflow/model/combine) to a `PCollection` for which you've specified a trigger, ***keep in mind*** that the `GroupByKey` or `Combine.perKey` produces a new output `PCollection`; the trigger that you set for the input collection **does not** propagate onto the new output collection.
+When you apply an aggregating transform such as [`GroupByKey`](#groupbykey-and-join) or [`Combine.perKey`](https://cloud.google.com/dataflow/model/combine) to a `PCollection` for which you've specified a trigger, ***keep in mind*** that the `GroupByKey` or `Combine.perKey` produces a new output `PCollection`; the trigger that you set for the input collection **does not** propagate onto the new output collection.
 
 ***Instead***, the Dataflow SDK creates <u>a comparable trigger</u> for the output `PCollection` based on the trigger that you specified for the input collection. The new trigger attempts to emit elements as fast as reasonably possible, at roughly the rate specified by the original trigger on the input `PCollection`. Dataflow determines the properties of the new trigger based on the parameters you provided for the input trigger:
 
@@ -799,7 +799,7 @@ You will often use the core transforms directly in your pipeline. In addition, m
 The Dataflow SDKs define the following core transforms:
 
 - [ParDo](#parallel-processing-with-pardo) for generic parallel processing
-- [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) for Key-Grouping Key/Value pairs
+- [GroupByKey](#groupbykey-and-join) for Key-Grouping Key/Value pairs
 - [Combine](https://cloud.google.com/dataflow/model/combine) for combining collections or grouped values
 - [Flatten](https://cloud.google.com/dataflow/model/multiple-pcollections#flatten) for merging collections
 
