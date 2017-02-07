@@ -95,17 +95,21 @@ if (starts with 'A') { outputToPCollectionA } else if (starts with 'B') { output
 
 ## PCollection
 
+###Overview
+
 The Dataflow SDKs use a specialized class called `PCollection` to represent data in a pipeline. A `PCollection` represents a multi-element data set.
 
 You can think of a `PCollection` as "pipeline" data. Dataflow's [transforms](https://cloud.google.com/dataflow/model/transforms) use `PCollection`s as inputs and outputs; as such, if you want to work with data in your pipeline, it must be in the form of a `PCollection`. **Each `PCollection` is owned by a specific `Pipeline` object, and only that `Pipeline` object can use it.**
 
-### PCollection Characteristics
+> **IMPORTANT:** This document contains information about **unbounded** `PCollection`s and **Windowing**. These concepts refer to the Dataflow Java SDK only, and are not yet available in the Dataflow Python SDK.
+
+#### PCollection Characteristics
 
 **A `PCollection` represents a potentially large, immutable "bag" of elements**. There is **no upper limit** on how many elements a `PCollection` can contain; any given `PCollection` might fit in memory, or it might represent a very large data set backed by a persistent data store.
 
 > The elements of a `PCollection` can be of any type, but must all be of the same type. However, Dataflow needs to be able to encode each individual element as a byte string in order to support distributed processing. The Dataflow SDKs provide a [Data Encoding](https://cloud.google.com/dataflow/model/data-encoding.html) mechanism that includes built in encodings for commonly used types and support for specifying custom encodings as needed. Creating a valid encoding for an aribitrary type can be challenging, but you can [construct](https://cloud.google.com/dataflow/model/pcollection#user-data-types) custom encoding for simple structured types.
 
-#### PCollection Limitations
+##### PCollection Limitations
 
 A `PCollection` has several key aspects in which it differs from a regular collection class:
 
@@ -117,11 +121,11 @@ A `PCollection` may **be physically backed by data in existing storage**, or i
 
 > A `PCollection` does not store data, per se; remember that a `PCollection` may have too many elements to fit in local memory where your Dataflow program is running. When you create or transform a `PCollection`, data isn't copied or moved in memory as with some regular container classes. Instead, a `PCollection` represents a potentially very large data set in the cloud.
 
-### Bounded and Unbounded PCollections
+#### Bounded and Unbounded PCollections
 
 A `PCollection`'s size can be either **bounded** or **unbounded**, and the boundedness (or unboundedness) is determined when you create the `PCollection`. Some root transforms create bounded `PCollections`, while others create unbounded ones; it depends on the source of your input data.
 
-#### Bounded PCollections
+##### Bounded PCollections
 
 Your `PCollection` is bounded if it represents a *fixed data set*, which has a known size that doesn't change. An example of a fixed data set might be "*server logs from the month of October*", or "*all orders processed last week*." `TextIO` and `BigQueryIO`  root transforms create bounded `PCollection`s.
 
@@ -137,7 +141,7 @@ Your `PCollection` is bounded if it represents a *fixed data set*, which has 
 - `DatastoreIO`
 - Custom bounded data sinks you create using the [Custom Sink API](https://cloud.google.com/dataflow/model/custom-io-python)
 
-#### Unbounded PCollections
+##### Unbounded PCollections
 
 Your `PCollection` is unbounded if it represents a **continuously updating data set**, or streaming data. An example of a continuously updating data set might be "server logs as they are generated" or "all new orders as they are processed."`PubSubIO` root transforms create unbounded `PCollection`s.
 
@@ -153,13 +157,13 @@ Some sources, particularly those that create unbounded `PCollection`s (such as�
 - `PubsubIO`
 - `BigQueryIO`
 
-#### Processing Characteristics
+##### Processing Characteristics
 
 The bounded (or unbounded) nature of your `PCollection` affects how Dataflow processes your data. **Bounded `PCollection`s can be processed using batch jobs**, which might read the entire data set once, and perform processing in a finite job. **Unbounded `PCollection`s must be processed using streaming jobs**, as the entire collection can never be available for processing at any one time.
 
 When grouping unbounded `PCollection`s, Dataflow requires a concept called [Windowing](https://cloud.google.com/dataflow/model/windowing) to **divide a continuously updating data set into logical windows of finite size**. Dataflow processes each window as a bundle, and processing continues as the data set is generated. See the following section on [Timestamps and Windowing](https://cloud.google.com/dataflow/model/pcollection#Timestamps) for more information.
 
-### PCollection Element Timestamps
+#### PCollection Element Timestamps
 
 Each element in a `PCollection` has an associated **timestamp**. Timestamps are useful for `PCollection`s that contain elements *with an inherent notion of time*. For example, a `PCollection` of orders to process may use the time an order was created as the element timestamp.
 
@@ -169,7 +173,7 @@ Each element in a `PCollection` has an associated **timestamp**. Timestamps a
 >
 > You can manually assign timestamps to the elements of a `PCollection`. This is commonly done when elements have an inherent timestamp, but that timestamp must be calculated, for example by parsing it out of the structure of the element. To manually assign a timestamp, use a [ParDo](https://cloud.google.com/dataflow/model/par-do) transform; within the `ParDo` transform, your `DoFn` can produce output elements with timestamps. See [Assigning Timestamps](https://cloud.google.com/dataflow/model/windowing#TimeStamping) for more information.
 
-#### Windowing
+##### Windowing
 
 The timestamps associated with each element in a `PCollection` are used for a concept called **Windowing**. Windowing **divides the elements of a `PCollection` according to their timestamps**. Windowing can be used on all `PCollection`s, but **is required for some computations over unbounded `PCollection`s in order to divide the continuous data stream in finite chunks for processing.**
 
@@ -177,13 +181,13 @@ The timestamps associated with each element in a `PCollection` are used for a 
 
 See the section on [Windowing](https://cloud.google.com/dataflow/model/windowing) for more information on how to use Dataflow's Windowing concepts in your pipeline.
 
-### 创建 `PCollection`
+#### 创建 `PCollection`
 
 - [ ] Reading External Data
 - [ ] Creating a PCollection from Data in Local Memory
 
 
-### Using PCollection with Custom Data Types
+#### Using PCollection with Custom Data Types
 
 You can create a `PCollection` where the element type is a **custom data type** that you provide. This can be useful if you need to create a collection of your own class or structure with specific fields, like a Java class that holds a customer's name, address, and phone number.
 
@@ -438,11 +442,697 @@ PCollection<LogEntry> stampedLogs =
   }));
 ```
 
+### Triggers
 
+When collecting the data in a `PCollection` and grouping that data in finite windows, **Dataflow needs some way to determine when to emit the aggregated results of each window**. Given [time skew and data lag](https://cloud.google.com/dataflow/model/windowing#Advanced), Dataflow uses a mechanism called **triggers** to determine when "enough" data has been collected in a window, after which it emits the aggregated results of that window, each of which is referred to as a ***pane***.
+
+Dataflow's triggers system provides several different ways to determine when to emit the aggregated results of a given window, depending on your system's data processing needs. **For example**, a system that requires prompt or time-sensitive updates might use *a strict time-based trigger that emits a window every N seconds*, valuing promptness over data completeness; a system that values data completeness more than the exact timing of results might use *a data-based trigger that waits for a certain number of data records* to accumulate before closing a window.
+
+**Triggers** are particularly useful for handling two kinds of conditions in your pipeline:
+
+- Triggers can help you handle instances of late data.
+- Triggers can help you emit early results, before all the data in a given window has arrived.
+
+> **Note:** You can set a trigger for an unbounded `PCollection` that uses a single global window for its windowing function. This can be useful when you want your pipeline to provide periodic updates on an unbounded data set—for example, a running average of all data provided to the present time, updated every *N* seconds or every *N* elements.
+>
+> promptness：及时性
+
+#### Types of Triggers
+
+Dataflow provides a number of pre-built triggers that you can set for your `PCollection`s. There are three major kinds of triggers:
+
+- **Time-based triggers**. These triggers operate on a time reference--either event time (as indicated by the timestamp on each data element) or the processing time (the time when the data element is processed at any given stage in the pipeline).
+- **Data-driven triggers**. These triggers operate by examining the data as it arrives in each window and firing when a data condition that you specify is met. For example, you can set a trigger to emit results from a window when that window has received a certain number of data elements.
+- **Composite triggers**. These triggers combine multiple time-based or data-driven triggers in some logical way. You can set a composite trigger to fire when all triggers are met (logical AND), when any trigger is met (logical OR), etc.
+
+##### Time-Based Triggers
+
+Dataflow's time-based triggers include `AfterWatermark` and `AfterProcessingTime`. These triggers take a time reference in either event time or processing time, and set a timer based on that time reference.
+
+###### AfterWatermark
+
+**The `AfterWatermark` trigger operates on *event time***. The `AfterWatermark` trigger will emit the contents of a window after the watermark passes the end of the window, based on the timestamps attached to the data elements. **The watermark is a global progress metric, Dataflow's notion of input completeness within your pipeline at any given point.**
+
+The `AfterWatermark` trigger ***only* fires when the watermark passes the end of the window**—it is the primary trigger that Dataflow uses to emit results when the system estimates that it has all the data in a given time-based window.
+
+###### AfterProcessingTime
+
+**The `AfterProcessingTime` trigger operates on *processing time***.  The `AfterProcessingTime` trigger emits a window after a certain amount of processing time has passed since the time reference, such as the start of a window. The processing time is determined by the system clock, rather than the data element's timestamp.
+
+The `AfterProcessingTime` trigger is **useful for triggering early results from a window, particularly a window with a large time frame such as a single global window.**
+
+##### Data-Driven Triggers
+
+Dataflow currently provides only one data-driven trigger, `AfterPane.elementCountAtLeast`. This trigger works on a straight element count; it fires after the current pane has collected at least *N* elements.
+
+The `AfterPane.elementCountAtLeast()` is a good way to cause a window to emit early results, before all the data has accumulated, especially in the case of a single global window.
+
+##### Default Trigger
+
+The default trigger for a `PCollection` is event time-based, and emits the results of the window when the system's watermark (Dataflow's notion of when it "should" have all the data) passes the end of the window. The default triggering configuration **emits exactly once, and late data is discarded**. This is because the default windowing and trigger configuration has an allowed lateness value of 0. See [Handling Late Data](https://cloud.google.com/dataflow/model/triggers#lateData) for information on modifying this behavior.
+
+**The watermark depends on the data source**; in some cases, it is an estimate. In others, such as Pub/Sub with system-assigned timestamps, the watermark can provide an exact bound of what data the pipeline has processed.
+
+##### Handling Late Data
+
+If your pipeline needs to handle late data (data that arrives after the watermark passes the end of the window), you can apply an *allowed lateness* when setting your windowing and trigger configuration. This will give your trigger the opportunity to react to the late data; in the default triggering configuration it will emit new results immediately whenever late data arrives.
+
+You set the allowed lateness by using `.withAllowedLateness()` when setting your window and trigger, as follows:
+
+```java
+PCollection<String> pc = ...;
+pc.apply(
+  Window<String>.into(FixedWindows.of(1,TimeUnit.MINUTES))
+                .triggering(AfterProcessingTime.pastFirstElementInPane()
+                                               .plusDelayOf(Duration.standardMinutes(1)))
+                .withAllowedLateness(Duration.standardMinutes(30));
+```
+
+This allowed lateness propagates to all `PCollection`s derived as a result of applying transforms to the original `PCollection`. If you want to change the allowed lateness later in your pipeline, you can apply `Window.withAllowedLateness()` again, explicitly.
+
+#### Setting a Trigger
+
+When you set a windowing function for a `PCollection` by using the `Window` transform, you can also specify a trigger.
+
+You set the trigger(s) for a `PCollection` by invoking the method `.triggering()` on the result of your `Window.into()`transform, as follows:
+
+```java
+PCollection<String> pc = ...;
+pc.apply(Window<String>.into(FixedWindows.of(1, TimeUnit.MINUTES))
+                       .triggering(AfterProcessingTime.pastFirstElementInPane()
+                                                      .plusDelayOf(Duration.standardMinutes(1)))
+                       .discardingFiredPanes());
+```
+
+The preceding code sample sets a trigger for a `PCollection`; the trigger is time-based, and emits each window one minute after the first element in that window has been processed. The last line in the code sample, `.discardingFiredPanes()`, is the window's **accumulation mode**.
+
+##### Window Accumulation Modes
+
+When you specify a trigger, you must also set the the window's **accumulation mode**. *When a trigger fires, it emits the current contents of the window as a pane*. Since a trigger can fire multiple times, the accumulation mode determines whether the system *accumulates* the window panes as the trigger fires, or *discards* them.
+
+To set a window to accumulate the panes that are produced when the trigger fires, invoke `.accumulatingFiredPanes()` when you set the trigger. To set a window to discard fired panes, invoke `.discardingFiredPanes()`.
+
+Let's look an an example that uses a `PCollection` with fixed-time windowing and a data-based trigger. (This is something you'd do if, for example, each window represented a ten-minute running average, but you wanted to display the current value of the average in a UI more frequently than every ten minutes.) We'll assume the following conditions:
+
+- The `PCollection` uses 10-minute fixed-time windows.
+- The `PCollection` has a repeating trigger that fires every time 3 elements arrive.
+
+The following diagram shows data events as they arrive in the `PCollection` and are assigned to windows*:
+
+![A diagram of data, per key, arriving in a PCollection with fixed-time windowing.](trigger-accumulation.png)
+*Figure 1: Data events in a PCollection with fixed-time windowing*.
+
+> **Note:** To keep the diagram a bit simpler, we'll assume that the events all arrive in the pipeline in order.
+
+For simplicity, let's only consider values associated with key X.
+
+###### Accumulating Mode
+
+If our trigger is set to `.accumulatingFiredPanes`, the trigger emits the following values each time it fires (remember, the trigger fires every time three elements arrive):
+
+```properties
+  Key X:
+    First trigger firing:  [5, 8, 3]
+    Second trigger firing: [5, 8, 3, 15, 19, 23]
+    Third trigger firing:  [5, 8, 3, 15, 19, 23, 9, 13, 10]
+```
+
+###### Discarding Mode
+
+If our trigger is set to `.discardingFiredPanes`, the trigger emits the following values on each firing:
+
+```properties
+  Key X:
+    First trigger firing:  [5, 8, 3]
+    Second trigger firing: [15, 19, 23]
+    Third trigger firing:  [9, 13, 10]
+```
+
+###### Effects of Accumulating vs. Discarding
+
+Now, let's add a per-key calculation to our pipeline. Every time the trigger fires, the pipeline applies a `Combine.perKey`that calculates a mean average for all values associated with each key in the window.
+
+Again, let's just consider key X:
+
+With the trigger set to `.accumulatingFiredPanes`:
+
+```properties
+  Key X:
+    First trigger firing:  [5, 8, 3]
+      Average after first trigger firing: 5.3
+    Second trigger firing: [5, 8, 3, 15, 19, 23]
+      Average after second trigger firing: 12.167
+    Third trigger firing:  [5, 8, 3, 15, 19, 23, 9, 13, 10]
+      Average after third trigger firing: 11.667
+```
+
+With the trigger set to `.discardingFiredPanes`:
+
+```properties
+  Key X:
+    First trigger firing:  [5, 8, 3]
+      Average after first trigger firing: 5.3
+    Second trigger firing: [15, 19, 23]
+      Average after second trigger firing: 19
+    Third trigger firing:  [9, 13, 10]
+      Average after third trigger firing: 10.667
+```
+
+Note that the `Combine.perKey` that computes the mean average produces different results in each case.
+
+In general, a trigger set to `.accumulatingFiredPanes` always outputs all data in a given window, *including any elements previously triggered*. A trigger set to `.discardingFiredPanes` outputs incremental changes since the last time the trigger fired. **Accumulating mode is most appropriate before a grouping operation that combines or otherwise updates the elements; otherwise, use discarding mode**.
+
+> **Note:** Using `.accumulatingFiredPanes` causes a trigger to output all data in a given window every time the trigger fires. If your pipeline performs successive grouping operations (i.e. more than one `GroupByKey` or `Combine.perKey` in succession), an accumulating trigger will cause elements to be counted twice. This can lead to potentially incorrect results when combining, or out-of-memory errors if your pipeline is continually grouping accumulating data without combining. To avoid these issues, you can set a trigger with `.discardingFiredPanes` on the `PCollection` resulting from your first `GroupByKey` or  `Combine.perKey` operation. Alternatively, you can set `.accumulatingFiredPanes` only on the `PCollection` just before the final `GroupByKey`.
+
+##### Trigger Continuation
+
+When you apply an aggregating transform such as [`GroupByKey`](https://cloud.google.com/dataflow/model/group-by-key) or [`Combine.perKey`](https://cloud.google.com/dataflow/model/combine) to a `PCollection` for which you've specified a trigger, ***keep in mind*** that the `GroupByKey` or `Combine.perKey` produces a new output `PCollection`; the trigger that you set for the input collection **does not** propagate onto the new output collection.
+
+***Instead***, the Dataflow SDK creates <u>a comparable trigger</u> for the output `PCollection` based on the trigger that you specified for the input collection. The new trigger attempts to emit elements as fast as reasonably possible, at roughly the rate specified by the original trigger on the input `PCollection`. Dataflow determines the properties of the new trigger based on the parameters you provided for the input trigger:
+
+- **`AfterWatermark`'s continuation trigger is identical to the original trigger by default**. If the `AfterWatermark`trigger has early or late firings specified, the early or late firings of the continuation will be the continuation of the original trigger's early or late firings.
+- `AfterProcessingTime`'s default continuation trigger fires after the synchronized processing time for the amalgamated elements, and does not propagate any additional delays. For example, consider a trigger such as`AfterProcessingTime.pastFirstElementInPane().alignedTo(15 min).plusDelayOf(1 hour)`. After a `GroupByKey`, the trigger Dataflow supplies for the output collection will be synchronized to the same aligned time for each key, but will not retain the 1 hour delay.
+- `AfterCount`'s default continuation trigger fires on every element. For example, `AfterCount(n)` on the input collection becomes `AfterCount(1)` on the output collection.
+
+If you feel the trigger that Dataflow generates for a `PCollection` output from `GroupByKey` or `Combine.perKey` is not sufficient, you should **explicitly set a new trigger** for that collection.
+
+> a comparable trigger：这里的意思是创建一个**同类的**触发器
+
+#### Combining Triggers
+
+In Dataflow, you can combine multiple triggers to form **composite triggers**. You can use Dataflow's composite triggers system to logically combine multiple triggers. You can also specify a trigger to emit results repeatedly, at most once, or under other custom conditions.
+
+##### Composite Trigger Types
+
+Dataflow includes the following composite triggers:
+
+- You can add additional early firings or late firings to `AfterWatermark.pastEndOfWindow`.
+- `Repeatedly.forever` specifies a trigger that executes forever. Any time the trigger's conditions are met, it causes a window to emit results, then resets and <u>starts over</u>. It can be useful to combine `Repeatedly.forever` with `.orFinally` to specify a condition to cause the repeating trigger to stop.
+- `AfterEach.inOrder` combines multiple triggers to fire in a specific sequence. Each time a trigger in the sequence emits a window, the sequence advances to the next trigger.
+- `AfterFirst` takes multiple triggers and emits the first time *any* of its argument triggers is satisfied. This is equivalent to a logical OR operation for multiple triggers.
+- `AfterAll` takes multiple triggers and emits when *all* of its argument triggers are satisfied. This is equivalent to a logical AND operation for multiple triggers. 
+- `orFinally` can serve as a final condition to cause any trigger to fire one final time and never fire again.
+
+> Start over：重新开始
+
+##### Composition with AfterWatermark.pastEndOfWindow
+
+Some of the most useful composite triggers fire a single time when the system estimates that all the data has arrived (i.e. when the watermark passes the end of the window) combined with either, or both, of the following:
+
+- **Speculative firings** that <u>precede</u> the watermark passing the end of the window to allow faster processing of partial results.
+- **Late firings** that happen after the watermark passes the end of the window, to allow for handling late-arriving data
+
+You can express this pattern using `AfterWatermark.pastEndOfWindow`. For example, the following example trigger code fires on the following conditions:
+
+- On the system's estimate that all the data has arrived (the watermark passes the end of the window)
+- Any time late data arrives, after a ten-minute delay
+- After two days, we assume no more data of interest will arrive, and the trigger stops executing
+
+```java
+.apply(Window
+       .triggering(AfterWatermark
+                   .pastEndOfWindow()
+                   .withLateFirings(AfterProcessingTime
+                                    .pastFirstElementInPane()
+                                    .plusDelayOf(Duration.standardMinutes(10))))
+       .withAllowedLateness(Duration.standardDays(2)));
+```
+
+##### Other Composite Triggers
+
+You can also build other sorts of composite triggers. The following example code shows a simple composite trigger that fires whenever the pane has at least 100 elements, or after a minute.
+
+```java
+Repeatedly.forever(AfterFirst.of(
+                           AfterPane.elementCountAtLeast(100),
+                           AfterProcessingTime.pastFirstElementInPane().
+                               plusDelayOf(Duration.standardMinutes(1))))
+```
+
+##### Trigger Grammar
+
+The following grammar describes the various ways that you can combine triggers into composite triggers:
+
+```
+TRIGGER ::=
+   ONCE_TRIGGER
+   Repeatedly.forever(TRIGGER)
+   TRIGGER.orFinally(ONCE_TRIGGER)
+   AfterEach.inOrder(TRIGGER, TRIGGER, ...)
+
+ONCE_TRIGGER ::=
+  TIME_TRIGGER
+  WATERMARK_TRIGGER
+  AfterPane.elementCountAtLeast(Integer)
+  AfterFirst.of(ONCE_TRIGGER, ONCE_TRIGGER, ...)
+  AfterAll.of(ONCE_TRIGGER, ONCE_TRIGGER, ...)
+
+TIME_TRIGGER ::=
+  AfterProcessingTime.pastFirstElementInPane()
+  TIME_TRIGGER.alignedTo(Duration)
+  TIME_TRIGGER.alignedTo(Duration, Instant)
+  TIME_TRIGGER.plusDelayOf(Duration)
+  TIME_TRIGGER.mappedBy(Instant -> Instant)
+
+WATERMARK_TRIGGER ::=
+  AfterWatermark.pastEndOfWindow()
+  WATERMARK_TRIGGER.withEarlyFirings(ONCE_TRIGGER)
+  WATERMARK_TRIGGER.withLateFirings(ONCE_TRIGGER)
+
+Default = Repeatedly.forever(AfterWatermark.pastEndOfWindow())
+```
+###Handling Multiple PCollections
+
+Some Dataflow SDK [transforms](https://cloud.google.com/dataflow/model/transforms) can take multiple `PCollection` objects as input or produce multiple `PCollection`objects as output. The Dataflow SDKs provide several different ways to bundle together multiple `PCollection` objects.
+
+For `PCollection` objects storing the same data type, the Dataflow SDKs also provide the [Flatten](https://cloud.google.com/dataflow/model/multiple-pcollections#flatten) or [Partition](https://cloud.google.com/dataflow/model/multiple-pcollections#partition) transforms. `Flatten` merges multiple `PCollection` objects into a single logical `PCollection`, while `Partition` splits a single `PCollection` into a fixed number of smaller collections.
+
+- [ ] [Handling Multiple PCollections](https://cloud.google.com/dataflow/model/multiple-pcollections)
+
+###Data Encoding
+
+When you create or output pipeline data, you'll need to specify how the elements in your `PCollection`s are encoded and decoded to and from byte strings. **Byte strings** are used for intermediate storage as well reading from sources and writing to sinks. The Dataflow SDKs use objects called **coders** to describe how the elements of a given `PCollection`should be encoded and decoded.
+
+- [ ] [Data Encoding](https://cloud.google.com/dataflow/model/data-encoding)
+
+##Transforms
+
+###Overview
+
+In a Dataflow pipeline, a **transform** represents a step, or a processing operation that transforms data. A transform can perform nearly any kind of processing operation, including *performing mathematical computations on data*, *converting data from one format to another*, *grouping data together*, *reading and writing data*, *filtering data to output only the elements you want*, or *combining data elements into single values*.
+
+Transforms in the Dataflow model can be nested—that is, transforms can contain and invoke other transforms, thus forming **composite transforms**.
+
+> 可以理解为Map Reduce
+
+#### How Transforms Work
+
+Transforms represent your pipeline's processing logic. Each transform accepts one (or multiple) `PCollection`s as input, performs an operation on the elements in the input `PCollection`(s), and produces one (or multiple) new `PCollection`s as output.
+
+To use a transform, you **apply** the transform to the input `PCollection` that you want to process by calling the `apply` method on the input `PCollection`. When you call `PCollection.apply`, you pass the transform you want to use as an argument. The output `PCollection` is the return value from `PCollection.apply`.
+
+**For example**, the following code sample shows how to `apply` a user-defined transform called `ComputeWordLengths` to a `PCollection<String>.ComputeWordLengths` returns a new `PCollection<Integer>` containing the length of each `String` in the input collection:
+
+```java
+// The input PCollection of word strings.
+PCollection<String> words = ...;
+
+// The ComputeWordLengths transform, which takes a PCollection of Strings as input and
+// returns a PCollection of Integers as output.
+static class ComputeWordLengths
+  extends PTransform<PCollection<String>, PCollection<Integer>> { ... }
+
+// Apply ComputeWordLengths, capturing the results as the PCollection wordLengths.
+PCollection<Integer> wordLengths = words.apply(new ComputeWordLengths());
+```
+
+>  When you build a pipeline with a Dataflow program, the transforms you include might not be executed precisely in the order you specify them. The Cloud Dataflow managed service, for example, performs [optimized execution](https://cloud.google.com/dataflow/service/dataflow-service-desc#Optimization). In optimized execution, the Dataflow service orders transforms in *dependency order*, inferring the exact sequence from the inputs and outputs defined in your pipeline. Certain transforms may be merged or executed in a different order to provide the most efficient execution.
+
+#### Types of Transforms in the Dataflow SDKs
+
+##### Core Transforms
+
+The Dataflow SDK contains a small group of core transforms that are the foundation of the Cloud Dataflow parallel processing model. Core transforms form the basic building blocks of pipeline processing. **Each core transform provides a generic *processing framework* for applying business logic *that you provide* to the elements of a `PCollection`.**
+
+When you use a core transform, **you provide the processing logic as a function object**. The function you provide gets applied to the elements of the input `PCollection`(s). Instances of the function may be executed in parallel across multiple Google Compute Engine instances, given a large enough data set, and pending optimizations performed by the pipeline runner service. The worker code function produces the output elements, if any, that are added to the output `PCollection`(s).
+
+###### <span id="UserCodeReqs"> Requirements for User-Provided Function Objects </span>
+
+The **function objects** you provide for a transform might have many copies executing in parallel across multiple Compute Engine instances in your Cloud Platform project. As such, you should consider a few factors when creating such a function:
+
+- Your function object must be serializable.
+- Your function object must be thread-compatible, and be aware that the Dataflow SDKs are not thread-safe.
+- We recommend making your function object idempotent.
+
+These requirements apply to subclasses of `DoFn` (used with the [ParDo](https://cloud.google.com/dataflow/model/par-do) core transform), `CombineFn` (used with the [Combine](https://cloud.google.com/dataflow/model/combine) core transform), and `WindowFn` (used with the [Window](https://cloud.google.com/dataflow/model/windowing) transform).
+
+**Serializability** **可序列化**
+
+**The function object you provide to a core transform must be fully serializable**. The base classes for user code, such as`DoFn`, `CombineFn`, and `WindowFn`, already implement `Serializable`. *However, your subclass must not add any non-serializable members*.
+
+Some other serializability factors for which you must account:
+
+- **Transient fields** in your function object are **not** carried down to worker instances in your Cloud Platform project, because they are not automatically serialized.
+- **Avoid** loading large amounts of data into a field before serialization.
+- Individual instances of function objects **cannot share data**.
+- Mutating a function object after it gets applied **has no effect**.
+- **Take care when you declare your function object inline by using an anonymous inner class instance**. In a non-static context, your inner class instance will implicitly contain a pointer to the enclosing class and its state. That enclosing class will also be serialized, and thus the same considerations that apply to the function object itself also apply to this outer class.
+
+**Thread-Compatibility** **线程兼容**
+
+**Your function object should be thread-compatible**. Each instance of your function object is accessed by a single thread on a worker instance, unless you explicitly create your own threads. Note, however, that **the Dataflow SDKs are not thread-safe.** If you create your own threads in your function object, you must provide your own synchronization. Note that static members are not passed to worker instances and that multiple instances of your function may be accessed from different threads.
+
+**Idempotency** **幂等**
+
+**We recommend making your function object idempotent**— that is, for any given input, your function always provides the same output. Idempotency is *not* required, but making your functions idempotent makes your output deterministic and can make debugging and troubleshooting your transforms easier.
+
+######Types of Core Transforms
+
+You will often use the core transforms directly in your pipeline. In addition, many of the other transforms provided in the Dataflow SDKs are implemented in terms of the core transforms.
+
+The Dataflow SDKs define the following core transforms:
+
+- [ParDo](https://cloud.google.com/dataflow/model/par-do) for generic parallel processing
+- [GroupByKey](https://cloud.google.com/dataflow/model/group-by-key) for Key-Grouping Key/Value pairs
+- [Combine](https://cloud.google.com/dataflow/model/combine) for combining collections or grouped values
+- [Flatten](https://cloud.google.com/dataflow/model/multiple-pcollections#flatten) for merging collections
+
+##### Composite Transforms
+
+The Dataflow SDKs support **composite transforms**, which are transforms built from multiple sub-transforms. *The model of transforms in the Dataflow SDKs is modular, in that you can build a transform that is implemented in terms of other transforms*. You can think of a composite transform as a complex step in your pipeline that contains several nested steps.
+
+Composite transforms are useful when you want to create a repeatable operation that involves multiple steps. Many of the built-in transforms included in the Dataflow SDKs, such as `Count` and `Top`, are this sort of composite transform. They are used in exactly the same manner as any other transform.
+
+See [Creating Composite Transforms](https://cloud.google.com/dataflow/model/composite-transforms) for more information.
+
+##### Pre-Written Transforms in the Dataflow SDKs
+
+The Dataflow SDKs provide a number of pre-written transforms, which are both core and composite transforms where the processing logic is *already written for you*. These are more complex transforms for combining, splitting, manipulating, and performing statistical analysis on data.
+
+> You can find these transforms in the `com.google.cloud.dataflow.sdk.transforms` package and its subpackages.
+
+For a discussion on using the transforms provided in the Dataflow SDKs, see [Transforms Included in the SDKs](https://cloud.google.com/dataflow/model/library-transforms).
+
+##### Root Transforms for Reading and Writing Data
+
+The Dataflow SDKs provide specialized transforms, called **root transforms**, for getting data into and out of your pipeline. These transforms can be used at any time in your pipeline, but most often serve as your pipeline's root and endpoints. They include **read** transforms, **write** transforms, and **create** transforms.
+
+**Read transforms**, which can serve as the root of your pipeline to create an initial `PCollection`, are used to create pipeline data from various sources. These sources can include text files in Google Cloud Storage, data stored in BigQuery or Pub/Sub, and other cloud storage sources. The Dataflow SDKs also provide an extensible API for working with your own custom data sources.
+
+**Write transforms** can serve as pipeline endpoints to write `PCollection`s containing processed output data to external storage. External data storage sinks can include text files in Google Cloud Storage, BigQuery tables, Pub/Sub, or other cloud storage mechanisms.
+
+**Create transforms** are useful for creating a `PCollection` from in-memory data. See [Creating a PCollection](https://cloud.google.com/dataflow/model/pcollection#Creating) for more information.
+
+For more information on read and write transforms, see [Pipeline I/O](https://cloud.google.com/dataflow/model/pipeline-io).
+
+##### Transforms with Multiple Inputs and Outputs
+
+Some transforms accept multiple `PCollection` inputs, or specialized side inputs. A transform can also produce multiple `PCollection` outputs and side outputs. The Dataflow SDKs provide a tagging API to help you track and pass multiple inputs and outputs of different types.
+
+To learn about transforms with multiple inputs and outputs and the details of the tagging system, see [Handling Multiple PCollections](https://cloud.google.com/dataflow/model/multiple-pcollections).
+
+### Parallel Processing with ParDo
+
+`ParDo` is the core parallel processing operation in the Dataflow SDKs. You use `ParDo` for generic parallel processing. The `ParDo` processing style is similar to what happens inside the "Mapper" class of a Map/Shuffle/Reduce-style algorithm: `ParDo` takes each element in an input `PCollection`, performs some processing function on that element, and then emits zero, one, or multiple elements to an output `PCollection`.
+
+You provide the function that `ParDo` performs on each of the elements of the input `PCollection`. The function you provide is invoked independently, and [in parallel](https://cloud.google.com/dataflow/service/dataflow-service-desc#Parallelization), on multiple worker instances in your Dataflow job.
+
+`ParDo` is useful for a variety of data processing operations, including:
+
+- **Filtering a data set.** You can use `ParDo` to consider each element in a `PCollection` and either output that element to a new collection or discard it.
+- **Formatting or converting the type of each element in a data set.** You can use `ParDo` to format the elements in your `PCollection`, such as formatting key/value pairs into printable strings.
+- **Extracting parts of each element in a data set.** You can use `ParDo` to extract just a part of each element in your `PCollection`. This can be particularly useful for extracting individual fields from [BigQuery](https://cloud.google.com/bigquery/docs) table rows.
+- **Performing computations on each element in a data set.** You can use `ParDo` to perform simple or complex computations on every element, or certain elements, of a `PCollection`.
+
+`ParDo` is also a common intermediate step in a pipeline. For example, you can use `ParDo` to assign keys to each element in a `PCollection`, creating key/value pairs. You can group the pairs later using a `GroupByKey` transform.
+
+#### Applying a ParDo Transform
+
+To use `ParDo`, you apply it to the `PCollection` you want to transform, and save the return value as a `PCollection` of the appropriate type.
+
+**The argument that you provide to `ParDo` must be a subclass of a specific type provided by the Dataflow SDK, called `DoFn`**. For more information on `DoFn`, see [Creating and Specifying Processing Logic](#Creating-Logic) later in this section.
+
+The following code sample shows a basic `ParDo` applied to a `PCollection` of strings, passing a `DoFn`-based function to compute the length of each string, and outputting the string lengths to a `PCollection` of integers.
+
+```java
+// The input PCollection of Strings.
+PCollection<String> words = ...;
+
+// The DoFn to perform on each element in the input PCollection.
+static class ComputeWordLengthFn extends DoFn<String, Integer> { ... }
+
+// Apply a ParDo to the PCollection "words" to compute lengths for each word.
+PCollection<Integer> wordLengths = words.apply(
+  ParDo
+  .of(new ComputeWordLengthFn()));  // The DoFn to perform on each element, which
+                                    // we define above.
+```
+
+In the example, the code calls `apply` on the input collection (called "words"). `ParDo` is the `PTransform` argument. The `.of`operation is where you specify the `DoFn` to perform on each element, called, in this case, `ComputeWordLengthFn()`.
+
+#### <span id="Creating-Logic">Creating and Specifying Processing Logic</span>
+
+The processing logic you provide for `ParDo` must be of a specific type required by the Dataflow SDK that you're using to create your pipeline.
+
+> You must build a subclass of the SDK class `DoFn`.
+
+The function you provide is invoked independently and across multiple Google Compute Engine instances.
+
+> Any `DoFn` you provide is subject to certain [general requirements for user-provided function objects](#UserCodeReqs) as well as [specific requirements for any `DoFn`](https://cloud.google.com/dataflow/model/par-do#DoFnReqs). If your `DoFn` doesn't meet these requirements, your pipeline might fail with an error or fail to produce correct results.
+
+In addition, your `DoFn` **should not rely on any persistent state** from invocation to invocation. Any given instance of your processing function in Cloud Platform might not have access to state information in any other instance of that function.
+
+> **Note:** The Dataflow SDK provides a variant of `ParDo` which you can use to pass immutable persistent data to each invocation of your user code as a [side input](https://cloud.google.com/dataflow/model/par-do#side-inputs).
+
+A `DoFn` processes one element at a time from the input `PCollection`. When you create a subclass of `DoFn`, **you specify the type of input element and the type of output element(s) as type parameters**. The following code sample shows how we might define the `ComputeWordLengthFn()` function from the previous example, which accepts an input `String` and produces an output `Integer`:
+
+```java
+static class ComputeWordLengthFn extends DoFn<String, Integer> { ... }
+```
+
+Your subclass of `DoFn` must override the element-processing method, `processElement`, where you provide the code to actually work with the input element. The following code sample shows the complete `ComputeWordLengthFn()`:
+
+```java
+static class ComputeWordLengthFn extends DoFn<String, Integer> {
+  @Override
+  public void processElement(ProcessContext c) {
+    String word = c.element();
+    c.output(word.length());
+  }
+}
+```
+
+**You don't need to manually extract the elements from the input collection**; the Dataflow Java SDK handles extracting each element and passing it to your `DoFn` subclass. When you override `processElement`, your override method must accept an object of type `ProcessContext`, which allows you to access the element that you want to process. You access the element that's passed to your `DoFn` by using the method `ProcessContext.element()`.
+
+> If the elements in your `PCollection` are key/value pairs, you can access the key by using `ProcessContext.element().getKey()`, and the value by using `ProcessContext.element().getValue()`.
+
+> The Dataflow SDK invokes an individual instance of your `DoFn` one or more times to process an arbitrary bundle of elements. Each element gets passed to your `DoFn` in a separate invocation. You can cache information across multiple calls to the element-processing method, but make sure your implementation of it **does not depend on the number of invocations**. Dataflow does not guarantee the number of times any `DoFn` instance gets invoked.
+
+The Dataflow SDK for Java automatically handles gathering the output elements into a result `PCollection`. You use the `ProcessContext` object to output the resulting element from `processElement` to the output collection. To output an element for the result collection, use the method `ProcessContext.output()`.
+
+> Your implementation of `processElement` must **obey the following immutability requirements**:
+>
+> - You should not in any way modify an element returned by `ProcessContext.element()` or `ProcessContext.sideInput()`.
+> - Once you output a value using `ProcessContext.output()` or `ProcessContext.sideOutput()`, you should not modify that value in any way.
+>
+> The Dataflow SDK for Java and service also will never modify any of the above values in any way. Together, these restrictions ensure that values may be cached, serialized, or used in other unspecified ways to efficiently execute your pipeline.
+
+##### Lightweight DoFns
+
+The Dataflow SDKs provide language-specific ways to simplify how you provide your `DoFn` implementation.
+
+Often, you can create a simple `DoFn` argument to `ParDo` as an anonymous inner class instance. If your `DoFn` is only a few lines, it might be cleaner to specify it inline. The following code sample shows how to apply a `ParDo` with the `ComputeWordLengthFn` function as an anonymous `DoFn`:
+
+```java
+// The input PCollection.
+PCollection<String> words = ...;
+
+// Apply a ParDo with an anonymous DoFn to the PCollection words.
+// Save the result as the PCollection wordLengths.
+PCollection<Integer> wordLengths = words.apply(
+  ParDo
+  .named("ComputeWordLengths")            // the transform name
+  .of(new DoFn<String, Integer>() {       // a DoFn as an anonymous inner class instance
+    @Override
+    public void processElement(ProcessContext c) {
+      c.output(c.element().length());
+    }
+  }));
+```
+
+For transforms like the one above that apply a function to each element in the input to produce exactly one output per element, you can use the **higher-level `MapElements` transform**. This is especially <u>concise</u> in Java 8, as `MapElements` accepts a lambda function.
+
+```java
+// The input PCollection.
+PCollection<String> words = ...;
+
+// Apply a MapElements with an anonymous lambda function to the PCollection words.
+// Save the result as the PCollection wordLengths.
+PCollection<Integer> wordLengths = words.apply(
+  MapElements.via((String word) -> word.length())
+  .withOutputType(new TypeDescriptor<Integer>() {});
+```
+
+Similarly, you can use Java 8 lambda functions with the `Filter`, `FlatMapElements`, and `Partition` transforms. See [Pre-Written Transforms in the Dataflow SDKs](https://cloud.google.com/dataflow/model/library-transforms) for details on these transforms.
+
+##### Transform Names
+
+Transform names appear in the execution graph when you view your pipeline in the [Dataflow Monitoring Interface](https://cloud.google.com/dataflow/pipelines/dataflow-monitoring-intf). It is particularly important to specify an explicit name for your transform in order to recognize them in the graph.
+
+The `.named` operation specifies the **transform name** for this step in your pipeline. Transform names appear in the execution graph when you view your pipeline in the [Dataflow Monitoring Interface](https://cloud.google.com/dataflow/pipelines/dataflow-monitoring-intf). It is particularly important to specify an explicit name when you're using an anonymous `DoFn` instance with `ParDo`, so that you can see an easily-readable name for your step in the monitoring interface.
+
+#### Side Inputs
+
+In addition to the main input `PCollection`, you can provide additional inputs to a `ParDo` transform in the form of **side inputs**. A side input is an additional input that your `DoFn` can access each time it processes an element in the input`PCollection`. When you specify a side input, you create a view of some other data that can be read from within the `ParDo` transform's `DoFn` while procesing each element.
+
+Side inputs are useful if your `ParDo` needs to inject additional data when processing each element in the input `PCollection`, but the additional data needs to be determined at runtime (and not hard-coded). Such values might be determined by the input data, or depend on a different branch of your pipeline. **For example, you can obtain a value from a remote service while your pipeline is running and use it as a side input.** Or, **you can use a value computed by a separate branch of your pipeline and add it as a side input to another branch's** `ParDo`.
+
+> There is a fundamental difference between side inputs and main inputs. Main inputs are **sharded** across multiple worker instances in your Dataflow job, so each element is read only once for the entire job. With side inputs, each worker may **read the same elements multiple times**.
+>
+> By default, Dataflow uses a small cache size for keeping side inputs in memory. Having elements of a side input cached in memory makes fetching the elements quite faster. If you have large side inputs, you should specify a cache size that is appropriate based on the working set size required by your pipeline. To do this, specify the pipeline option:
+>
+> ```shell
+> --workerCacheMb=<XXX>
+> ```
+
+#####Representing a Side Input
+
+Side inputs are always of type [`PCollectionView`](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/values/PCollectionView). `PCollectionView` is a way of representing a `PCollection` as a single entity, which you can then pass as a side input to a `ParDo`. You can make a `PCollectionView` that expresses a `PCollection` as one of the following types:
+
+| View Type          | Usage                                    |
+| ------------------ | ---------------------------------------- |
+| `View.asSingleton` | Represents a **`PCollection`** as an individual value; generally you'd use this after combining a **`PCollection`** using [`Combine.globally`](https://cloud.google.com/dataflow/model/combine). **Use this when your side input is a single computed value**. You should typically create a singleton view using `Combine.globally(...).asSingletonView()`. |
+| `View.asList`      | Represents a **`PCollection`** as a `List`. Use this view when your side input is a collection of individual values. |
+| `View.asMap`       | Represents a `PCollection` as a `Map`. Use this view when your side input consists of key/value pairs (`PCollection<K,V>`), and has a single value for each key. |
+| `View.asMultimap`  | Represents a `PCollection` as a `MultiMap`. Use this view when your side input consists of key/value pairs (`PCollection<K,V>`), and has multiple values for each key. |
+
+> In streaming pipelines, `View.asList`, `View.asMap`, and `View.asMultimap` all represent an entire `PCollection` **in memory on a single machine**. This is so that when the view is used as a side input, it is cached in memory and not re-read during each iteration of the `ParDo`.To avoid out-of-memory errors, you should only use these views with `PCollection`s that can fit in memory on a single Compute Engine instance.
+
+> **Note:** Like other pipeline data, `PCollectionView` is immutable once created.
+
+#####Passing Side Inputs to ParDo
+
+You pass side inputs to your `ParDo` transform by invoking `.withSideInputs`. Inside your `DoFn`, you access the side input by using the method `DoFn.ProcessContext.sideInput`.
+
+The following example code creates a singleton side input from a `PCollection` and passes it to a subsequent `ParDo`.
+
+In the example, we have a `PCollection` called `words` that represents a collection of individual words, and a `PCollection` that represents word lengths; we can use the latter to compute a maximum word length <u>cutoff</u> as a singleton value, and then pass that computed value as a side input to a `ParDo` that filters `words` based on the cutoff.
+
+```java
+// The input PCollection to ParDo.
+PCollection<String> words = ...;
+
+// A PCollection of word lengths that we'll combine into a single value.
+PCollection<Integer> wordLengths = ...; // Singleton PCollection
+
+// Create a singleton PCollectionView from wordLengths using Combine.globally 
+// and View.asSingleton.
+final PCollectionView<Integer> maxWordLengthCutOffView =
+  wordLengths.apply(Combine.globally(new Max.MaxIntFn()).asSingletonView());
+
+// Apply a ParDo that takes maxWordLengthCutOffView as a side input.
+PCollection<String> wordsBelowCutOff =
+  words.apply(ParDo.withSideInputs(maxWordLengthCutOffView)
+              .of(new DoFn<String, String>() {
+                public void processElement(ProcessContext c) {
+                  String word = c.element();
+                  // In our DoFn, access the side input.
+                  int lengthCutOff = c.sideInput(maxWordLengthCutOffView);
+                  if (word.length() <= lengthCutOff) {
+                    c.output(word);
+                  }
+                }}));
+```
+
+#####Side Inputs and Windowing
+
+- [ ] 没有理解，要看代码
+
+When you create a `PCollectionView` of a **windowed** `PCollection`, which may be infinite and thus cannot be compressed into a single value (or single collection class), the `PCollectionView` represents a single entity per [window](https://cloud.google.com/dataflow/model/windowing). That is, the `PCollectionView` represents one singleton per window, one list per window, etc.
+
+Dataflow uses the window(s) for the main input element to look up the appropriate window for the side input element. Dataflow projects the main input element's window into the side input's window set, and then uses the side input from the resulting window. If the main input and side inputs have identical windows, the projection provides the exact corresponding window; however, if the inputs have different windows, Dataflow uses the projection to choose the most appropriate side input window.
+
+> **Note:** Dataflow projects the main element's window into the side input's window set using the side input's `WindowFn.getSideInputWindow()` method. See the [API reference for `WindowFn`](https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/windowing/WindowFn) for more information.
+
+For example, if the main input is windowed using fixed-time windows of one minute, and the side input is windowed using fixed-time windows of one hour, Dataflow projects the main input window against the side input window set and selects the side input value from the appropriate hour-long side input window.
+
+> **Note:** If the main input element exists in more than one window, then `processElement` gets called multiple times, once for each window. Each call to `processElement` projects the "current" window for the main input element, and thus might provide a different view of the side input each time.
+
+If the side input has multiple trigger firings, Dataflow uses the value from the latest trigger firing. This is particularly useful if you use a side input with a single global window and specify a trigger.
+
+#### Side Outputs
+
+While `ParDo` always produces a main output `PCollection` (as the return value from `apply`), you can also have your `ParDo` produce any number of additional output `PCollection`s. If you choose to have multiple outputs, your `ParDo` will return all of the output `PCollection`s (**including the main output**) bundled together. For example, in Java, the output `PCollection`s are bundled in a type-safe [PCollectionTuple](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous).
+
+##### Tags for Side Outputs
+
+To emit elements to a side output `PCollection`, you'll need to create a `TupleTag` object to identify each collection your `ParDo`produces. For example, if your `ParDo` produces three output `PCollection`s (the main output and two side outputs), you'll need to create three associated `TupleTag`s.
+
+The following example code shows how to create `TupleTag`s for a `ParDo` with a main output and two side outputs:
+
+```java
+// Input PCollection to our ParDo.
+PCollection<String> words = ...;
+
+// The ParDo will filter words whose length is below a cutoff and add them to
+// the main ouput PCollection<String>.
+// If a word is above the cutoff, the ParDo will add the word length to a side output
+// PCollection<Integer>.
+// If a word starts with the string "MARKER", the ParDo will add that word to a different
+// side output PCollection<String>.
+final int wordLengthCutOff = 10;
+
+// Create the TupleTags for the main and side outputs.
+// Main output.
+final TupleTag<String> wordsBelowCutOffTag =
+  new TupleTag<String>(){};
+// Word lengths side output.
+final TupleTag<Integer> wordLengthsAboveCutOffTag =
+  new TupleTag<Integer>(){};
+// "MARKER" words side output.
+final TupleTag<String> markedWordsTag =
+  new TupleTag<String>(){};
+```
+
+######Passing Output Tags to ParDo
+
+Once you have specified the `TupleTag`s for each of your `ParDo` outputs, you'll need to pass those tags to your `ParDo` by invoking `.withOutputTags`. You pass the tag for the main output first, and then the tags for any side outputs in a `TupleTagList`.
+
+Building on our previous example, here's how we pass the three `TupleTag`s (one for the main output and two for the side outputs) to our `ParDo`:
+
+```java
+PCollectionTuple results =
+  words.apply(
+    ParDo
+      // Specify the tag for the main output, wordsBelowCutoffTag.
+      .withOutputTags(wordsBelowCutOffTag,
+                      // Specify the tags for the two side outputs as a TupleTagList.
+                      TupleTagList.of(wordLengthsAboveCutOffTag).and(markedWordsTag))
+      .of(new DoFn<String, String>() {
+        // DoFn continues here.
+        ...
+      })))
+```
+
+Note that *all* of the outputs (including the main output `PCollection`) are bundled into the returned `PCollectionTuple` called `results.`.
+
+##### Emitting to Side Outputs In Your DoFn
+
+Inside your `ParDo`'s `DoFn`, you can emit an element to a side output by using the method `ProcessContext.sideOutput`. You'll need to pass the appropriate `TupleTag` for the target side output collection when you call `ProcessContext.sideOutput`.
+
+From our previous example, here's the `DoFn` emitting to the main and side outputs:
+
+```java
+.of(new DoFn<String, String>() {
+  public void processElement(ProcessContext c) {
+    String word = c.element();
+    if (word.length() <= wordLengthCutOff) {
+      // Emit this short word to the main output.
+      c.output(word);
+    } else {
+      // Emit this long word's length to a side output.
+      c.sideOutput(wordLengthsAboveCutOffTag, word.length());
+    }
+    if (word.startsWith("MARKER")) {
+      // Emit this word to a different side output.
+      c.sideOutput(markedWordsTag, word);
+    }
+  }}));
+```
+
+After your `ParDo`, you'll need to extract the resulting main and side output `PCollection`s from the returned `PCollectionTuple`. See the section on [PCollectionTuple](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous)s for some examples that show how to extract individual `PCollection`s from a tuple.
 
 ------
+#Beam用到的 JAVA 语法和模式
 
-# 关于WithXXX
+## java静态类
+感觉就是模拟了 `C++` `namespace`的功能，可参考
+
+1. [Java内部类和嵌套静态类](https://github.com/giantray/stackoverflow-java-top-qa/blob/master/contents/java-inner-class-and-static-nested-class.md)
+2. [Is it true that every inner class requires an enclosing instance?](http://stackoverflow.com/questions/20468856/is-it-true-that-every-inner-class-requires-an-enclosing-instance)
+3. [建议38： 使用静态内部类提高封装性](http://book.51cto.com/art/201202/317517.htm)
+
+## 关于WithXXX
 
 Google "java naming convention withXXX"
 
