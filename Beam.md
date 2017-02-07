@@ -850,7 +850,7 @@ You provide the function that `ParDo` performs on each of the elements of the 
 
 To use `ParDo`, you apply it to the `PCollection` you want to transform, and save the return value as a `PCollection` of the appropriate type.
 
-**The argument that you provide to `ParDo` must be a subclass of a specific type provided by the Dataflow SDK, called `DoFn`**. For more information on `DoFn`, see [Creating and Specifying Processing Logic](#Creating-Logic) later in this section.
+**The argument that you provide to `ParDo` must be a subclass of a specific type provided by the Dataflow SDK, called `DoFn`**. For more information on `DoFn`, see [Creating and Specifying Processing Logic](#creating-and-specifying-processing-logic) later in this section.
 
 The following code sample shows a basic `ParDo` applied to a `PCollection` of strings, passing a `DoFn`-based function to compute the length of each string, and outputting the string lengths to a `PCollection` of integers.
 
@@ -870,7 +870,7 @@ PCollection<Integer> wordLengths = words.apply(
 
 In the example, the code calls `apply` on the input collection (called "words"). `ParDo` is the `PTransform` argument. The `.of`operation is where you specify the `DoFn` to perform on each element, called, in this case, `ComputeWordLengthFn()`.
 
-#### <span id="Creating-Logic">Creating and Specifying Processing Logic</span>
+#### <span id="creating-and-specifying-processing-logic">Creating and Specifying Processing Logic</span>
 
 The processing logic you provide for `ParDo` must be of a specific type required by the Dataflow SDK that you're using to create your pipeline.
 
