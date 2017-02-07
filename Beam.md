@@ -1,3 +1,8 @@
+没有理解，要看代码
+- [ ] [Side Inputs](#side-inputs)
+- [ ] [Side Outputs](#side-outputs)
+- [ ] [Data Encoding](#data-encoding)
+
 # 编程模型
 
 使用Beam处理数据，有四个主要的概念：
@@ -709,7 +714,7 @@ For `PCollection` objects storing the same data type, the Dataflow SDKs also p
 
 - [ ] [Handling Multiple PCollections](https://cloud.google.com/dataflow/model/multiple-pcollections)
 
-###Data Encoding
+### Data Encoding
 
 When you create or output pipeline data, you'll need to specify how the elements in your `PCollection`s are encoded and decoded to and from byte strings. **Byte strings** are used for intermediate storage as well reading from sources and writing to sinks. The Dataflow SDKs use objects called **coders** to describe how the elements of a given `PCollection`should be encoded and decoded.
 
@@ -882,7 +887,7 @@ The function you provide is invoked independently and across multiple Google Com
 
 In addition, your `DoFn` **should not rely on any persistent state** from invocation to invocation. Any given instance of your processing function in Cloud Platform might not have access to state information in any other instance of that function.
 
-> **Note:** The Dataflow SDK provides a variant of `ParDo` which you can use to pass immutable persistent data to each invocation of your user code as a [side input](https://cloud.google.com/dataflow/model/par-do#side-inputs).
+> **Note:** The Dataflow SDK provides a variant of `ParDo` which you can use to pass immutable persistent data to each invocation of your user code as a [side input](#side-inputs).
 
 A `DoFn` processes one element at a time from the input `PCollection`. When you create a subclass of `DoFn`, **you specify the type of input element and the type of output element(s) as type parameters**. The following code sample shows how we might define the `ComputeWordLengthFn()` function from the previous example, which accepts an input `String` and produces an output `Integer`:
 
@@ -931,8 +936,8 @@ PCollection<String> words = ...;
 // Save the result as the PCollection wordLengths.
 PCollection<Integer> wordLengths = words.apply(
   ParDo
-  .named("ComputeWordLengths")            // the transform name
-  .of(new DoFn<String, Integer>() {       // a DoFn as an anonymous inner class instance
+  .named("ComputeWordLengths")        // the transform name
+  .of(new DoFn<String, Integer>() {   // a DoFn as an anonymous inner class instance
     @Override
     public void processElement(ProcessContext c) {
       c.output(c.element().length());
@@ -1025,9 +1030,6 @@ PCollection<String> wordsBelowCutOff =
 ```
 
 #####Side Inputs and Windowing
-
-- [ ] 没有理解，要看代码
-
 When you create a `PCollectionView` of a **windowed** `PCollection`, which may be infinite and thus cannot be compressed into a single value (or single collection class), the `PCollectionView` represents a single entity per [window](https://cloud.google.com/dataflow/model/windowing). That is, the `PCollectionView` represents one singleton per window, one list per window, etc.
 
 Dataflow uses the window(s) for the main input element to look up the appropriate window for the side input element. Dataflow projects the main input element's window into the side input's window set, and then uses the side input from the resulting window. If the main input and side inputs have identical windows, the projection provides the exact corresponding window; however, if the inputs have different windows, Dataflow uses the projection to choose the most appropriate side input window.
@@ -1041,7 +1043,6 @@ For example, if the main input is windowed using fixed-time windows of one minut
 If the side input has multiple trigger firings, Dataflow uses the value from the latest trigger firing. This is particularly useful if you use a side input with a single global window and specify a trigger.
 
 #### Side Outputs
-
 While `ParDo` always produces a main output `PCollection` (as the return value from `apply`), you can also have your `ParDo` produce any number of additional output `PCollection`s. If you choose to have multiple outputs, your `ParDo` will return all of the output `PCollection`s (**including the main output**) bundled together. For example, in Java, the output `PCollection`s are bundled in a type-safe [PCollectionTuple](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous).
 
 ##### Tags for Side Outputs
@@ -1120,7 +1121,7 @@ From our previous example, here's the `DoFn` emitting to the main and side out
   }}));
 ```
 
-After your `ParDo`, you'll need to extract the resulting main and side output `PCollection`s from the returned `PCollectionTuple`. See the section on [PCollectionTuple](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous)s for some examples that show how to extract individual `PCollection`s from a tuple.
+After your `ParDo`, you'll need to extract the resulting main and side output `PCollection`s from the returned `PCollectionTuple`. See the section on [`PCollectionTuple`](https://cloud.google.com/dataflow/model/multiple-pcollections#Heterogenous)s for some examples that show how to extract individual `PCollection`s from a tuple.
 
 ------
 #Beam用到的 JAVA 语法和模式
