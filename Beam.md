@@ -2,7 +2,7 @@
 - [ ] [Side Inputs](#side-inputs)
 - [ ] [Side Outputs](#side-outputs)
 - [ ] [Data Encoding](#data-encoding)
-- [ ] [Handling Multiple PCollections](#Handling-Multiple-PCollections)
+- [ ] [Handling Multiple PCollections](#handling-multiple-pcollections)
 
 # 编程模型
 
@@ -1289,7 +1289,7 @@ The resulting `CoGbkResult` collection contains **all** the data associated 
 
 ##### Applying CoGroupByKey
 
-`CoGroupByKey` accepts a tuple of keyed `PCollection`s (`PCollection<KV<K,V>`) as input. As output, `CoGroupByKey` returns a special type called `CoGbkResult`s, which groups values from all the input `PCollection`s by their common keys. You index the `CoGbkResult`s using the `TupleTag` mechanism for [multiple collections](#Handling-Multiple-PCollections). You can access a specific collection in the `CoGbkResult`s object by using the `TupleTag` that you supplied with the initial collection.
+`CoGroupByKey` accepts a tuple of keyed `PCollection`s (`PCollection<KV<K,V>`) as input. As output, `CoGroupByKey` returns a special type called `CoGbkResult`s, which groups values from all the input `PCollection`s by their common keys. You index the `CoGbkResult`s using the `TupleTag` mechanism for [multiple collections](#handling-multiple-pcollections). You can access a specific collection in the `CoGbkResult`s object by using the `TupleTag` that you supplied with the initial collection.
 
 Here's an example that joins two different data sets (perhaps from different sources) that have been read into separate `PCollection`s:
 
@@ -1632,7 +1632,7 @@ static class CountWords
 
 You can create your own composite transform by creating a subclass of the `Ptransform` class in the Dataflow SDK and overriding the `apply` method to specify the actual processing logic. You can then use this transform just as you would a built-in transform from the SDK.
 
-For the `PTransform` class type parameters, you pass the `PCollection` types that your transform takes as input and produces as output. To take multiple PCollections as input, or produce multiple PCollections as output, use one of the [multi-collection types](#Handling-Multiple-PCollections) for the relevant type parameter.
+For the `PTransform` class type parameters, you pass the `PCollection` types that your transform takes as input and produces as output. To take multiple PCollections as input, or produce multiple PCollections as output, use one of the [multi-collection types](#handling-multiple-pcollections) for the relevant type parameter.
 
 The following code sample shows how to declare a `PTransform` that accepts a `PCollection` of  `String`s for input and outputs a`PCollection` of `Integer`s:
 
