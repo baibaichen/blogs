@@ -1202,7 +1202,7 @@ Java 8 is able to infer the parameter types of `GroupByKey.create`, but they may
 
 The `GroupByKey` transform also considers the window to which each element belongs when performing the reduction. **The window(s) (as determined by each key/value pair's timestamp) essentially acts as a secondary key**.  `GroupByKey` with windowing thus **groups by both key and window**. When all elements are part of a single global window, `GroupByKey` degenerates to the simple semantics [described above](#groupbykey).
 
-While an element's window(s) acts as a **secondary** key for grouping, it can be potentially more powerful. Elements might belong to more than one window, and overlapping windows may be merged. This allows you to create [more complex groupings](#windowing-Functions).
+While an element's window(s) acts as a **secondary** key for grouping, it can be potentially more powerful. Elements might belong to more than one window, and overlapping windows may be merged. This allows you to create [more complex groupings](#windowing-functions).
 
 Let's apply windowing to our previous example:
 
@@ -1439,7 +1439,7 @@ To have `Combine` instead return an empty `PCollection` if the input is empt
 
 ##### Non-Global Windowing
 
-If your `PCollection` uses any [non-global windowing](#windowing-Functions) function, Dataflow does not provide the default behavior. You **must** specify one of the following options when applying `Combine`:
+If your `PCollection` uses any [non-global windowing](#windowing-functions) function, Dataflow does not provide the default behavior. You **must** specify one of the following options when applying `Combine`:
 
 - Specify `.withoutDefaults`, where windows that are empty in the input `PCollection` will likewise be empty in the output collection.
 - Specify `.asSingletonView`, in which the output is immediately converted to a `PCollectionView`, which will provide a default value for each empty window when used as a [side input](#side-inputs). You'll generally only need to use this option if the result of your pipeline's `Combine` is to be used as a side input later in the pipeline.
