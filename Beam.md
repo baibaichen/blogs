@@ -756,7 +756,7 @@ The Dataflow SDK contains a small group of core transforms that are the foundati
 
 When you use a core transform, **you provide the processing logic as a function object**. The function you provide gets applied to the elements of the input `PCollection`(s). Instances of the function may be executed in parallel across multiple Google Compute Engine instances, given a large enough data set, and pending optimizations performed by the pipeline runner service. The worker code function produces the output elements, if any, that are added to the output `PCollection`(s).
 
-###### <span id="UserCodeReqs"> Requirements for User-Provided Function Objects </span>
+###### Requirements for User-Provided Function Objects
 
 The **function objects** you provide for a transform might have many copies executing in parallel across multiple Compute Engine instances in your Cloud Platform project. As such, you should consider a few factors when creating such a function:
 
@@ -870,7 +870,7 @@ PCollection<Integer> wordLengths = words.apply(
 
 In the example, the code calls `apply` on the input collection (called "words"). `ParDo` is the `PTransform` argument. The `.of`operation is where you specify the `DoFn` to perform on each element, called, in this case, `ComputeWordLengthFn()`.
 
-#### <span id="creating-and-specifying-processing-logic">Creating and Specifying Processing Logic</span>
+#### Creating and Specifying Processing Logic
 
 The processing logic you provide for `ParDo` must be of a specific type required by the Dataflow SDK that you're using to create your pipeline.
 
@@ -878,7 +878,7 @@ The processing logic you provide for `ParDo` must be of a specific type requir
 
 The function you provide is invoked independently and across multiple Google Compute Engine instances.
 
-> Any `DoFn` you provide is subject to certain [general requirements for user-provided function objects](#UserCodeReqs) as well as [specific requirements for any `DoFn`](https://cloud.google.com/dataflow/model/par-do#DoFnReqs). If your `DoFn` doesn't meet these requirements, your pipeline might fail with an error or fail to produce correct results.
+> Any `DoFn` you provide is subject to certain [general requirements for user-provided function objects](#requirements-for-user-provided-function-objects) as well as [specific requirements for any `DoFn`](https://cloud.google.com/dataflow/model/par-do#DoFnReqs). If your `DoFn` doesn't meet these requirements, your pipeline might fail with an error or fail to produce correct results.
 
 In addition, your `DoFn` **should not rely on any persistent state** from invocation to invocation. Any given instance of your processing function in Cloud Platform might not have access to state information in any other instance of that function.
 
@@ -902,7 +902,7 @@ static class ComputeWordLengthFn extends DoFn<String, Integer> {
 }
 ```
 
-**You don't need to manually extract the elements from the input collection**; the Dataflow Java SDK handles extracting each element and passing it to your `DoFn` subclass. When you override `processElement`, your override method must accept an object of type `ProcessContext`, which allows you to access the element that you want to process. You access the element that's passed to your `DoFn` by using the method `ProcessContext.element()`.
+==**You don't need to manually extract the elements from the input collection**==; ~~the~~ Dataflow Java SDK handles extracting each element and passing it to your `DoFn` subclass. When you override `processElement`, your override method must accept an object of type `ProcessContext`, which allows you to access the element that you want to process. You access the element that's passed to your `DoFn` by using the method `ProcessContext.element()`.
 
 > If the elements in your `PCollection` are key/value pairs, you can access the key by using `ProcessContext.element().getKey()`, and the value by using `ProcessContext.element().getValue()`.
 
