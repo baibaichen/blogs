@@ -902,7 +902,7 @@ static class ComputeWordLengthFn extends DoFn<String, Integer> {
 }
 ```
 
-==**You don't need to manually extract the elements from the input collection**==; ~~the~~ Dataflow Java SDK handles extracting each element and passing it to your `DoFn` subclass. When you override `processElement`, your override method must accept an object of type `ProcessContext`, which allows you to access the element that you want to process. You access the element that's passed to your `DoFn` by using the method `ProcessContext.element()`.
+**You don't need to manually extract the elements from the input collection**; the Dataflow Java SDK handles extracting each element and passing it to your `DoFn` subclass. When you override `processElement`, your override method must accept an object of type `ProcessContext`, which allows you to access the element that you want to process. You access the element that's passed to your `DoFn` by using the method `ProcessContext.element()`.
 
 > If the elements in your `PCollection` are key/value pairs, you can access the key by using `ProcessContext.element().getKey()`, and the value by using `ProcessContext.element().getValue()`.
 
