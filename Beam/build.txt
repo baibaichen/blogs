@@ -1,0 +1,17 @@
+﻿exec:java -Dexec.classpathScope=compile -Dexec.mainClass=com.splout.db.integration.NShardEnsemble -Dexec.args=4
+    
+exec:java -DmainClass=org.apache.beam.runners.spark.examples.WordCount  -Drunner=SparkRunner   -Dinput=/tmp/kinglear.txt -Doutput=/tmp/out  -DsparkMaster=local
+
+mvn clean package -DskipTests -pl !sdks\python -pl !sdks\java\javadoc
+
+
+mvn exec:exec -DmainClass=org.apache.beam.runners.spark.examples.WordCount   -Drunner=SparkRunner  -DsparkMaster=local
+ -Dinput=/tmp/kinglear.txt -Doutput=/tmp/out
+
+将jar文件加到Maven的local repository中
+
+ mvn source:jar install -DskipTests=true -pl !sdks\python -pl !sdks\java\javadoc
+
+mvn build-helper:remove-project-artifact
+
+https://github.com/mfriedenhagen/dummy-lifecycle-mapping-plugin
