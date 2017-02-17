@@ -144,9 +144,9 @@ and in Java:
 2. **`QueryExecution.toRdd`**: `RDD` 的内部版本，避免拷贝，没有 **schema**
 
 > TODO
-> - [x]`encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
->   * 参见 *快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
-> - [ ]`sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
+> -[x] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
+>      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
+> -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
 
 # Debug
 1. Building **[** mvn -Pyarn -Phadoop-2.6 -Phive -Phive-thriftserver -DskipTests clean package **]**
@@ -158,11 +158,11 @@ and in Java:
 
 ## RDD
 
-`RDD` 函数 | -
----|---
-`getDependencies` | Implemented by subclasses to return how this RDD depends on parent RDDs. 
-`getPartitions`|Implemented by subclasses to return the set of partitions in this RDD. 
-`iterator`|Internal method to this RDD; will read from cache if applicable, or otherwise `compute()` it
+| `RDD` 函数          |                                          |
+| ----------------- | ---------------------------------------- |
+| `getDependencies` | Implemented by subclasses to return how this RDD depends on parent RDDs. |
+| `getPartitions`   | Implemented by subclasses to return the set of partitions in this RDD. |
+| `iterator`        | Internal method to this RDD; will read from cache if applicable, or otherwise `compute()` it |
 
 `compute()` 本质上就是一个 `Partiontion => Iterator`的函数
 
