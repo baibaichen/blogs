@@ -1,7 +1,9 @@
 1. [[SPARK-6942] withScope 用来做DAG可视化](http://m.blog.csdn.net/article/details?id=51289351)
    - [Umbrella: UI Visualizations for Core and Dataframes](https://issues.apache.org/jira/browse/SPARK-6942)
+
 2. [[SPARK-13985] WAL for determistic batches with IDs](https://issues.apache.org/jira/browse/SPARK-13985)
    * [[SPARK-13791] Add MetadataLog and HDFSMetadataLog](https://issues.apache.org/jira/browse/SPARK-13791)
+
 3. [[SPARK-8360] Structured Streaming (aka Streaming DataFrames)](https://issues.apache.org/jira/browse/SPARK-8360) 
    * [ ] [[Blog] Faster Stateful Stream Processing in Apache Spark’s Streaming](https://databricks.com/blog/2016/02/01/faster-stateful-stream-processing-in-apache-spark-streaming.html)
    * [ ] [[Blog] Building Lambda Architecture with Spark Streaming](http://blog.cloudera.com/blog/2014/08/building-lambda-architecture-with-spark-streaming/)
@@ -10,11 +12,29 @@
      * [ ] [[SPARK-13791] Add MetadataLog and HDFSMetadataLog](https://issues.apache.org/jira/browse/SPARK-13791)
    * [[SPARK-10820] Support for the continuous execution of structured queries](https://github.com/apache/spark/pull/11006)，在这个Commit中，引入了 `sql/execution` 这个包
    * [[SPARK-14255] Streaming Aggregation](https://issues.apache.org/jira/browse/SPARK-14255)，在这个Commit中，引入了*IncrementalExecution.scala*
+
 4. [[SPARK-13485] (Dataset-oriented) API evolution in Spark 2.0](https://issues.apache.org/jira/browse/SPARK-13485)
    * [[SPARK-13244] Unify DataFrame and Dataset API](https://issues.apache.org/jira/browse/SPARK-13244) 这个jira提交之后，`DataFrame` 改成 `Dataset`，新的 `DataFrame` 是 `Dataset[Row]` 的**类型别名**。**注意**：文件名仍然是 **DataFrame.scala**
+
 5. [[SPARK-13822] Follow-ups of DataFrame/Dataset API unification](https://issues.apache.org/jira/browse/SPARK-13822)
    * [[SPARK-13880] Rename DataFrame.scala as Dataset.scala](https://issues.apache.org/jira/browse/SPARK-13880) 和 [[SPARK-13881] Remove LegacyFunctions](https://issues.apache.org/jira/browse/SPARK-13881) 这两个jira提交之后DataFrame.scala 改名成 Dataset.scala
-6. [[SPARK-12449] Pushing down arbitrary logical plans to data sources](https://issues.apache.org/jira/browse/SPARK-12449)，江烈report的稍微复杂的SQL，SPARK的JDBC 驱动不支持Push down
+
+6. [[SPARK-12449] Pushing down arbitrary logical plans to data sources](https://issues.apache.org/jira/browse/SPARK-12449)，江烈report的稍微复杂的SQL，SPARK的JDBC 驱动不支持Push down，见下面的SQL：
+```SQL
+select 
+  app_code,app_host,service_name,sum(called_counts) as counts 
+FROM 
+  monitor_method_analyse 
+where 
+  START_TIME >= cast('2017-01-03 14:00:00' as timestamp) and 
+  START_TIME <  cast('2017-01-03 15:00:00' as timestamp) 
+group by 
+  app_code,app_host,service_name
+
+## 1. group by 不能push down
+## 2. START_TIME >= cast('2017-01-03 14:00:00' as timestamp) 如果不加cast 也不能push down，这个不知道具体原因
+```
+
 
 # TODO
 
