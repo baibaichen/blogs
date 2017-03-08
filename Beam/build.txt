@@ -10,7 +10,7 @@ mvn exec:exec -DmainClass=org.apache.beam.runners.spark.examples.WordCount   -Dr
 
 将jar文件加到Maven的local repository中
 
- mvn source:jar install -DskipTests=true -pl !sdks\python -pl !sdks\java\javadoc
+mvn source:jar install -DskipTests=true -Dcheckstyle.skip=true -pl !sdks\python -pl !sdks\java\javadoc
 
 mvn build-helper:remove-project-artifact
 
