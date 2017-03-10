@@ -7,8 +7,8 @@
 3. [[SPARK-8360] Structured Streaming (aka Streaming DataFrames)](https://issues.apache.org/jira/browse/SPARK-8360) 
    * [ ] [[Blog] Faster Stateful Stream Processing in Apache Spark’s Streaming](https://databricks.com/blog/2016/02/01/faster-stateful-stream-processing-in-apache-spark-streaming.html)
    * [ ] [[Blog] Building Lambda Architecture with Spark Streaming](http://blog.cloudera.com/blog/2014/08/building-lambda-architecture-with-spark-streaming/)
-   * [ X][[SPARK-14942] Reduce delay between batch construction and execution](https://issues.apache.org/jira/browse/SPARK-14942)
-   * [ ] [[SPARK-13985] WAL for determistic batches with IDs](https://issues.apache.org/jira/browse/SPARK-13985)
+   * [[SPARK-14942] Reduce delay between batch construction and execution](https://issues.apache.org/jira/browse/SPARK-14942)
+   * [ ][[SPARK-13985] WAL for determistic batches with IDs](https://issues.apache.org/jira/browse/SPARK-13985)
      * [ ] [[SPARK-13791] Add MetadataLog and HDFSMetadataLog](https://issues.apache.org/jira/browse/SPARK-13791)
    * [[SPARK-10820] Support for the continuous execution of structured queries](https://github.com/apache/spark/pull/11006)，在这个Commit中，引入了 `sql/execution` 这个包
    * [[SPARK-14255] Streaming Aggregation](https://issues.apache.org/jira/browse/SPARK-14255)，在这个Commit中，引入了*IncrementalExecution.scala*
@@ -20,21 +20,44 @@
    * [[SPARK-13880] Rename DataFrame.scala as Dataset.scala](https://issues.apache.org/jira/browse/SPARK-13880) 和 [[SPARK-13881] Remove LegacyFunctions](https://issues.apache.org/jira/browse/SPARK-13881) 这两个jira提交之后DataFrame.scala 改名成 Dataset.scala
 
 6. [[SPARK-12449] Pushing down arbitrary logical plans to data sources](https://issues.apache.org/jira/browse/SPARK-12449)，江烈report的稍微复杂的SQL，SPARK的JDBC 驱动不支持Push down，见下面的SQL：
-```SQL
-select 
-  app_code,app_host,service_name,sum(called_counts) as counts 
-FROM 
-  monitor_method_analyse 
-where 
-  START_TIME >= cast('2017-01-03 14:00:00' as timestamp) and 
-  START_TIME <  cast('2017-01-03 15:00:00' as timestamp) 
-group by 
-  app_code,app_host,service_name
+    ```SQL
+    select 
+      app_code,app_host,service_name,sum(called_counts) as counts 
+    FROM 
+      monitor_method_analyse 
+    where 
+      START_TIME >= cast('2017-01-03 14:00:00' as timestamp) and 
+      START_TIME <  cast('2017-01-03 15:00:00' as timestamp) 
+    group by 
+      app_code,app_host,service_name
 
-## 1. group by 不能push down
-## 2. START_TIME >= cast('2017-01-03 14:00:00' as timestamp) 如果不加cast 也不能push down，这个不知道具体原因
-```
+    ## 1. group by 不能push down
+    ## 2. START_TIME >= cast('2017-01-03 14:00:00' as timestamp) 如果不加cast 也不能push down，这个不知道具体原因
+    ```
 
+7. Ongoing work since 2017.2 summit
+
+    1. Standard binary format to pass data to external code
+       {0}. Either existing format or Apache Arrow (SPARK-19489, SPARK-13545)
+       {0}. Binary format for data sources (SPARK-15689)
+    2. Integrations with deep learning libraries
+       {0}. Intel BigDL, Databricks TensorFrames (see talks today)
+    3. **Accelerators** as a first-class resource
+    4. Next generation of SQL and DataFrames
+       {0}. **[Cost-based optimizer](https://issues.apache.org/jira/browse/SPARK-16026)** (SPARK-16026 + many others)
+       {0}. Improved data sources ([CSV](https://issues.apache.org/jira/browse/SPARK-16099), [JSON](https://issues.apache.org/jira/browse/SPARK-18352))
+    5. Continue improving Python/R (SPARK-18924, 17919, 13534, …)
+    6. Make Spark easier to run on a single node
+       {0}. Publish to PyPI (SPARK-18267) and CRAN (SPARK-15799)
+       {0}. Optimize for large servers
+       {0}. As convenient as Python multiprocessing
+    7. Integrations with more systems
+       {0}. JDBC source and sink (SPARK-19478, SPARK-19031)
+       {0}. **[Unified access to Kafka](https://issues.apache.org/jira/browse/SPARK-18682)**
+    8. New operators
+       {0}. [mapGroupsWithState - arbitrary stateful operations with Structured Streaming (similar to DStream.mapWithState)](https://issues.apache.org/jira/browse/SPARK-19067)
+       {0}. [EventTime based sessionization，即Session windows](https://issues.apache.org/jira/browse/SPARK-10816)
+    9. Performance and latency
 
 # TODO
 
@@ -59,7 +82,7 @@ group by
 >     * [ ] `Janino`
 > 5.  存储管理
 >     * [ ] [[SPARK-10000] Consolidate storage and execution memory management](https://issues.apache.org/jira/browse/SPARK-10000)
->     * [ ] [[SPARK-10983] Implement unified memory manager]>(https://issues.apache.org/jira/browse/SPARK-10983)
+>     * [ ] [[SPARK-10983] Implement unified memory manager](https://issues.apache.org/jira/browse/SPARK-10983)
 >     * [ ] [[2016-6 summit] Deep Dive: Apache Spark Memory Management](https://www.youtube.com/watch?v=dPHrykZL8Cg)
 > 6.  RPC 框架，用Netty 重新写了一个替换 Akka
 >     * [[SPARK-5293] Akka:Enable Spark user applications to use different versions of Akka](https://issues.apache.org/jira/browse/SPARK-5293)
@@ -164,7 +187,7 @@ and in Java:
 2. **`QueryExecution.toRdd`**: `RDD` 的内部版本，避免拷贝，没有 **schema**
 
 > TODO
-> -[x] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
+> -[ ] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
 >      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
 > -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
 
@@ -200,7 +223,7 @@ and in Java:
 
 ## DAGScheduler
 
-- [Understand the scheduler component in spark-core](http://www.trongkhoanguyen.com/2015/03/understand-scheduler-component-in-spark.html)
+- [Understand the scheduler component in spark-core](https://trongkhoanguyenblog.wordpress.com/2015/03/28/understand-the-scheduler-component-in-spark-core/)
 
 
 **The high-level scheduling layer that implements stage-oriented scheduling**. It computes a DAG of stages for each job, keeps track of which RDDs and stage outputs are materialized, and finds a  minimal schedule to run the job. It then submits stages as TaskSets to an underlying TaskScheduler implementation that runs them on the cluster. A **TaskSet** contains fully independent tasks that can run right away based on the data that's already on the cluster (e.g. map output files from previous stages), though it may fail if this data becomes unavailable.
@@ -453,7 +476,6 @@ In total, the rules for the analyzer are about [1000 lines of code](https://gith
           |                            |
           |                            |
 StreamingExecutionRelation     StreamingRelationExec 
-
 ```
 ---
 王玉明
