@@ -111,7 +111,13 @@ Operations available on Datasets are divided into **transformations** and **acti
 
 Datasets are "lazy", i.e. computations are only triggered when an action is invoked. Internally, a `Dataset` represents a **logical plan** that describes the computation required to produce the data. When an action is invoked, Spark's query optimizer optimizes the logical plan and generates a **physical plan** for efficient execution in a parallel and distributed manner. To explore the logical plan as well as optimized physical plan, use the `explain` function.
 
-To efficiently support domain-specific objects, an [`Encoder`]() is required. **The encoder maps the domain specific type `T` to Spark's internal type system**. For example, given a class `Person` with two fields, **name** (`string`) and **age** (`int`), an encoder is used to tell Spark to generate code at runtime to serialize the `Person` object into a binary structure. This binary structureoften has much lower memory footprint as well as are optimized for efficiency in data processing (e.g. in a columnar format). To understand the internal binary representation for data, use the `schema` function.
+> `Dataset`是“惰性”的，即只有在调用`Action`时才触发计算。在内部，`Dataset`表示一个逻辑计划，描述了生成数据所需的计算。当调用`Action`时，Spark的查询优化器优化逻辑计划，并以并行和分布式的方式生成高效的物理执行计划。使用 `explain` 函数可以查看逻辑计划和优化的物理计划。
+
+To efficiently support domain-specific objects, an [`Encoder`]() is required. **The encoder maps the domain specific type `T` to Spark's internal type system**. For example, given a class `Person` with two fields, **name** (`string`) and **age** (`int`), an encoder is used to tell Spark to generate code at runtime to serialize the `Person` object into a binary structure. This binary structure often has much lower memory footprint as well as are optimized for efficiency in data processing (e.g. in a columnar format). To understand the internal binary representation for data, use the `schema` function.
+
+>为了有效地支持领域对象，`Encoder` 是必需的。`Encoder` 在领域对象的类型`T` 和`Spark`的内部类型系统之间建立映射。
+>
+>要想理解数据内部的二进制结构，使用 `schema` 函数。
 
 There are typically two ways to create a Dataset. The most common way is by pointing Spark to some files on storage systems, using the `read` function available on a `SparkSession`.
 
@@ -204,7 +210,7 @@ It is invalid to use the native primitive interface to retrieve a value that is 
 
 To create a new Row, use `RowFactory.create()` in Java or `Row.apply()` in Scala.
 
->示关系运算的一行输出。允许~~通用访问的顺序，这将招致拳击开销原语~~，以及原生的原始访问。
+>表示关系运算的一行输出。允许~~通用访问的顺序，这将招致拳击开销原语~~，以及原生的原始访问。
 
 A [Row](http://spark.apache.org/docs/latest/api/scala/org/apache/spark/sql/Row.html) object can be constructed by providing field values. Example:
 
@@ -374,7 +380,7 @@ What does Closure.cleaner (func) mean in Spark?
 
 ### Analysis
 
-Spark SQL begins with a **relation** to be computed, either from an abstract syntax tree (AST) returned by a SQL parser, or from a DataFrame object constructed using the API. **In both cases, the relation may contain unresolved attribute references or relations**: for example, in the SQL query ++SELECT col FROM sales++, the type of col, or even whether it is a valid column name, is not known until we look up the table sales. **An attribute is called unresolved if we do not know its type or have not matched it to an input table (or an alias)**. Spark SQL uses **Catalyst rules** and a **Catalog object** that tracks the tables in all data sources to resolve these attributes. It starts by building an “unresolved logical plan” tree with unbound attributes and data types, then applies rules that do the following:
+Spark SQL begins with a **relation** to be computed, either from an abstract syntax tree (AST) returned by a SQL parser, or from a DataFrame object constructed using the API. **In both cases, the relation may contain unresolved attribute references or relations**: for example, in the SQL query `SELECT col FROM sales`, the type of col, or even whether it is a valid column name, is not known until we look up the table sales. **An attribute is called unresolved if we do not know its type or have not matched it to an input table (or an alias)**. Spark SQL uses **Catalyst rules** and a **Catalog object** that tracks the tables in all data sources to resolve these attributes. It starts by building an “unresolved logical plan” tree with unbound attributes and data types, then applies rules that do the following:
 
 - Looking up relations by name from the catalog.
 - Mapping named attributes, such as col, to the input provided given operator’s children.
