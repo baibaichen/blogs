@@ -1,11 +1,11 @@
 https://databricks.com/blog/2016/02/01/faster-stateful-stream-processing-in-apache-spark-streaming.html
 1. [很像Java](#1-很像Java)
-1. 统一的对象模型
-1. 函数也是**第一等级的值**
-1. [统一的抽象模型【Scala has uniform and powerful abstraction concepts for both types and values】](#4-统一的抽象模型【Scala has uniform and powerful abstraction concepts for both types and values】)
-1. OOP，特征混入（trait mixin）
-1. 模式匹配
-1. 隐式转换
+2. 统一的对象模型
+3. 函数也是**第一等级的值**
+4. [统一的抽象模型【Scala has uniform and powerful abstraction concepts for both types and values】](#4-统一的抽象模型【Scala has uniform and powerful abstraction concepts for both types and values】)
+5. OOP，特征混入（trait mixin）
+6. 模式匹配
+7. 隐式转换
 
 > TODO
 > - [ ] 知乎上 [[Scala 是一门怎样的语言，具有哪些优缺点？]](https://www.zhihu.com/question/19748408) 得票最高的答案中的如下链接
@@ -81,17 +81,17 @@ case final class Some(val value : ???) {
 相反，`抽象类型`在相互联系密切的“类型家族”中则非常有用
 
 > [Scala类型系统的目的——Martin Odersky访谈（三）](http://www.infoq.com/cn/articles/scala-type-system)，搜索**抽象类型成员**
-> 
+>
 > **Bill Venners**: 在Scala中，一个类型可以是另一种类型的内部成员，正如方法和字段可以是类型的内部成员。而且，Scala中的这些类型成员可以是抽象成员，就像Java方法那样抽象。那么抽象类型成员和泛型参数不就成了重复功能吗？为什么Scala两个功能都支持？抽象类型，相比泛型，能额外给你们带来什么好处？
-> 
+>
 > **Martin Odersky**: 抽象类型，相比泛型，的确有些额外好处。不过还是让我先说几句通用原理吧。对于抽象，业界一直有两套不同机制：参数化和抽象成员。Java也一样支持两套抽象，只不过Java的两套抽象取决于对什么进行抽象。**Java支持抽象方法，但不支持把方法作为参数；Java不支持抽象字段，但支持把值作为参数；Java不支持抽象类型成员，但支持把类型作为参数**。所以，在Java中，三者都可以抽象。但是对三者进行抽象时，原理有所区别。所以，你可以批判Java，三者区别太过武断。
-> 
+>
 > 我们在Scala中，试图把这些抽象支持得更完备、更正交。我们决定对上述三类成员都采用相同的构造原理。**所以，你既可以使用抽象字段，也可以使用值参数；既可以把方法（即“函数”）作为参数，也可以声明抽象方法；既可以指定类型参数也可以声明抽象类型**。总之，我们找到了三者的统一概念，可以按某一类成员的相同用法来使用另一类成员。至少在原则上，我们可以用同一种面向对象抽象成员的形式，表达全部三类参数。因此，在某种意义上可以说Scala是一种更正交、更完备的语言。
-> 
+>
 > 现在的问题来了，这对你有什么好处？具体到抽象类型，能带来的好处是，它能很好地处理我们先前谈到的协变问题。举个老生常谈的例子：动物和食物的问题。**这道题是这样的：从前有个Animal类，其中有个eat方法，可以用来吃东西。问题是，如果从Animal派生出一个类，比如Cow，那么就只能吃某一种食物，比如Grass。Cow不可以吃Fish之类的其他食物。你希望有办法可以声明，Cow拥有一个eat方法，且该方法只能用来吃Grass，而不能吃其他东西**。实际上，这个需求在Java中实现不了，因为你最终一定会构造出有矛盾的情形，类似我先前讲过的把Fruit赋值给Apple一样。
-> 
+>
 > 请问你该怎么做？Scala的答案是，在Animal类中增加一个抽象类型成员。比方说，Scala版的Animal类内部可以声明一个SuitableFood类型，但不定义它具体是什么。那么这就是抽象类型。你不给出类型实现，直接让Animal的eat方法吃下SuitableFood即可。然后，在Cow中声明：“好！这是一只Cow，派生自Animal。对Cow来说，其SuitableFood是Grass。”所以，抽象类型提供了一种机制：先在父类中声明未知类型，稍后再在子类中填上某种已知类型。
-> 
+>
 > 现在你可能会说，哎呀，我用参数也可以实现同样功能。确实可以。你可以给Animal增加参数，表示它能吃的食物。但实践中，当你需要支持许多不同功能时，就会导致参数爆炸。而且通常情况下，更要命的问题是，参数的边界。在1998年的ECOOP（欧洲面向对象编程会议）上，我和Kim Bruce、Phil Wadler发表了一篇论文。我们证明，当你线性增加未知概念数量时，一般来说程序规模会呈二次方增长。所以，我们有了很好的理由不用参数而用抽象成员，即为了避免二次方级别的代码膨胀。
 
 ## 5 OOP
@@ -105,17 +105,17 @@ case final class Some(val value : ???) {
 
 ### 单例对象
 
- -   |静态成员
- --- |---
-Scala|不支持，以单例对象替代
- Java|支持
+-   |静态成员
+   --- |---
+   Scala|不支持，以单例对象替代
+    Java|支持
 
-- Scala **不能定义静态成员**，这是比 Java 更为面向对象的地方
-- 除了用 **`object`** 关键字替换 `class` 关键字之外，定义单例对象看上去和定义类一致
-- 和『类同名的单例对象』称之为**伴生对象**，类和它的伴生对象
+-   Scala **不能定义静态成员**，这是比 Java 更为面向对象的地方
+-   除了用 **`object`** 关键字替换 `class` 关键字之外，定义单例对象看上去和定义类一致
+-   和『类同名的单例对象』称之为**伴生对象**，类和它的伴生对象
   * 必须定义在一个源文件里
   * 可以互相访问私有成员
-- 单例对象不带参数，而类可以。这是因为单例对象不是用 `new` 关键字实例化的，所以没有机会给它传参数
+-   单例对象不带参数，而类可以。这是因为单例对象不是用 `new` 关键字实例化的，所以没有机会给它传参数
 
 
 > TODO 例子
@@ -149,6 +149,30 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 >
 > 特别是这篇PDF需要认真整理
 
+### 提取器
+
+```scala
+object EMail {
+  // The injection method (optional)
+  def apply(user: String, domain: String): String = user + "@" + domain
+  // The extraction method (mandatory)
+  def unapply(str: String): Option[(String, String)] = {
+    val parts = str split "@"
+    if (parts.length == 2) Some(parts(0), parts(1)) else None
+  }
+}
+```
+
+`var EMail(u, d) = "baibaichen@gmail.com"` 等价于：
+
+```java
+Option localOption = EMail.upapply("baibaichen@gmail.com");
+Tuple2 localTuple = localOption.get();
+String u = localTuple21._1;
+String d = localTuple21._2;
+```
+
+
 
 # 其它
 
@@ -167,14 +191,13 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 To summarize, if you want to fully integrate a new collection class into the framework you need to pay attention to the following points:
 
 1. Decide whether the collection should be mutable or immutable.
-1. Pick the right base traits for the collection.
-1. Inherit from the right implementation trait to implement most collection operations.
-1. If you want map and similar operations to return instances of your collection type, provide an implicit CanBuildFrom in your class’s companion object.
+2. Pick the right base traits for the collection.
+3. Inherit from the right implementation trait to implement most collection operations.
+4. If you want map and similar operations to return instances of your collection type, provide an implicit CanBuildFrom in your class’s companion object.
 
 You have now seen how Scala’s collections are built and how you can add new kinds of collections. Because of Scala’s rich support for abstraction, each new collection type has a large number of methods without having to reimplement them all over again.
 
 https://github.com/scala/scala/commit/3de96153e5bfbde16dcc89bfbd71ff6e8cf1f6c6
-
 
 ```
 TraversableOnce --> GenTraversableOnce
@@ -210,7 +233,7 @@ Iterable        --> GenIterable---------------------------------|
 
 > [Iterable]
 > Any HasNewBuilder FilterMonadic GenTraversableOnce TraversableOnce Parallelizable GenTraversableLike TraversableLike  GenericTraversableTemplate GenTraversable Traversable GenIterableLike
-GenIterable Equals IterableLike Iterable
+> GenIterable Equals IterableLike Iterable
 
 > [AbstractIterable]
 > Any HasNewBuilder FilterMonadic GenTraversableOnce TraversableOnce Parallelizable GenTraversableLike TraversableLike  GenericTraversableTemplate GenTraversable Traversable AbstractTraversable GenIterableLike GenIterable Equals IterableLike Iterable AbstractIterable
@@ -236,7 +259,7 @@ GenIterable Equals IterableLike Iterable
     int[] a1 = new int[10];
     int[] a2 = { 1, 2, 3, 4 };
     a1[1] = a2[2];
-    
+
 如果**类型未知**，比如：
 
     def evenElems[T: ClassTag](xs: Vector[T]): Array[T] = {
@@ -245,7 +268,7 @@ GenIterable Equals IterableLike Iterable
         arr(i / 2) = xs(i)                        // 代码2
         arr
     }
-    
+
 函数必须要声明一个`ClassTag[T]`的隐式参数（具体的隐式值由编译器提供），这时代码会被翻译成:
 
     final Object arr = evidence$1.newArray((xs.length() + 1) / 2); //代码1，注意evidence$1就是传进来的隐式值
@@ -261,6 +284,10 @@ GenIterable Equals IterableLike Iterable
 >   * `makeCopy`的实现原理，用到了那些和 runtime 相关的方法？
 >   * **persistent data structure** 是如何实现的？
 
+## 枚举
+
+1. [Scala Enumerations](http://underscore.io/blog/posts/2014/09/03/enumerations.html)
+2. http://stackoverflow.com/questions/1898932/case-objects-vs-enumerations-in-scala
 
 # 例子
 
@@ -285,7 +312,7 @@ GenIterable Equals IterableLike Iterable
         continue = false  // 如果是Java 使用break
       }
     }
-    
+
 #### 语法糖，大括号里的case语句是[偏函数]()
 
 注意，Scala集合中的`flodLeft`的声明是这样的：
@@ -321,10 +348,10 @@ GenIterable Equals IterableLike Iterable
 
 注意这里是**多态**的
 
-class | plan的类型 | rule的类型 |阶段
----|---|---|---
-[`Analyzer`]() | [`LogicalPlan`]() | [`Rule[LogicalPlan]`]()|分析阶段
-[`Optimizer`]() | [`LogicalPlan`]() | [`Rule[LogicalPlan]`]()|逻辑优化阶段
+| class           | plan的类型           | rule的类型                 | 阶段     |
+| --------------- | ----------------- | ----------------------- | ------ |
+| [`Analyzer`]()  | [`LogicalPlan`]() | [`Rule[LogicalPlan]`]() | 分析阶段   |
+| [`Optimizer`]() | [`LogicalPlan`]() | [`Rule[LogicalPlan]`]() | 逻辑优化阶段 |
 
 > 物理优化阶段没有用这个类，原因是这里是 `LogicalPlan => LogicalPlan` 的转化，而那里是`LogicalPlan => SparkPlan`的转化
 
@@ -378,7 +405,7 @@ class | plan的类型 | rule的类型 |阶段
 
 > TODO 
 > - [ ] 函数字面量
-> 
+>
 
 #### 相等性
 
@@ -434,10 +461,10 @@ String Map Int
 ##### 类型证明（中置类型的应用）
 在 `Predef` 对象中，定义了这么如下两个抽象类，用于类型约束
 
-  类型证明|含义
----------|---
-`T =:= U`|类型 `T` 是否等于类型 `U`
-`T <:< U`|类型 `T` 是否是类型 `U` 的子类型
+| 类型证明      | 含义                    |
+| --------- | --------------------- |
+| `T =:= U` | 类型 `T` 是否等于类型 `U`     |
+| `T <:< U` | 类型 `T` 是否是类型 `U` 的子类型 |
 
 
 抽象类（Scala 2.11.8） `<:<` 的的定义如下
@@ -602,7 +629,7 @@ abstract class SparkPlan {
 > TODO 画图
 > 依赖关系：```logical -> analyzed -> withCachedData -> optimizedPlan -> sparkPlan -> executedPlan```
 > 求值顺序：```logical <- analyzed <- withCachedData <- optimizedPlan <- sparkPlan <- executedPlan```
-> 
+>
 > 吐槽：惰性求值推迟了初始化，在语言层面上提供了**按需求值**的语义，但是
 > 1. 有额外的开销，每次访问**惰值**，都会调用一个『线程安全的』方法来检查该值是否已被初始化。
 > 2. 可读性，初始化的地点，并非是你定义**惰值**的地方。

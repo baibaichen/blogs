@@ -34,16 +34,16 @@ pd.concat(objs, axis=0, join='outer', join_axes=None, ignore_index=False,
           copy=True)
 ```
 
-- `objs` : a sequence or mapping of Series, DataFrame, or Panel objects. If a dict is passed, the sorted keys will be used as the keys argument, unless it is passed, in which case the values will be selected (see below). Any None objects will be dropped silently unless they are all None in which case a ValueError will be raised.
-- `axis` : {0, 1, ...}, default 0. The axis to concatenate along.
-- `join` : {‘inner’, ‘outer’}, default ‘outer’. How to handle indexes on other axis(es). Outer for union and inner for intersection.
-- `ignore_index` : boolean, default False. If True, do not use the index values on the concatenation axis. The resulting axis will be labeled 0, ..., n - 1. This is useful if you are concatenating objects where the concatenation axis does not have meaningful indexing information. Note the index values on the other axes are still respected in the join.
-- `join_axes` : list of Index objects. Specific indexes to use for the other n - 1 axes instead of performing inner/outer set logic.
-- `keys` : sequence, default None. Construct hierarchical index using the passed keys as the outermost level. If multiple levels passed, should contain tuples.
-- `levels` : list of sequences, default None. Specific levels (unique values) to use for constructing a MultiIndex. Otherwise they will be inferred from the keys.
-- `names` : list, default None. Names for the levels in the resulting hierarchical index.
-- `verify_integrity` : boolean, default False. Check whether the new concatenated axis contains duplicates. This can be very expensive relative to the actual data concatenation.
-- `copy` : boolean, default True. If False, do not copy data unnecessarily.
+- [x] `objs` : a sequence or mapping of Series, DataFrame, or Panel objects. If a dict is passed, the sorted keys will be used as the keys argument, unless it is passed, in which case the values will be selected (see below). Any None objects will be dropped silently unless they are all None in which case a ValueError will be raised.
+- [x] `axis` : {0, 1, ...}, default 0. The axis to concatenate along.
+- [x] `join` : {‘inner’, ‘outer’}, default ‘outer’. How to handle indexes on other axis(es). Outer for union and inner for intersection.
+- [ ] `ignore_index` : boolean, default False. If True, do not use the index values on the concatenation axis. The resulting axis will be labeled 0, ..., n - 1. This is useful if you are concatenating objects where the concatenation axis does not have meaningful indexing information. Note the index values on the other axes are still respected in the join.
+- [ ] `join_axes` : list of Index objects. Specific indexes to use for the other n - 1 axes instead of performing inner/outer set logic. see [concatenating, pandas, and join_axes](http://stackoverflow.com/questions/27391081/concatenating-pandas-and-join-axes)
+- [ ] `keys` : sequence, default None. Construct hierarchical index using the passed keys as the outermost level. If multiple levels passed, should contain tuples.
+- [ ] `levels` : list of sequences, default None. Specific levels (unique values) to use for constructing a MultiIndex. Otherwise they will be inferred from the keys.
+- [ ] `names` : list, default None. Names for the levels in the resulting hierarchical index.
+- [ ] `verify_integrity` : boolean, default False. Check whether the new concatenated axis contains duplicates. This can be very expensive relative to the actual data concatenation.
+- [ ] `copy` : boolean, default True. If False, do not copy data unnecessarily.
 
 Without a little bit of context and example many of these arguments don’t make much sense. Let’s take the above example. Suppose we wanted to associate specific keys with each of the pieces of the chopped up DataFrame. We can do this using the `keys` argument:
 
@@ -57,3 +57,19 @@ s2 = Series([2, 3, 4], index=['c', 'd', 'e'])
 s3 = Series([5, 6], index=['f', 'g'])
 ```
 
+[Pandas | 表格整合三大神技之CONCATENATE](https://zhuanlan.zhihu.com/p/24892205)
+
+
+
+# Spark中的实现
+
+1. 在axis = 0 方向使用`union`
+2. 在axis = 1 方向使用`zip`
+
+## SQL UNION 操作符
+
+UNION 操作符用于合并两个或多个 SELECT 语句的结果集。
+
+请注意，UNION 内部的 SELECT 语句必须拥有相同数量的列。列也必须拥有相似的数据类型。同时，每条 SELECT 语句中的列的顺序必须相同。
+
+> SQL 的 `union` 和 `union all`的区别是`union all`不去重，但是spark的 `DataSet.unionAll` 和 `DataSet.union` 没有区别。

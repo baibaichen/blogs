@@ -93,24 +93,19 @@
 ---
 ![ a quick overview of the flow of a spark job](https://trongkhoanguyenblog.files.wordpress.com/2014/11/schedule-process.png)
 
-# Dataset
-## 创建
 
-### Seq => Dataset
-    Seq(("a", 10), ("a", 20), ("b", 1), ("b", 2), ("c", 1)).toDS()
 
-1. **隐式转换**：调用 `localSeqToDatasetHolder` 把本地 `Seq` 转换成`DatasetHolder`
-2. **隐式参数**：即上下文界定，`localSeqToDatasetHolder` 需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `Pair` 类型（即样例类 `Tuple2`），因此会调用到 `newProductEncoder`！
+# Debug
+1. Building **[** mvn -Pyarn -Phadoop-2.6 -Phive -Phive-thriftserver -DskipTests clean package **]**
+2. SPARK_JAVA_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,address=5000,server=y,suspend=y"
 
-### RDD => Dataset
-    sparkContext.makeRDD(Seq("a", "b", "c"), 3).toDS()
 
-1. **隐式转换**：调用 `rddToDatasetHolder` 把 `RDD` 转换成`DatasetHolder`
-2. **隐式参数**：`rddToDatasetHolder`需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `String` 类型
-
-## 介绍
+# 重要的类
+## Dataset
 
 A `Dataset` is a strongly typed collection of domain-specific objects that can be transformed in parallel using functional or relational operations. Each Dataset also has an untyped view called a `DataFrame`, which is a Dataset of `Row`.
+
+> `Dataset` 是领域对象的强类型集合
 
 Operations available on Datasets are divided into **transformations** and **actions**. **Transformations are the ones that produce new Datasets, and actions are the ones that trigger computation and return results**. Example transformations include map, filter, select, and aggregate (`groupBy`). Example actions count, show, or writing data out to file systems.
 
@@ -190,14 +185,71 @@ and in Java:
 > -[ ] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
 >      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
 > -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
+### 创建
+1. **隐式转换**：调用 `rddToDatasetHolder` 把 `RDD` 转换成`DatasetHolder`
+2. **隐式参数**：`rddToDatasetHolder`需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `String` 类型
+#### Seq => Dataset
+    Seq(("a", 10), ("a", 20), ("b", 1), ("b", 2), ("c", 1)).toDS()
 
-# Debug
-1. Building **[** mvn -Pyarn -Phadoop-2.6 -Phive -Phive-thriftserver -DskipTests clean package **]**
-2. SPARK_JAVA_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,address=5000,server=y,suspend=y"
+1. **隐式转换**：调用 `localSeqToDatasetHolder` 把本地 `Seq` 转换成`DatasetHolder`
+2. **隐式参数**：即上下文界定，`localSeqToDatasetHolder` 需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `Pair` 类型（即样例类 `Tuple2`），因此会调用到 `newProductEncoder`！
 
+#### RDD => Dataset
+    sparkContext.makeRDD(Seq("a", "b", "c"), 3).toDS()
+### Row
 
-# 重要的类
----
+Represents one row of output from a relational operator. Allows both generic access by ordinal, which will incur boxing overhead for primitives, as well as **<u>native primitive access</u>**.
+
+It is invalid to use the native primitive interface to retrieve a value that is null, instead a user must check `isNullAt` before attempting to retrieve a value that might be null.
+
+To create a new Row, use `RowFactory.create()` in Java or `Row.apply()` in Scala.
+
+>示关系运算的一行输出。允许~~通用访问的顺序，这将招致拳击开销原语~~，以及原生的原始访问。
+
+A [Row](http://spark.apache.org/docs/latest/api/scala/org/apache/spark/sql/Row.html) object can be constructed by providing field values. Example:
+
+```scala
+import org.apache.spark.sql._
+
+// Create a Row from values.
+Row(value1, value2, value3, ...)
+// Create a Row from a Seq of values.
+Row.fromSeq(Seq(value1, value2, ...))
+```
+
+A value of a row can be accessed through both generic access by ordinal, which will incur boxing overhead for primitives, as well as native primitive access. An example of generic access by ordinal:
+
+```scala
+import org.apache.spark.sql._
+
+val row = Row(1, true, "a string", null)
+// row: Row = [1,true,a string,null]
+val firstValue = row(0)
+// firstValue: Any = 1
+val fourthValue = row(3)
+// fourthValue: Any = null
+```
+
+For **native primitive access**, it is invalid to use the native primitive interface to retrieve a value that is null, instead a user must check `isNullAt` before attempting to retrieve a value that might be null. An example of native primitive access:
+
+```scala
+// using the row from the previous example.
+val firstValue = row.getInt(0)
+// firstValue: Int = 1
+val isNull = row.isNullAt(3)
+// isNull: Boolean = true
+```
+
+In Scala, fields in a [Row](http://spark.apache.org/docs/latest/api/scala/org/apache/spark/sql/Row.html) object can be extracted in a pattern match. Example:
+
+```scala
+import org.apache.spark.sql._
+
+val pairs = sql("SELECT key, value FROM src").rdd.map {
+  case Row(key: Int, value: String) =>
+    key -> value
+}
+```
 
 ## RDD
 
@@ -218,8 +270,6 @@ and in Java:
         OneToOneDependency
         PruneDependency
         RangeDependency
-
----
 
 ## DAGScheduler
 
