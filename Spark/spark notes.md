@@ -66,9 +66,7 @@
 >
 > ## 框架方面的内容
 > 1.  文件格式
->
 > 2.  **语法分析（调研 ANTLR）**：Spark 曾经有两个分析器，一个是基于 Hive 的，另一个是基于 Scala 的 **parser combinator**，两个都有些问题。1）Hive 的分析器不受 DataBricks 控制（我猜的），引入新语法和修复 BUG 都不方便，2）Scala 的 **parser combinator** 语法出错时的提示信息很烂（怎么个烂法，我也不知道），而且语法有冲突的时候也不警告。所以 DataBricks 自己搞了一个，当然也不是从零开始，貌似是从 presto 搞过来的，主要的jira如下[[SPARK-12362] Create a full-fledged built-in SQL parser](https://issues.apache.org/jira/browse/SPARK-12362)
->
 > 3.  **Project Tungsten**
 >
 >     * [ ] [[SPARK-7075] Project Tungsten (Spark 1.5 Phase 1)](https://issues.apache.org/jira/browse/SPARK-7075)
@@ -89,6 +87,8 @@
 > 7.  RDD
 > 8.  Dataset
 > 9.  Streaming
+> 10.  内存
+>  *  [[SPARK-7076][SPARK-7077][SPARK-7080][SQL] Use managed memory for aggregations](https://github.com/apache/spark/pull/5725)
 
 ---
 ![ a quick overview of the flow of a spark job](https://trongkhoanguyenblog.files.wordpress.com/2014/11/schedule-process.png)
@@ -105,7 +105,7 @@
 
 A `Dataset` is a strongly typed collection of domain-specific objects that can be transformed in parallel using functional or relational operations. Each Dataset also has an untyped view called a `DataFrame`, which is a Dataset of `Row`.
 
-> `Dataset` 是领域对象的强类型集合
+> `Dataset` 是~~领域对象的强类型~~集合
 
 Operations available on Datasets are divided into **transformations** and **actions**. **Transformations are the ones that produce new Datasets, and actions are the ones that trigger computation and return results**. Example transformations include map, filter, select, and aggregate (`groupBy`). Example actions count, show, or writing data out to file systems.
 
@@ -377,7 +377,7 @@ What does Closure.cleaner (func) mean in Spark?
 ![image](https://databricks.com/wp-content/uploads/2015/04/Screen-Shot-2015-04-12-at-8.41.26-AM-1024x235.png)
 
 - 语法语义分析`ParseDrive.parse`
-
+## Catalyst
 ### Analysis
 
 Spark SQL begins with a **relation** to be computed, either from an abstract syntax tree (AST) returned by a SQL parser, or from a DataFrame object constructed using the API. **In both cases, the relation may contain unresolved attribute references or relations**: for example, in the SQL query `SELECT col FROM sales`, the type of col, or even whether it is a valid column name, is not known until we look up the table sales. **An attribute is called unresolved if we do not know its type or have not matched it to an input table (or an alias)**. Spark SQL uses **Catalyst rules** and a **Catalog object** that tracks the tables in all data sources to resolve these attributes. It starts by building an “unresolved logical plan” tree with unbound attributes and data types, then applies rules that do the following:
