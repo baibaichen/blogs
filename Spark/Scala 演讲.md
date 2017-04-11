@@ -146,8 +146,22 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 > - [ ] [Case Classes and Pattern Matching](http://www.artima.com/pins1ed/case-classes-and-pattern-matching.html)（*Scala 编程*的第15章）
 > - [ ] Case语句的中置表式法（参见*快学 Scala *的**14.11**节）
 > - [ ] [[PDF] Matching Objects with patterns](https://infoscience.epfl.ch/record/98468/files/MatchingObjectsWithPatterns-TR.pdf)
+> - [x] [探索Scala（4）-- Case Classes](http://blog.csdn.net/zxhoo/article/details/40454075)
 >
 > 特别是这篇PDF需要认真整理
+
+### 样例类
+
+[Scala之Case Class](http://blog.csdn.net/bluishglc/article/details/50914001)
+
+当一个类被声名为case class的时候，scala会帮助我们做下面几件事情： 
+
+1. 构造器中的参数如果不被声明为var的话，它默认的话是val类型的，但一般不推荐将构造器中的参数声明为var 
+2. 自动创建伴生对象，同时在里面给我们实现子apply方法，使得我们在使用的时候可以不直接显示地new对象 
+3. 伴生对象中同样会帮我们实现unapply方法，从而可以将case class应用于模式匹配，关于unapply方法我们在后面的“提取器”那一节会重点讲解 
+4. 实现自己的`toString`、`hashCode`、`copy`、`equals`方法 
+
+除此之此，case class与其它普通的scala类没有区别
 
 ### 提取器
 
