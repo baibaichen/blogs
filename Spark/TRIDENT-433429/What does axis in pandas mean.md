@@ -73,3 +73,5 @@ UNION 操作符用于合并两个或多个 SELECT 语句的结果集。
 请注意，UNION 内部的 SELECT 语句必须拥有相同数量的列。列也必须拥有相似的数据类型。同时，每条 SELECT 语句中的列的顺序必须相同。
 
 > SQL 的 `union` 和 `union all`的区别是`union all`不去重，但是spark的 `DataSet.unionAll` 和 `DataSet.union` 没有区别。
+
+https://issues.apache.org/jira/browse/SPARK-7460
