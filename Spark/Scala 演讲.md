@@ -324,15 +324,20 @@ Scala 使用 `@transient` 注解不需要序列化的字段。
 >       ```scala
 >       // 比如 Spark 中 Dataset的几个字段
 >       @transient private[sql] val logicalPlan: LogicalPlan = ...
->       @transient lazy val sqlContext: SQLContext = ....
+>       @transient lazy val sqlContext: SQLContext = ...
 >       ```
-> - [ ] ​
 
 ## 字面量
 
 ### Symbol 字面量
 
+字面量`'id` 是表达式 `scala.Symbol("id")` 的简写方式。Spark中也有使用，如下：
 
+```scala
+testData3.groupBy('a).agg(count('b))
+```
+
+>  注意：这里还涉及到**隐式转换**。
 
 # 例子
 
