@@ -88,7 +88,7 @@
 > 8.  Dataset
 > 9.  Streaming
 > 10.  内存
->  *  [[SPARK-7076][SPARK-7077][SPARK-7080][SQL] Use managed memory for aggregations](https://github.com/apache/spark/pull/5725)
+> *  [[SPARK-7076][SPARK-7077][SPARK-7080][SQL] Use managed memory for aggregations](https://github.com/apache/spark/pull/5725)
 
 ---
 ![ a quick overview of the flow of a spark job](https://trongkhoanguyenblog.files.wordpress.com/2014/11/schedule-process.png)
@@ -111,6 +111,8 @@ Operations available on Datasets are divided into **transformations** and **acti
 
 Datasets are "lazy", i.e. computations are only triggered when an action is invoked. Internally, a `Dataset` represents a **logical plan** that describes the computation required to produce the data. When an action is invoked, Spark's query optimizer optimizes the logical plan and generates a **physical plan** for efficient execution in a parallel and distributed manner. To explore the logical plan as well as optimized physical plan, use the `explain` function.
 
+> `Dataset`s 上可用的操作分为 **transformations**  和  **actions**。**transformations**  产生新的数据集， **actions** 触发计算，然后返回结果。**transformations** 的例子有转换（map），过滤（filter），选择（select），和聚合（ aggregate ，即(`groupBy`)）。**actions** 的例子有计数（count），显示（show），或者是输出数据到文件系统。
+>
 > `Dataset`是“惰性”的，即只有在调用`Action`时才触发计算。在内部，`Dataset`表示一个逻辑计划，描述了生成数据所需的计算。当调用`Action`时，Spark的查询优化器优化逻辑计划，并以并行和分布式的方式生成高效的物理执行计划。使用 `explain` 函数可以查看逻辑计划和优化的物理计划。
 
 To efficiently support domain-specific objects, an [`Encoder`]() is required. **The encoder maps the domain specific type `T` to Spark's internal type system**. For example, given a class `Person` with two fields, **name** (`string`) and **age** (`int`), an encoder is used to tell Spark to generate code at runtime to serialize the `Person` object into a binary structure. This binary structure often has much lower memory footprint as well as are optimized for efficiency in data processing (e.g. in a columnar format). To understand the internal binary representation for data, use the `schema` function.
@@ -192,16 +194,24 @@ and in Java:
 >      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
 > -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
 ### 创建
-1. **隐式转换**：调用 `rddToDatasetHolder` 把 `RDD` 转换成`DatasetHolder`
-2. **隐式参数**：`rddToDatasetHolder`需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `String` 类型
+
+**A Dataset is a result of executing a query expression against data storage like files, Hive tables or JDBC databases.** 
+
 #### Seq => Dataset
-    Seq(("a", 10), ("a", 20), ("b", 1), ("b", 2), ("c", 1)).toDS()
+```scala
+Seq(("a", 10), ("a", 20), ("b", 1), ("b", 2), ("c", 1)).toDS()
+```
 
 1. **隐式转换**：调用 `localSeqToDatasetHolder` 把本地 `Seq` 转换成`DatasetHolder`
 2. **隐式参数**：即上下文界定，`localSeqToDatasetHolder` 需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `Pair` 类型（即样例类 `Tuple2`），因此会调用到 `newProductEncoder`！
 
 #### RDD => Dataset
-    sparkContext.makeRDD(Seq("a", "b", "c"), 3).toDS()
+```scala
+sparkContext.makeRDD(Seq("a", "b", "c"), 3).toDS()
+```
+1. **隐式转换**：调用 `rddToDatasetHolder` 把 `RDD` 转换成`DatasetHolder`
+2. **隐式参数**：`rddToDatasetHolder`需要一个`Encoder[T]`的隐式参数，注意这里的 `T` 是 `String` 类型
+
 ### Row
 
 Represents one row of output from a relational operator. Allows both generic access by ordinal, which will incur boxing overhead for primitives, as well as **<u>native primitive access</u>**.

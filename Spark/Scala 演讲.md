@@ -7,7 +7,7 @@ https://databricks.com/blog/2016/02/01/faster-stateful-stream-processing-in-apac
 6. 模式匹配
 7. 隐式转换
 
-> TODO
+> TODO：
 > - [ ] 知乎上 [[Scala 是一门怎样的语言，具有哪些优缺点？]](https://www.zhihu.com/question/19748408) 得票最高的答案中的如下链接
 >   * **Scala集合库的性能**，[视频在这](https://www.youtube.com/watch?v=tRiv35gNPoI&spfreload=10)。 讲的是Scala集合的运行速度，是一个来自Goldman Sachs的程序员讲他们为Java写的集合库（GSCollection）速度和内存消耗，但同时比较了[gs-collection](https://github.com/goldmansachs/gs-collections)，Java，和Scala库的速度。最后Scala的可变集合mutable原生库完爆Java，和gs-collection基本持平。
 >   * **为了追求速度**，Scala社区是绝对不会管所谓的“简单”或者是“好玩”，怎样有效率就怎样弄。与其专注于JVM的改进，Scala社区大部分在编译器上下功夫，比如很著名的 [Miniboxing](http://scala-miniboxing.org/)，这是一个编译器增进器。Miniboxing做的是什么呢？只做一件事：防止auto-boxing和auto-unboxing。所有的泛型，尤其是原生类泛型（Primitive Types），诸如Int、Double等等，在进行各种操作的时候会自动取出和装回它们所属的类中去——这个我解释的不太好，但是可以看[这里(Java 的自动装箱与拆箱)](http://www.cnblogs.com/danne823/archive/2011/04/22/2025332.html)
@@ -123,7 +123,7 @@ case final class Some(val value : ???) {
 > - [ ] 虚构类（**synthetic class**）是对象名加上一个美元符号 **$**
 
 ### Cake Pattern(DI)
-> TODO
+> TODO:
 > - [ ] [Dependency Injection in Scala](http://blog.yunglinho.com/blog/2012/04/22/dependency-injection-in-scala/)
 > - [ ] [Cake Pattern Resources](http://scabl.blogspot.com/p/cbdi.html)
 > - [ ] Cake Pattern 现在还在用吗？Spark里能找到对应的例子吗？
@@ -160,8 +160,17 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 2. 自动创建伴生对象，同时在里面给我们实现子apply方法，使得我们在使用的时候可以不直接显示地new对象 
 3. 伴生对象中同样会帮我们实现unapply方法，从而可以将case class应用于模式匹配，关于unapply方法我们在后面的“提取器”那一节会重点讲解 
 4. 实现自己的`toString`、`hashCode`、`copy`、`equals`方法 
+5. 编译器对case类混入了`Product`特质
+6. 编译器对case类增加了`copy`方法
+7. 伴生对象继承了`AbstractFunction`
+8. 伴生对象中`apply`方法则为创建对象提供方便，相当于工厂方法。
+9. 伴生对象中最重要的方法是 **unapply** 这个方法是在进行构造器模式匹配时的关键。
 
-除此之此，case class与其它普通的scala类没有区别
+除此之此，case class与其它普通的scala类没有区别。
+
+> TODO：
+>
+> - [ ] 为样例类手写伴生对象会是什么情况？比如Spark的`LocalRealtion`。
 
 ### 提取器
 
@@ -186,7 +195,9 @@ String u = localTuple21._1;
 String d = localTuple21._2;
 ```
 
-
+> TODO:
+>
+> - [ ] `unapplySeq`的情况要解释下
 
 # 其它
 
@@ -291,7 +302,7 @@ Iterable        --> GenIterable---------------------------------|
 `ClassTag.newArry()`会根据**类型T的运行时信息**，在**运行时**选择恰当的方法创建数组
 
 ### 不变集合的数据结构
-> TODO
+> TODO：
 > - [ ] 调研 Spark 中的 `TreeNode`
 >   * `TreeNode` 为什么要从 `Product` 扩展？
 >   * `TreeNode` 类层次是什么？
@@ -303,6 +314,26 @@ Iterable        --> GenIterable---------------------------------|
 1. [Scala Enumerations](http://underscore.io/blog/posts/2014/09/03/enumerations.html)
 2. http://stackoverflow.com/questions/1898932/case-objects-vs-enumerations-in-scala
 
+## 注解
+
+Scala 使用 `@transient` 注解不需要序列化的字段。
+
+> TODO：
+> - [ ] 为什么没有 `transient` 关键字？
+> - [x] [Scala and the `@transient lazy val` pattern](http://fdahms.com/2015/10/14/scala-and-the-transient-lazy-val-pattern/)
+>       ```scala
+>       // 比如 Spark 中 Dataset的几个字段
+>       @transient private[sql] val logicalPlan: LogicalPlan = ...
+>       @transient lazy val sqlContext: SQLContext = ....
+>       ```
+> - [ ] ​
+
+## 字面量
+
+### Symbol 字面量
+
+
+
 # 例子
 
 #### 变量可以 `override` 方法
@@ -313,7 +344,7 @@ Iterable        --> GenIterable---------------------------------|
        case class FixedPoint(maxIterations: Int) extends Strategy
     }
 
-在超类中实际定义的是 `maxIterations` 方法，但是在 'FixedPoint` 子类中，我们定义的是一个**变量**！
+在超类中实际定义的是 `maxIterations` 方法，但是在 `FixedPoint` 子类中，我们定义的是一个**变量**！
 
 #### Loop没有`break`和`continue`
 
