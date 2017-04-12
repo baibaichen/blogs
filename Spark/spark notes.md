@@ -38,25 +38,25 @@
 7. Ongoing work since 2017.2 summit
 
     1. Standard binary format to pass data to external code
-       {0}. Either existing format or Apache Arrow (SPARK-19489, SPARK-13545)
-       {0}. Binary format for data sources (SPARK-15689)
+        - [ ] Either existing format or Apache Arrow (SPARK-19489, SPARK-13545)
+        - [ ] Binary format for data sources (SPARK-15689)
     2. Integrations with deep learning libraries
-       {0}. Intel BigDL, Databricks TensorFrames (see talks today)
+        - [ ] Intel BigDL, Databricks TensorFrames (see talks today)
     3. **Accelerators** as a first-class resource
     4. Next generation of SQL and DataFrames
-       {0}. **[Cost-based optimizer](https://issues.apache.org/jira/browse/SPARK-16026)** (SPARK-16026 + many others)
-       {0}. Improved data sources ([CSV](https://issues.apache.org/jira/browse/SPARK-16099), [JSON](https://issues.apache.org/jira/browse/SPARK-18352))
+        - [ ] **[Cost-based optimizer](https://issues.apache.org/jira/browse/SPARK-16026)** (SPARK-16026 + many others)
+        - [ ] Improved data sources ([CSV](https://issues.apache.org/jira/browse/SPARK-16099), [JSON](https://issues.apache.org/jira/browse/SPARK-18352))
     5. Continue improving Python/R (SPARK-18924, 17919, 13534, …)
     6. Make Spark easier to run on a single node
-       {0}. Publish to PyPI (SPARK-18267) and CRAN (SPARK-15799)
-       {0}. Optimize for large servers
-       {0}. As convenient as Python multiprocessing
+        - [ ] Publish to PyPI (SPARK-18267) and CRAN (SPARK-15799)
+        - [ ] Optimize for large servers
+        - [ ] As convenient as Python multiprocessing
     7. Integrations with more systems
-       {0}. JDBC source and sink (SPARK-19478, SPARK-19031)
-       {0}. **[Unified access to Kafka](https://issues.apache.org/jira/browse/SPARK-18682)**
+        - [ ] JDBC source and sink (SPARK-19478, SPARK-19031)
+        - [ ] **[Unified access to Kafka](https://issues.apache.org/jira/browse/SPARK-18682)**
     8. New operators
-       {0}. [mapGroupsWithState - arbitrary stateful operations with Structured Streaming (similar to DStream.mapWithState)](https://issues.apache.org/jira/browse/SPARK-19067)
-       {0}. [EventTime based sessionization，即Session windows](https://issues.apache.org/jira/browse/SPARK-10816)
+        - [ ] [mapGroupsWithState - arbitrary stateful operations with Structured Streaming (similar to DStream.mapWithState)](https://issues.apache.org/jira/browse/SPARK-19067)
+        - [ ] [EventTime based sessionization，即Session windows](https://issues.apache.org/jira/browse/SPARK-10816)
     9. Performance and latency
 
 # TODO
