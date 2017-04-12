@@ -165,32 +165,34 @@ and in Java:
       .agg(avg(people.col("salary")), max(people.col("age")));
 ```
 ---
-                            type          val       lazy
-    Dataset[T]
-      sparkSession    -> SparkSession     [Y]
-      queryExecution  -> QueryExecution   [Y]
-      encoder         -> Encoder[T]       [?]
-      logicalPlan     -> LogicalPlan      [Y]
-      exprEnc                             [Y]
-      boundEnc                            [Y]
-      sqlContext      -> SQLContext       [Y]        [Y]
-      rdd             -> RDD[T]           [Y]        [Y]
-    
-    QueryExecution
-      sparkSession    -> SparkSession     [Y]
-      logical         -> LogicalPlan      [Y]
-      analyzed        -> LogicalPlan      [Y]        [Y]
-      withCachedData  -> LogicalPlan      [Y]        [Y]
-      optimizedPlan   -> LogicalPlan      [Y]        [Y]
-      sparkPlan       -> SparkPlan        [Y]        [Y]
-      executedPlan    -> SparkPlan        [Y]        [Y]
-      toRdd           -> RDD[InternalRow] [Y]        [Y]
+```spreadsheet
+                        type          val       lazy
+Dataset[T]
+  sparkSession    -> SparkSession     [Y]
+  queryExecution  -> QueryExecution   [Y]
+  encoder         -> Encoder[T]       [?]
+  logicalPlan     -> LogicalPlan      [Y]
+  exprEnc                             [Y]
+  boundEnc                            [Y]
+  sqlContext      -> SQLContext       [Y]        [Y]
+  rdd             -> RDD[T]           [Y]        [Y]
+
+QueryExecution
+  sparkSession    -> SparkSession     [Y]
+  logical         -> LogicalPlan      [Y]
+  analyzed        -> LogicalPlan      [Y]        [Y]
+  withCachedData  -> LogicalPlan      [Y]        [Y]
+  optimizedPlan   -> LogicalPlan      [Y]        [Y]
+  sparkPlan       -> SparkPlan        [Y]        [Y]
+  executedPlan    -> SparkPlan        [Y]        [Y]
+  toRdd           -> RDD[InternalRow] [Y]        [Y]
+```
 
 1. **`Dataset[T].rdd`**：用 `RDD[T]` 表示 `Dataset[T]` 的内容
 2. **`QueryExecution.toRdd`**: `RDD` 的内部版本，避免拷贝，没有 **schema**
 
-> TODO
-> -[ ] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
+> TODO：
+> -[x] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
 >      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
 > -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
 ### 创建
