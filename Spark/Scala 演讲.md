@@ -266,7 +266,7 @@ Iterable        --> GenIterable---------------------------------|
 
 ### [数组](http://docs.scala-lang.org/zh-cn/overviews/collections/arrays)
 
-在Scala中，数组是一种特殊的collection。一方面，Scala数组与Java数组是一一对应的。即Scala数组Array[Int]可看作Java的Int[]，Array[Double]可看作Java的double[]，以及Array[String]可看作Java的String[]。但Scala数组比Java数组提供了更多内容。
+在Scala中，数组是一种特殊的collection。一方面，Scala数组与Java数组是一一对应的。即Scala数组`Array[Int]`可看作Java的`Int[]`，`Array[Double]`可看作Java的`double[]`，以及`Array[String]`可看作Java的`String[]`。但Scala数组比Java数组提供了更多内容。
 - 首先，Scala数组是一种泛型。即可以定义一个Array[T]，T可以是一种类型参数或抽象类型。
 - 其次，Scala数组与Scala序列是兼容的 - 在需要Seq[T]的地方可由Array[T]代替。
 - 最后，Scala数组支持所有的序列操作
@@ -275,31 +275,45 @@ Iterable        --> GenIterable---------------------------------|
 
 如果**类型已知**，比如下面的代码：
 
-    val a1 = new Array[Int](10)
-    val a2 = Array(1, 2, 3)
-    a1(1)=a2(2)
+```scala
+val a1 = new Array[Int](10)
+val a2 = Array(1, 2, 3)
+a1(1)=a2(2)
+```
 
 编译器会直接翻译成如下的Java代码
 
-    int[] a1 = new int[10];
-    int[] a2 = { 1, 2, 3, 4 };
-    a1[1] = a2[2];
+```java
+int[] a1 = new int[10];
+int[] a2 = { 1, 2, 3, 4 };
+a1[1] = a2[2];
+```
 
 如果**类型未知**，比如：
 
-    def evenElems[T: ClassTag](xs: Vector[T]): Array[T] = {
-      val arr = new Array[T]((xs.length + 1) / 2) // 代码1
-      for (i <- 0 until xs.length by 2)           // 这个代码有可读性吗?
-        arr(i / 2) = xs(i)                        // 代码2
-        arr
-    }
+```scala
+def evenElems[T: ClassTag](xs: Vector[T]): Array[T] = {
+  val arr = new Array[T]((xs.length + 1) / 2) // 代码1
+  for (i <- 0 until xs.length by 2)           // 这个代码有可读性吗?
+    arr(i / 2) = xs(i)                        // 代码2
+  arr
+}
+```
 
 函数必须要声明一个`ClassTag[T]`的隐式参数（具体的隐式值由编译器提供），这时代码会被翻译成:
 
-    final Object arr = evidence$1.newArray((xs.length() + 1) / 2); //代码1，注意evidence$1就是传进来的隐式值
-    ScalaRunTime.array_update(arr, i/2, xs.apply(2))               //代码2，并不是arr.update(i/2)这样的标准语法
+```java
+// evidence$1 的类型是 ClassTag[T]
+final Object arr = evidence$1.newArray((xs.length() + 1) / 2); //代码1，注意evidence$1就是传进来的隐式值
+ScalaRunTime.array_update(arr, i/2, xs.apply(2))               //代码2，并不是arr.update(i/2)这样的标准语法
+```
 
 `ClassTag.newArry()`会根据**类型T的运行时信息**，在**运行时**选择恰当的方法创建数组
+
+> 参考
+>   1 . [Java为什么不支持泛型数组？](https://www.zhihu.com/question/20928981)
+> 2.   [Java泛型：类型擦除](https://segmentfault.com/a/1190000003831229)中的[代码片段七](https://segmentfault.com/a/1190000003831229#articleHeader9)。
+>       > 本质方法还是通过显示地传递类型标签，通过`Array.newInstance(type, size)`来生成数组，同时也是最为推荐的在泛型内部生成数组的方法。
 
 ### 不变集合的数据结构
 > TODO：
@@ -339,12 +353,24 @@ testData3.groupBy('a).agg(count('b))
 
 >  注意：这里还涉及到**隐式转换**。
 
-## 下划线( `_` ) 的作用
+## 下划线( `_` ) 的使用场景 参见[知乎](https://www.zhihu.com/question/21622725)
 
 1. 导入类型和成员时，取代（`*`）作为 `import` 的通配符，`*` 在 `scala` 中被允许用作**函数名**。（这特么就是脑子有毛病）。
 2. 用于消除歧义：
    - 定义部分应用函数（**Partially Applied Functions**）时。参见*Scala程序设计（Programming Scala）*的**6.5**节。
-   - 使用函数的“meta 方法”，比如柯里化，参见*Scala程序设计（Programming Scala）*的**6.6**节。
+   - 使用函数的“meta 方法”，比如调用 `Function.curried`，参见*Scala程序设计（Programming Scala）*的**6.6**节。
+3. 对变量进行默认初始化，比如 Spark 中
+
+    ```scala
+         private[parquet] class ParquetReadSupport extends ReadSupport[UnsafeRow] with Logging {
+           private var catalystRequestedSchema: StructType = _
+           //...
+         }
+    ```
+
+## Scala的反射机制
+
+- [ ] [Scala的反射机制](https://github.com/slamke/blog/wiki/Scala%E7%9A%84%E5%8F%8D%E5%B0%84%E6%9C%BA%E5%88%B6)
 
 # 例子
 
