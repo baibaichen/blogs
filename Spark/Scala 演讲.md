@@ -339,6 +339,13 @@ testData3.groupBy('a).agg(count('b))
 
 >  注意：这里还涉及到**隐式转换**。
 
+## 下划线( `_` ) 的作用
+
+1. 导入类型和成员时，取代（`*`）作为 `import` 的通配符，`*` 在 `scala` 中被允许用作**函数名**。（这特么就是脑子有毛病）。
+2. 用于消除歧义：
+   - 定义部分应用函数（**Partially Applied Functions**）时。参见*Scala程序设计（Programming Scala）*的**6.5**节。
+   - 使用函数的“meta 方法”，比如柯里化，参见*Scala程序设计（Programming Scala）*的**6.6**节。
+
 # 例子
 
 #### 变量可以 `override` 方法
