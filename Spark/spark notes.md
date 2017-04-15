@@ -216,6 +216,8 @@ sparkContext.makeRDD(Seq("a", "b", "c"), 3).toDS()
 
 ### Row
 
+https://issues.apache.org/jira/browse/SPARK-7186
+
 Represents one row of output from a relational operator. Allows both generic access by ordinal, which will incur boxing overhead for primitives, as well as **<u>native primitive access</u>**.
 
 It is invalid to use the native primitive interface to retrieve a value that is null, instead a user must check `isNullAt` before attempting to retrieve a value that might be null.
