@@ -1,0 +1,180 @@
+# Setting the Stage for Hive: Hadoop
+By now, any technical specialist with even a sliver of curiosity has heard the term Hadoop tossed around at the water cooler. The discussion likely ranges from, “Hadoop is a waste-of-time,” to “This is big. This will solve all our current problems.” You may also have heard your company director, manager, or even CIO ask the team to begin implementing this new Big Data thing and to somehow identify a problem it is meant to solve. One of the first responses I usually get from non-technical folks when mentioning Big Data is, “Oh, you mean like the NSA”? It is true that with Big Data comes big responsibility, but clearly, a lack of knowledge about the uses and benefits of Big Data can breed unnecessary FUD (fear, uncertainty, and doubt).
+
+The fact you have this book in your hands shows you are interested in Hadoop. You may also know  already how Hadoop allows you to store and process large quantities of data. We are guessing that you also realize that Hive is a powerful tool that allows familiar access to the data through SQL. As you may glean from its title, this book is about Apache Hive and how Hive is essential in gaining access to large data stores. With that in mind, it helps to understand why we are here. Why do we need Hive when we already have tools like T-SQL, PL/SQL, and any number of other analytical tools capable of retrieving data? Aren’t there additional resource costs to adding more tools that demand new skills to an existing environment? The fact of the matter is, the nature of what we consider usable data is changing, and changing rapidly. This fastpaced change is forcing our hand and making us expand our toolsets beyond those we have relied on for the past 30 years. Ultimately, as we’ll see in later chapters, we do need to change, but we also need to leverage the effort and skills we have already acquired.
+
+Synonymous with Hadoop is the term Big Data . In our opinion, the term Big Data is slowly moving toward the fate of other terms like Decision Support System (DSS) or e-commerce. When people mention “Big Data” as a solution, they are usually viewing the problem from a marketing perspective, not from a tools or capability perspective. I recalled a meeting with a high-level executive who insisted we not use the term Big Data at all in our discussions. I agreed with him because I felt such a term dilutes the conversation by focusing on generic terminology instead of the truly transformative nature of the technology. But then again, the data really is getting big, and we have to start somewhere. 
+
+My point is that Hadoop, as we’ll see, is a technology originally created to solve specific problems. It is evolving, faster than fruit flies in a jar, into a core technology that is changing the way companies think about their data—how they make use of and gain important insight into all of it—to solve specific business needs and gain a competitive advantage. Existing models and methodologies of handling data are being challenged. As it evolves and grows in acceptance, Hadoop is changing from a niche solution to something from which every enterprise can extract value. Think of it in the way other, now everyday technologies were created from specialized needs, such as those found in the military. Items we take for granted like duct tape and GPS were each developed first for specific military needs. Why did this happen? Innovation requires at least three ingredients: an immediate need, an identifiable problem, and money. The military is a huge, complex organization that has the talent, the money, the resources, and the need to invent these everyday items. Obviously, products the military invents for its own use are not often the same as those that end up in your retail store. The products get modified, generalized, and refined for everyday use. As we dig deeper into Hadoop, watch for the same process of these unique and tightly focused inventions evolving to meet the broader needs of the enterprise. 
+
+If Hadoop and Big Data are anything, they are a journey. Few companies come out of the gate requesting a 1,000-node cluster and decide over happy hour to run critical processes on the platform. Enterprises go through a predictable journey that can take anywhere from months to years. As you read through this book, the expectation is that it will help begin your journey and help elucidate particular steps in the overall journey. This first chapter is an introduction into why this Hadoop world is different and where it all started. This first chapter gives you a foundation for the later discussions. You will understand the platform before the individual technology and you will also learn about why the open source model is so different and disruptive.
+
+## 大象出生
+
+In 2003 Google published an inconspicuous paper titled “The Google Filesystem” ( http://static.googleusercontent.com/media/research.google.com/en/us/archive/gfs-sosp2003.pdf ). Not many outside of Silicon Valley paid much attention to its publication or the message it was trying to convey. The message it told was directly applicable to a company like Google, whose primary business focused on indexing the Internet, which was not a common use case for most companies. The paper described a storage framework uniquely designed to handling the current future technological demands Google envisioned for its business. In the spirit of TL&DR, here are its most salient points:
+
+- Failures are the norm
+- Files are large
+- Files are changed by appending, not by updating
+- Closely coupled application and filesystem APIs
+
+If you were a planning to become a multi-billion dollar Internet search company, many of these assumptions made sense. You would be primarily concerned with handling large files and executing long  sequential reads and writes at the cost of low latency. You would also be interested in distributing your gigantic storage requirements across commodity hardware instead of building a vertical tower of expensive resources. Data ingestion was of primary concern and structuring (schematizing) this data on write would only delay the process. You also had at your disposal a team of world-class developers to architect the scalable, distributed, and highly available solution.
+
+One company who took notice was Yahoo. They were experiencing similar scalability problems along Internet searching and were using an application called Nutch created by Doug Cutting and Mike Caffarella. The whitepaper provided Doug and Mike a framework for solving many problems inherent in the Nutch architecture, most importantly scalability and reliability. What needed to be accomplished next was a reengineering of the solution based on the whitepaper designs.
+
+> **Note** Keep in mind the original GFS (Google Filesystem) is not the same as what has become Hadoop. GFS was a framework while Hadoop become the translation of the framework put into action. GFS within Google remained proprietary, i.e., not open source.
+
+When we think of Hadoop, we usually think of the storage portion that Google encapsulated in the GFS whitepaper. In fact, the other half of the equation and, arguably more important, was a paper Google published in 2004 titled “MapReduce: Simplified Data Processing on Large Clusters” ( http://static.googleusercontent.com/media/research.google.com/en/us/archive/mapreduce-osdi04.pdf ). The MapReduce paper married the storage of data on a large, distributed cluster with the processing of that same data in what is called an “embarrassingly parallel” method.
+
+> **Note** We’ll discuss MapReduce (MR) throughout this book. MR plays both a significant role as well as an increasingly diminishing role in interactive SQL query processing.
+
+Doug Cutting, as well as others at Yahoo, saw the value of GFS and MapReduce for their own use cases at Yahoo and so spun off a separate project from Nutch. Doug named the project after the name of his son’s stuffed elephant, Hadoop. Despite the cute name, the project was serious business and Yahoo set to scale it out to handle the demands of its search engine as well as its advertising.
+
+> **Note** There is an ongoing joke in the Hadoop community that when you leave product naming to engineering and not marketing you get names like Hadoop, Pig, Hive, Storm, Zookeeper, and Kafka. I, for one, love the nuisance and silliness of what is at heart applications solving complex and real-world problems. As far as the fate of Hadoop the elephant, Doug still carries him around to speaking events.
+
+Yahoo’s internal Hadoop growth is atypical in size but typical of the pattern of many current implementations. In the case of Yahoo, the initial development was able to scale to only a few nodes but after a few years they were able to scale to hundreds. As clusters grow and scale and begin ingesting more and more corporate data, silos within the organization begin to break down and users begin seeing more value in the data. As these silos break down across functional areas, more data moves into the cluster. What begins with hopeful purpose soon becomes the heart and soul or, more appropriately, the storage and analytical engine of an entire organization. As one author mentions: 
+
+*By the time Yahoo spun out Hortonworks into a separate, Hadoop-focused software company in 2011, Yahoo’s Hadoop infrastructure consisted of 42,000 nodes and hundreds of petabytes of storage ( http://gigaom.com/2013/03/04/the-history-of-hadoop-from-4-nodes-to-the-future-of-data/ ).*
+
+## Hadoop 技术
+
+Hadoop is a general term for two components: storage and processing. The storage component is the Hadoop Distributed File System (HDFS) and the processing is MapReduce.
+
+Hadoop是两个组件，存储和处理的总称。 存储组件是Hadoop的分布式文件系统（HDFS），处理是MapReduce。
+
+> **Note**  The environment is changing as this is written. MapReduce has now become only one means of processing Hive on HDFS. MR is a traditional batch-orientated processing framework. New processing engines such as Tez are geared more toward **near real-time** query access. With the advent of YARN, HDFS is becoming more and more a multitenant environment allowing for many data access patterns such as batch, real-time, and interactive.
+
+> **注** 写这本书的时候，情况正在变化。MapReduce现在已经成为HDFS上处理Hive的一种手段。MR是传统的批处理框架。新的处理引擎（如Tez）更适合<u>近实时</u>查询访问。随着YARN的到来，HDFS正在逐渐变成多租户环境，允许许多数据访问模式，如批量和实时处理，或是交互式查询。
+
+When we consider normal filesystems we think of operating systems like Windows or Linux. Those operating systems are installed on a single computer running essential applications. Now what would happen if we took 50 computers and networked them together? We still have 50 different operating systems and this doesn’t do us much good if we want to run a single application that uses the compute power and resources of all of them.
+
+当我们考虑正常的文件系统时，想到的是如Windows或Linux这样的操作系统。这些操作系统安装在单机上，并允许一些关键应用。现在，如果我们把50台电脑联网，会怎么样？我们还有50个不同的操作系统，如果我们想运行一个使用所有计算能力和资源的应用程序，这**样的联网**对我们没有多大好处。
+
+For example, I am typing this on Microsoft Word, which can only be installed and run on a single operating system and a single computer. If I want to increase the operational performance of my Word application I have no choice but to add CPU and RAM to my computer. The problem is I am limited to the amount of RAM and CPU I can add. I would quickly hit a physical limitation for a single device. 
+
+例如，我正在微软 Word中打字，Word 只能安装和运行在单机上。如果想提高Word程序的运行性能，只能选择在单机上添加CPU和内存。问题是受限于可以添加的RAM和CPU的数量，很快就会达到单个设备的物理上限。
+
+**HDFS, on the other hand, does something unique.** You take 50 computers and install an OS on each of them. After networking them together you install HDFS on all them and declare one of the computers a master node and all the other computers worker nodes. This makes up your HDFS cluster. Now when you copy files to a directory, HDFS automatically stores parts of your file on multiple nodes in the cluster. HDFS becomes a virtual filesystem on top of the Linux filesystem. HDFS abstracts away the fact you’re storing data on multiple nodes in a cluster. Figure 1-1 shows a high level view of how HDFS abstracts multiple systems away from the client. 
+
+另一方面，HDFS的**做法**不一样。你有50台电脑，每台电脑上都安装了操作系统。将它们联网后，在所有的计算机上安装HDFS，将其中一台计算机声明为主节点，并将其他所有计算机声明为工作节点。这就建好了HDFS集群。现在，把文件往某个目录复制时，HDFS会自动将文件的各个部分存储到集群中的多个节点上。 HDFS成为Linux文件系统之上的虚拟文件系统，将数据存储在群集中的多个节点上的事实抽离出来。图1-1显示了HDFS如何将多个系统从客户机中抽离出来的高级视图。
+
+Figure 1-1 is simplistic to say the least (we will elaborate on this in the section titled “Hadoop High Availability”). The salient point to take away is the ability to grow is now horizontal instead of vertical. Instead of adding CPU or RAM to a single device, you simply need to add a device, i.e., a node. Linear scalability allows you to quickly expand your capabilities based on your expanding resource needs. The perceptive reader will quickly counter that similar advantages are gained through virtualization. Let’s take a look at the same figure through virtual goggles. Figure 1-2 shows this virtual architecture.
+
+图1-1是简化的架构概要图（在题为“Hadoop高可用性”这一小节详细阐述HDFS架构）。要抓住的要点是，现在是水平扩展而不是垂直扩展，**提升性能**只需要**向集群**添加一个设备，即一个节点，而不是在单个设备上添加CPU或RAM。线性扩展允许你根据不断扩大的资源需求快速扩展容量。敏锐的读者马上会反驳，虚拟化也有类似的优势。让我们通过**虚拟护目镜**来看看同一幅图。图1-2显示了虚拟化的架构。
+
+[图1-1]
+
+Administrators install virtual management software on a server or, in most cases, a cluster of servers. The software pools resources such as CPU and memory so that it looks as if there is a single server with a large amount of resources. On top of the virtual OS layer **we had guests** and divide the available pool of resources to each guest. The benefits include maximization of IO resources, dynamic provisioning of resources, and high availability at the physical cluster layer. Some problems include a dependency on SAN storage, inability to scale horizontally, as well as limitations to vertical scaling and reliance on multiple OS installations. Most current data centers follow this pattern and virtualization has been the primary IT trend for the past decade.
+
+管理员在服务器上安装虚拟管理软件，或者在大多数情况下安装一组服务器。该软件可以将资源（如CPU和内存）进行资源汇集，以使其看起来像一个拥有大量资源的单一服务器。~~在虚拟OS层之上，我们有客户，并将可用的资源池划分给每位客人~~。其优点包括IO资源的最大化，资源的动态配置以及物理集群层的高可用性。一些问题包括对SAN存储的依赖性，无法水平缩放，以及<u>垂直缩放和依靠多个OS安装</u>局限性。大多数当前的数据中心遵循这种模式，虚拟化是过去十年的主要IT趋势。
+
+>**Note**         Figure 1 -2 uses the term ESX. We certainly don’t intend to pick on VMWare. We show the virtualization architecture only to demonstrate how Hadoop fundamentally changes the data center paradigm for unique modern data needs. Private cloud virtualization is a still a viable technology for many use cases and should be considered in conjunction with other architectures like appliances or public cloud.
+
+> **注**          图1-2使用术语“ESX”。 我们当然不打算选择VMWare。 我们展示虚拟化架构，只是为了演示Hadoop如何从根本上改变数据中心<u>范例</u>，以满足独特的现代数据需求。 私有云虚拟化对许多<u>用例</u>来说仍然是一项可行的技术，应与其他架构（如家用电器或公共云）结合考虑。
+
+[图1-2]
+
+Other advantages include reduced power consumption and reduced physical server footprint and dynamic provisioning. **Hadoop has the unenviable task of going against a decade-long trend in virtual architecture**. Enterprises have for years been moving away from physical architecture and making significant headway in diminishing the amount of physical servers they support in their data center. If Hadoop only provided the ability to add another physical node when needed to expand a filesystem, we would not be writing this book and **Hadoop would go the way of Pets.com**.  **There’s much more to the architecture to make it transformative to businesses and worth the investment in a physical architecture**.
+
+其他优点包括降低功耗，减少物理服务器占用空间和动态配置。~~Hadoop已经违背建筑虚拟一个长达十年的趋势并不令人羡慕的任务~~。多年来，企业一直在摆脱物理架构，并在减少数据中心支持的物理服务器数量方面取得了重大进展。如果Hadoop只提供了在需要扩展文件系统**容量**时添加另一个物理节点的能力，那么我们不会写这本书，~~而Hadoop将会进入Pets.com~~。<u>这个架构还有更多的内容，对企业来说具有变革性，使其成为值得投资的物理架构</u>。
+
+## 数据冗余
+
+Data at scale must also be highly available. Hadoop stores data efficiently and cheaply. **There are mechanisms built into the Hadoop software architecture that allow us to use inexpensive hardware**. As stated in the GFS whitepaper, the original design assumed nodes would fail. As clusters expand horizontally into the 100s, 1,000s, or even 10s of thousands, we are left with no option but to assume at least a few servers in the cluster will fail at any given time.
+
+规模数据也必须高可用。Hadoop高效廉价地存储数据。 <u>Hadoop软件架构内置机制，使我们能够使用廉价的硬件</u>。正如GFS白皮书所述，原始设计假设节点将失效。随着集群水平扩展到上百，上千，甚至上万台，我们别无选择，只能假定集群中至少有几个服务器在任意给定的时间都会失效。
+
+To have a few server failures jeopardize the health and integrity of the entire cluster would defeat any other benefits provided by HDFS, not to mention the Hadoop administrator turnover rate due to lack of sleep. Google and Yahoo engineers faced the daunting task of reducing cost while increasing uptime. **The current HA solutions available were not capable of scaling out to their needs without burying the companies in hardware, software, and maintenance costs**. Something had to change in order to meet their demands. Hadoop became the answer but first we need to look at why existing tools were not the solution.
+
+几台服务器故障就危及整个集群的健康和完整性，将会打败HDFS提供的任何其他好处，更不要说由于缺乏睡眠，导致Hadoop管理员的高流失率。Google和雅虎工程师面临着降低成本，同时<u>延长正常运行时间</u>的艰巨任务。~~目前的HA解决方案无法扩展到其需求，而不会将公司硬件，软件和维护成本进行掩埋~~。为了满足他们的要求，不得不改变有些事情。 Hadoop成为答案，但我们首先需要看看，为何现有的工具不行。
+
+### 传统的高可用
+
+When we normally think of redundancy, we think in terms of high availability (HA). HA is an architecture describing how often you have access to your environment. We normally measure HA in terms of nines. We might say our uptime is 99.999, or five nines. Table 1-1 shows the actual downtime expected based on the HA percentage ( http://en.wikipedia.org/wiki/High_availability ).
+
+通常想到冗余时，我们考虑的是高可用（HA）。HA是一种架构，<u>描述您多长时间可以访问您的环境</u>。通常以几个9的方式测量HA。 我们可能会说正常运行时间是99.999，或者是五个九。 <u>根据HA百分比</u>，表1-1显示了预期的实际停机时间 ( http://en.wikipedia.org/wiki/High_availability )。
+
+Cost is traditionally a ratio of uptime. More uptime means higher cost. The majority of HA solutions center on hardware though a few solutions are also software dependent. **Most involve the concept of a set of passive systems sitting in wait to be utilized if the primary system fails**. Most cluster infrastructures fit this model. You may have a primary node and any number of secondary nodes containing replicated application binaries as well as the cluster specific software. Once the primary node fails, a secondary node takes over.
+
+成本通常是运行时间的比率。更多的运行时间意味着更高的成本。大多数HA解决方案都集中在硬件上，但几个解决方案也依赖于软件。~~大多数涉及一系列被动系统的概念，如果主系统发生故障，则坐在等待使用的被动系统~~。大多数集群基础设施适合这种模式。您可能拥有主节点和任何数量的辅助节点，辅助节点上备份了应用程序的二进制文件以及集群特定的软件。 一旦主节点发生故障，辅助节点就会接管。
+
+> **Note** You can optionally set up an active/active cluster in which both systems are used. Your cost is still high since you need to account for, from a resource perspective, the chance of the applications from both systems running on one server in the event of a failure.
+
+>**注** 您可以选择设置主/主集群，两个系统可同时使用。但是成本仍然很高，因为从资源的角度来看，在出现故障的情况下，你需要考虑一台服务器上运行两个系统的应用程序的概率。
+
+Quick failover minimizes downtime and, if the application running is cluster-aware and can account for the drop in session, the end user may never realize the system has failed. Virtualization uses this model. The physical hosts are generally a cluster of three or more systems in which one system remains passive in order to take over in the event an active system fails. The virtual guests can move across systems without the client even realizing the OS has moved to a different server. This model can also help with maintenance such as applying updates, patches, or swapping out hardware. Administrators perform maintenance on the secondary system and then make the secondary the primary for maintenance on the original system. Private clouds use a similar framework and, in most cases, have an idle server in the cluster primarily used for replacing a failed cluster node. Figure 1-3 shows a typical cluster configuration.
+
+快速的故障切换最小化停机时间，如果正在运行的应用程序具有集群感知能力，并且解决了会话丢失，那么最终用户可能永远不会意识到系统出现过故障。虚拟化采用这种模式。物理主机通常是三个或更多系统的集群，<u>其中一个系统保持被动</u>，以便在主系统出故障的情况下接管**其工作**。虚拟客户端则可以跨系统移动，客户端甚至不知道操作系统已经移动到不同的服务器。该模型还有助于维护，如更新应用，打补丁，或替换硬件。管理员**先**在**备份**系统上进行维护，然后**备份**系统升级为主系统，再在原来的主系统上进行维护。私有云使用类似的框架，大多数情况下，集群中的空闲服务器主要用于替换故障节点。典型的集群配置如图1-3所示。
+
+[图1-3]
+
+The cost for such a model can be high. Clusters require shared storage architecture, usually served by a SAN infrastructure. SANs can store a tremendous amount of data but they are expensive to build and maintain. SANs exist separate from the servers so data transmits across network interfaces. Furthermore, SANs intermix random IO with sequential IO, which means all IO becomes random. Finally, administrators configure most clusters to be active/passive. The passive standby server remains unused until a failure event. In this scenario hardware costs double without doubling your available resources.
+
+<u>这样的模型成本可能很高</u>。集群<u>需要</u>共享存储架构，底层的基础设施一般由SAN提供。SANs可以存储大量的数据，但是建立和维护成本很高。SANs与服务器<u>分开存在</u>，所以要跨网络传输数据。此外，SANs将混合随机IO与随机IO，这意味着所有IO都是随机的。最后，管理员将大多数集群配置为主动/被动，被动备用服务器直到发生故障时才启用，在这种情况下，硬件成本翻倍，但可用资源没有翻倍。
+
+Storage vendors use a number of means to maintain storage HA or storage redundancy. The most common is the use of RAID (Redundant Array of Independent Disks) configurations. Table 1-2 shows a quick overview of the most common RAID configurations.
+
+存储厂商采用多种手段来维护存储HA或存储冗余。 最常见的是使用RAID（独立磁盘冗余阵列）配置。 最常见的RAID配置如表1-2所示。
+
+[表1-2]
+
+RAID is popular due to the fact it provides data protection as well as performance enhancements for most workloads. RAID 0 for example supplies no data protection but speeds up write speed due to the increased amount of spindles. RAID, like clusters, come at a cost. In the case of mirrored RAID configuration you are setting aside a dedicated disk solely for the purpose of data recovery. Systems use the secondary disk only to replicate the data on write. This process slows down writes as well as doubling cost without doubling your storage capacity. To implement 5 TB of mirrored disk RAID, you would need to purchase 10 TB of storage. Most enterprises and hardware vendors do not implement RAID 0 or RAID 1 in server architectures.
+
+RAID比较流行，除了提供数据保护的功能，同时在大多数工作负载下能提高性能。例如，RAID 0没有数据保护，<u>但由于主轴数量的增加（其实就是并行写）</u>，加快了写入速度。***RAID，像集群一样，成本不菲。***例如，镜像RAID配置时，需要专门预留磁盘用于数据恢复，仅在写入时，系统向**镜像**磁盘复制写入的数据。这个过程会减慢写入速度，成本翻倍，但并不加倍存储容量。要实现5 TB镜像磁盘RAID，需要购买10 TB的存储。大多数企业和硬件厂商并不在服务器架构中使用RAID 0或RAID 1。
+
+Storage vendors such as EMC and NetApp configure their SAN environments with RAID 1+0 (RAID “ten”). This supplies the high-availability storage requirements as well as the performance capabilities. This works well for large SAN environments where arrays may consist of six or more drives and there may be dozens of arrays on the SAN. These arrays are carved up into LUNs (logical unit numbers) and presented to servers for use. These then become your mount points or your standard Windows drive letters.
+
+EMC和NetApp等存储厂商通过RAID 1 + 0（RAID“10”）配置其SAN环境。这既能满足高可用的存储需求，又能提高性能。这适用于大型SAN环境，其中阵列可能包含六个或更多磁盘，SAN上可能有数十个阵列。这些阵列划分为LUN（逻辑单元号），给服务器使用。然后，这些LUN将变成**（Linux下的）**挂载点或Windows的标准驱动器盘符。
+
+>**Note** Bear with me. The discussion around SANs and RAID storage may seem mundane and unimportant
+>but understanding traditional storage design will help you understand the Hadoop storage structure. The use
+>of SANs and RAID has been the de facto standard for the last 20 years and removing this prejudice is a major
+>obstacle when provisioning Hadoop in data centers.
+
+>**注** <u>请稍耐心些</u>。围绕SANS和RAID存储的讨论似乎平淡无奇，但是了解传统的存储设计将有助于了解Hadoop存储结构。SAN和RAID的使用一直是过去20年的事实标准，消除这种偏见是在数据中心配置Hadoop时的主要障碍。
+
+So, in essence SANs are large containers holding multiple disk arrays and managed by a central console. A company purchases a server, and then the server is provisioned in the data center with minimal storage usually on a small DAS (direct attached storage) disk for the OS and connected via network links to the SAN infrastructure. Applications, whether point of sale applications or databases, request data from the SAN, which then pulls through the network for processing on the server. SANs become a monolithic storage infrastructure handing out data with little to no regard to the overarching IO processing. The added HA, licensing, and management components on SANs add significantly to the per-TB cost.
+
+因此，本质上，SAN是容纳多个磁盘阵列并由中央控制台管理的大容器。通常，公司购买一台服务器**放在**数据中心内，然后为其OS配置最小的DAS（直接连接存储）磁盘，并通过网络链接到SAN基础设施。应用程序，无论是POS应用还是数据库，向SAN请求数据，然后通过网络提取数据，以便在服务器上进行处理。SANs成为一个单一的存储基础设施，分发数据时不会从整体上考虑IO处理。再加上HA、软件许可费和管理组件，显著增加了每TB的存储成本。
+
+A lot of enhancements have been made in SAN technologies, such as faster network interconnects and memory cache, but despite all the advances the primary purpose of a SAN was never high performance. The cost per TB has dramatically dropped in the last 15 years and will continue to drop, but going out and buying a TB thumb drive is much different than purchasing a TB of SAN storage. Again, as with the virtualization example, SAN has real-world uses and is the foundation for most large enterprises. The point here is that companies need a faster, less expensive means to store and process data at scale while still maintaining stringent HA requirements.
+
+SAN技术已经进行了许多改进，如更快的网络互连和内存缓存，但尽管有这些进步，SAN的主要目的从来不是高性能。过去15年，每TB的存储成本大幅下降，并将持续下降，但出去买个1TB的**U盘**远远不同于购买1TB SAN存储。再次，与虚拟化示例一样，SAN具有现实世界的用途，是大多数大型企业的基础。这里的要点是，企业需要更快，更便宜的手段来存储和处理规模数据，同时仍保持严格的HA要求。
+
+### Hadoop 的高可用
+
+Hadoop provides an alternative framework to the traditional HA clusters or SAN-based architecture. *It does this by first assuming failure and then building the mechanisms to account for failure into the source code*. As a product Hadoop is highly available out of the box. An administrator does not have to install additional software or configure additional hardware components to make Hadoop highly available. An administrator can configure Hadoop to be more or less available, but high availability is the default. More importantly, Hadoop removes the cost to HA ratio. Hadoop is open source and HA is part of the code so, through the transitive property, there is no additional cost for implementing Hadoop as an HA solution.
+
+Hadoop为传统的HA集群或基于SAN的架构提供了一个替代框架。它首先假设故障**是常态**，然后**从一开始**就构建机制来应对故障。作为一个产品，Hadoop本就包含了高可用，要使之高可用，管理员不必安装额外的软件或配置额外的硬件。管理员可以配置Hadoop有多可用，但缺省就是高可用的。更重要的是，Hadoop消除了HA的成本。Hadoop是开源的，HA是代码的一部分，通过传递属性，实现Hadoop的高可用解决方案不需要额外的成本。
+
+So how does Hadoop provide HA at reduced cost? It primarily takes advantage of the fact that storage costs per terabyte have significantly dropped in the past 30 years. Much like a RAID configuration, Hadoop will duplicate data for the purpose of redundancy, by default three times the original size. This means 10 TB of data will equal 30 TB on HDFS. What this means is Hadoop takes a file, let us say a 1 TB web log file, and breaks it up into “blocks”. Hadoop distributes these blocks across the cluster. In the case of the 1 TB log file, Hadoop will distribute the file using 24576 blocks (8192x3) if the block size is 128 MB. Figure 1-4 shows how a single file is broken and stored on a three-node cluster.
+
+那么Hadoop如何以更低的成本提供HA呢？它主要是利用了每TB存储成本在过去30年显著下降的事实。与RAID配置非常相似，Hadoop将以冗余为目的复制数据，默认为原始大小的三倍。这意味着HDFS上的10 TB的数据将等于30 TB。比如，Hadoop保存一个文件，假设是一个1 TB的Web日志文件，会将其分解成“块”，并在集群中分发这些块。在1TB日志文件这个例子中，如果块大小为128 MB，则Hadoop将分发24576块（8192x3）。图1-4显示了如何拆分单个文件，并将其存储在一个三节点集群上。
+
+[图1-4]
+
+Based on the configuration settings, these blocks can range between 128 MB and 256 MB!
+
+根据配置，块大小可介于128 MB和256 MB之间！
+
+> **Note**  These are exceptionally large block sizes for a filesystem. As a reference point, the largest Windows block size, i.e. the largest size that can be read from disk into memory, is 4K. This is also the standard for most Linux-based OSs.
+
+> **注**  对文件系统来说，这样的块太大了。作为参考，Windows下块的最大尺寸，即从磁盘读取到内存的最大的块，是4K。这也是大多数基于Linux操作系统的标准。
+
+Large block sizes influence much of Hadoop’s architecture. Large blocks sizes are core to how Hadoop is deployed, managed, and provisioned. Take into consideration the following factors influenced by large block sizes:
+
+- Large files are more efficiently processed than smaller files
+- There are fewer memory requirements on the master server (this will be discussed in the next section)
+- Leads to more efficient sequential read and writes
+- The seek rate is reduced as a percentage of transfer time
+
+大的块尺寸影响了Hadoop的体系结构，是Hadoop部署，管理和配置的关键，有下面几个影响：
+
+- 可更有效地处理大文件，而非小文件。
+- 对Master的内存要求较少（在下一节讨论）
+- 产生更高效的顺序读写
+- 寻道率在数据传输时间上的占比减少了
+
+For the large file processing, let us go back to the 1 TB log file. Since the block size is set at 128 MB we get 24576 blocks sent over the network and written to the nodes. If the block size was 4K, the number of blocks would jump to 805306368 (268435456 x 3). As we will discuss later, this number of blocks would place undue memory pressure on specific portions of the cluster. The larger block size also optimizes the system for sequential reads and writes, which works best when considering dedicated drive access. A drive is simply a disk with a needle (aperture arm) moving across the surface (platter) to where the data is located. Storage makes no guarantee that data blocks will be stored next to each other on the platter so it takes time for the aperture arm to move randomly around the platter to get to the data. If the data is stored in large chunks or in sequential order, as is the case for most database transaction log files, then reading and writing becomes more efficient. The aperture only needs to move from point A to point B and not skip around searching for the data. Hadoop takes advantage of this sequential access by storing data as large blocks. ......
+
+对于大文件处理，让我们回到1 TB的日志文件。由于块大小设置为128 MB，因此将通过网络发送**24576**个块，并将其写入节点。如果块大小为4K，则块数将攀升到**805306368**（268435456×3）。正如我们稍后会讨论到，这种数量的块数将对集群的<u>特定部分</u>产生不适当的内存压力。较大的块大小也优化了系统的顺序读取和写入，这在访问专用驱动器时效果最好。驱动器仅仅是一个磁盘，~~针~~（~~孔径臂~~）穿过表面（盘片）移到数据所在的位置。存储不保证数据块将彼此相邻地存储在盘片上，所以~~光圈臂~~需要时间在盘片上随机移动到以获取数据。就像大多数数据库事务日志一样，如果数据以大块或按顺序存储，读写就会变得更有效。这时，~~光圈臂~~只需要从A点移动到B点，而不必为了搜索数据而跳来跳去。Hadoop将数据分成大块存储，从而利用了顺序访问的优点。
