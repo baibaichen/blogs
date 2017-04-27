@@ -5,7 +5,7 @@ By now, any technical specialist **with even a sliver of curiosity** has heard t
 
 The fact you have this book in your hands shows you are interested in Hadoop. You may also **know already** how Hadoop allows you to store and process large quantities of data. We are guessing that you also realize that Hive is a powerful tool that allows familiar access to the data through SQL. As you may glean from its title, this book is about Apache Hive and how Hive is essential in gaining access to large data stores. With that in mind, it helps to understand why we are here. Why do we need Hive when we already have tools like T-SQL, PL/SQL, and any number of other analytical tools capable of retrieving data? **Aren’t there additional resource costs to adding more tools that demand new skills to an existing environment?** The fact of the matter is, **the nature of what we consider usable data is changing, and changing rapidly**. This fastpaced change is forcing our hand and making us expand our toolsets beyond those we have relied on for the past 30 years. Ultimately, as we’ll see in later chapters, we do need to change, but we also need to leverage the effort and skills we have already acquired.
 
-事实上，你在看这本书表示你对Hadoop感兴趣。你可能已经知道Hadoop如何存储和处理大量数据。我们猜测你还意识到，Hive是一个强大的工具，可以通过你熟悉的SQL访问数据。正如书名所提示，这是一本关于Apache Hive，以及Hive对于访问大型数据存储有多重要的书。认识到这一点，有助于理解为什么我们在这里。 当我们已经有了T-SQL，PL / SQL，以及任何其他能够检索数据的分析工具时，为什么需要Hive？在现有环境中添加更多需要新技能的工具，是否还有额外的资源成本？真实的情况是，我们认为可用数据的性质正在发生变化，并且是快速变化。过去30年我们所依赖的工具不能应对这种快速变化，迫使我们扩展工具集。我们将在后面的章节中看到，从根本上说，我们确实需要改变，但也需要利用已经**完成的**工作和获得的技能。
+事实上，你在看这本书表示你对Hadoop感兴趣。你可能已经知道Hadoop如何存储和处理大量数据。我们猜测你还意识到，Hive是一个强大的工具，可以通过你熟悉的SQL访问数据。正如书名所提示，这是一本关于Apache Hive，以及Hive对于访问大型数据存储有多重要的书。认识到这一点，有助于理解<u>为什么我们在这里</u>。当我们已经有了T-SQL，PL / SQL，以及任何其他能够检索数据的分析工具时，为什么需要Hive？在现有环境中添加更多需要新技能的工具，是否还有额外的资源成本？真实的情况是，我们认为可用数据的性质正在发生变化，并且是快速变化。过去30年我们所依赖的工具不能**应对**这种快速变化，迫使我们扩展工具集。我们将在后面的章节中看到，从根本上说，我们确实需要改变，但也需要利用已经**完成的**工作和获得的技能。
 
 Synonymous with Hadoop is the term Big Data . In our opinion, the term Big Data is slowly moving toward the fate of other terms like Decision Support System (DSS) or e-commerce. When people mention “Big Data” as a solution, they are usually viewing the problem from a marketing perspective, not from a tools or capability perspective. I recalled a meeting with a high-level executive who insisted we not use the term Big Data at all in our discussions. I agreed with him because I felt such a term dilutes the conversation by focusing on generic terminology instead of the truly transformative nature of the technology. But then again, the data really is getting big, and we have to start somewhere. 
 
@@ -17,9 +17,7 @@ My point is that Hadoop, as we’ll see, is a technology originally created to s
 
 If Hadoop and Big Data are anything, they are a journey. **Few companies come out of the gate requesting a 1,000-node cluster and decide over happy hour to run critical processes on the platform. ** Enterprises go through a predictable journey that can take anywhere from months to years. As you read through this book, the expectation is that it will help begin your journey and help elucidate particular steps in the overall journey. This first chapter is an introduction into why this Hadoop world is different and where it all started. This first chapter gives you a foundation for the later discussions. You will understand the platform before the individual technology and you will also learn about why the open source model is so different and disruptive.
 
-如果问Hadoop和大数据是什么，它们是一段旅程。很少有公司一开始就需要一个有1000个节点的集群，
-
-企业将经历一个可预见的旅程，可能需要几个月到几年的时间。通过阅读本书，期望它有助于阐明整个旅程中的特定步骤，助你开启自己的Hadoop之旅。第一章介绍为什么Hadoop的世界与众不同，它从那里开始，并为后面提供讨论基础。你将在学习单项技术之前了解平台，还将了解开源模型为什么如此不同且具有颠覆性。
+如果问Hadoop和大数据是什么，那么它们是一段旅程。很少有公司一开始就需要一个有1000个节点的集群，且在其上运行关键过程。企业将经历一个可预见的旅程，需要耗时几个月到几年的时间。通过阅读本书，期望它有助于阐明整个旅程中的特定步骤，助你开启自己的Hadoop之旅。第一章介绍为什么Hadoop的世界与众不同，它从那里开始，并为后面提供讨论基础。你将在学习单项技术之前了解平台，还将了解开源模型为什么如此不同且具有颠覆性。
 
 ## 大象出生
 
