@@ -28,16 +28,20 @@ In 2003 Google published an inconspicuous paper titled “The Google Filesystem�
 - Files are changed by appending, not by updating
 - Closely coupled application and filesystem APIs
 
-2003年，Google发表了一篇不起眼的论文，名为“谷歌文件系统”（http://static.googleusercontent.com/media/research.google.com/en/us/archive/gfs-sosp2003.pdf）。硅谷以外的许多人不太关注论文的发表，以及它试图传达的信息。它所传达的信息直接适用于像Google这样的公司，其主要业务集中在对互联网进行索引，这对大多数公司来说并不常见。论文描述了一个独特设计的存储框架，用于处理Google为其业务设想的当前以及未来技术需求。本着长话短说的精神，下面是最突出的几点：
+2003年，Google发表了一篇不起眼的论文，名为“谷歌文件系统”（http://static.googleusercontent.com/media/research.google.com/en/us/archive/gfs-sosp2003.pdf）。硅谷以外的许多人不太关注论文的发表，以及它试图传达的信息。它所传达的信息直接适用于像Google这样的公司，其主要业务集中在对互联网进行索引，这对大多数公司来说并不常见。论文描述了一个独特设计的存储框架，用于处理Google为其业务设想的当前以及未来的技术需求。本着长话短说的精神，下面是最突出的几点：
 
 - 故障是常态
 - 文件很大
 - 通过追加修改文件，不能就地修改
 - 应用和文件API紧密耦合
 
-If you were a planning to become a multi-billion dollar Internet search company, many of these assumptions made sense. You would be primarily concerned with handling large files and executing long  sequential reads and writes at the cost of low latency. You would also be interested in distributing your gigantic storage requirements across commodity hardware instead of building a vertical tower of expensive resources. Data ingestion was of primary concern and structuring (schematizing) this data on write would only delay the process. You also had at your disposal a team of world-class developers to architect the scalable, distributed, and highly available solution.
+If you were a planning to become a multi-billion dollar Internet search company, many of these assumptions made sense. You would be primarily concerned with handling large files and executing long sequential reads and writes at the cost of low latency. You would also be interested in distributing your gigantic storage requirements across commodity hardware instead of building a vertical tower of expensive resources. **Data ingestion was of primary concern and structuring (schematizing) this data on write would only delay the process.** You also had at your disposal a team of world-class developers to architect the scalable, distributed, and highly available solution.
+
+如果你打算成为一个数十亿美元的互联网搜索公司，很多假设都是有道理的。你主要关心处理大文件并以<u>低延迟为代价执行长时间的顺序读写操作</u>。你也会感兴趣用商用硬件来承担巨大的存储需求，而不是建立一个昂贵的资源垂直塔。数据摄入是首要关心的问题，在导入的时候结构化（系统化）这些数据只会延缓这个过程。你还需要拥有世界级开发人员团队来构建可扩展，分布式和高可用的解决方案。
 
 One company who took notice was Yahoo. They were experiencing similar scalability problems along Internet searching and were using an application called Nutch created by Doug Cutting and Mike Caffarella. The whitepaper provided Doug and Mike a framework for solving many problems inherent in the Nutch architecture, most importantly scalability and reliability. What needed to be accomplished next was a reengineering of the solution based on the whitepaper designs.
+
+Yahoo注意到了这点，他们正在使用Nutch，由Doug Cutting和Mike Caffarella创建，在搜索互联网时，Nutch恰好遇到了类似的可扩展性问题。Google的白皮书为Doug和Mike提供了一个框架，用于解决Nutch架构中许多固有的问题，最重要的是可扩展性和可靠性。接下来需要完成的便是基于白皮书的设计再造**Nutch**。
 
 > **Note** Keep in mind the original GFS (Google Filesystem) is not the same as what has become Hadoop. GFS was a framework while Hadoop become the translation of the framework put into action. GFS within Google remained proprietary, i.e., not open source.
 
