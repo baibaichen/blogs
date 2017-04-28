@@ -49,15 +49,29 @@ Yahoo注意到了这点，他们正在使用Nutch，由Doug Cutting和Mike Caffa
 
 When we think of Hadoop, we usually think of the storage portion that Google encapsulated in the GFS whitepaper. In fact, the other half of the equation and, arguably more important, was a paper Google published in 2004 titled “MapReduce: Simplified Data Processing on Large Clusters” ( http://static.googleusercontent.com/media/research.google.com/en/us/archive/mapreduce-osdi04.pdf ). The MapReduce paper married the storage of data on a large, distributed cluster with the processing of that same data in what is called an “embarrassingly parallel” method.
 
+说起Hadoop，通常指的是其存储部分，这部分内容描述于Google的GFS白皮书里。事实上，等式的另一半，可以说更重要，是Google于2004年发表的论文，题为“MapReduce：简化的大型集群数据处理”（ http://static.googleusercontent.com/media/research.google.com/en/us/archive/mapreduce-osdi04.pdf ）。结合大型分布式存储集群上的数据，MapReduce以所谓“简单并行”的方法处理这些数据。
+
 > **Note** We’ll discuss MapReduce (MR) throughout this book. MR plays both a significant role as well as an increasingly diminishing role in interactive SQL query processing.
+
+> **注** 我们将在本书中讨论MapReduce（MR）。在交互式SQL查询处理中，MR扮演着重要的角色，不过作用越来越小。
 
 Doug Cutting, as well as others at Yahoo, saw the value of GFS and MapReduce for their own use cases at Yahoo and so spun off a separate project from Nutch. Doug named the project after the name of his son’s stuffed elephant, Hadoop. Despite the cute name, the project was serious business and Yahoo set to scale it out to handle the demands of its search engine as well as its advertising.
 
-> **Note** There is an ongoing joke in the Hadoop community that when you leave product naming to engineering and not marketing you get names like Hadoop, Pig, Hive, Storm, Zookeeper, and Kafka. I, for one, love the nuisance and silliness of what is at heart applications solving complex and real-world problems. As far as the fate of Hadoop the elephant, Doug still carries him around to speaking events.
+Doug Cutting以及Yahoo的其他人都看到了GFS和MapReduce在Yahoo自己场景中的价值，因此从Nutch脱离出一个独立的项目。Doug以他儿子玩具大象的名字命名这个项目。尽管名字可爱，这确实是一个正经的项目，雅虎计划扩大规模，以满足其搜索引擎及其广告业务的需求。
 
-Yahoo’s internal Hadoop growth is atypical in size but typical of the pattern of many current implementations. In the case of Yahoo, the initial development was able to scale to only a few nodes but after a few years they were able to scale to hundreds. As clusters grow and scale and begin ingesting more and more corporate data, silos within the organization begin to break down and users begin seeing more value in the data. As these silos break down across functional areas, more data moves into the cluster. What begins with hopeful purpose soon becomes the heart and soul or, more appropriately, the storage and analytical engine of an entire organization. As one author mentions: 
+> **Note** There is an ongoing joke in the Hadoop community that when you leave product naming to engineering and not marketing you get names like Hadoop, Pig, Hive, Storm, Zookeeper, and Kafka. **<u>I, for one, love the nuisance and silliness of what is at heart applications solving complex and real-world problems</u>**. As far as the fate of Hadoop the elephant, Doug still carries him around to speaking events.
 
-*By the time Yahoo spun out Hortonworks into a separate, Hadoop-focused software company in 2011, Yahoo’s Hadoop infrastructure consisted of 42,000 nodes and hundreds of petabytes of storage ( http://gigaom.com/2013/03/04/the-history-of-hadoop-from-4-nodes-to-the-future-of-data/ ).*
+> **注** Hadoop社区中一直存在一个笑话，当你为工程而不是营销命名产品时，你将获得Hadoop，Pig，Hive，Storm，Zookeeper和Kafka这样的名称。解决复杂和实际问题的应用
+>
+> 至于那个Hadoop**玩具**大象，Doug 还带着它四处参加演讲活动。
+
+**<u>Yahoo’s internal Hadoop growth is atypical in size but typical of the pattern of many current implementations.</u>** In the case of Yahoo, the initial development was able to scale to only a few nodes but after a few years they were able to scale to hundreds. As clusters grow and scale and begin ingesting more and more corporate data, silos within the organization begin to break down and users begin seeing more value in the data. As these silos break down across functional areas, more data moves into the cluster. **What begins with hopeful purpose soon becomes the heart and soul or, more appropriately, the storage and analytical engine of an entire organization.** As one author mentions: 
+
+就Yahoo而言，刚开始开发时仅能扩展到几个节点，但是几年后，就能扩展到数百个节点。随着集群的发展和规模的扩大，开始吸收越来越多的企业数据，组织内的**数据孤岛**开始分解，用户开始在数据中看到更多的价值。随着这些孤岛在各个功能领域分解，更多的数据进入集群。从一个有希望的目的开始，很快就变成了核心工具，或者更恰当地说，变成了整个组织的存储和分析引擎。正如一位作者提到：
+
+> *By the time Yahoo spun out Hortonworks into a separate, Hadoop-focused software company in 2011, Yahoo’s Hadoop infrastructure consisted of 42,000 nodes and hundreds of petabytes of storage ( http://gigaom.com/2013/03/04/the-history-of-hadoop-from-4-nodes-to-the-future-of-data/ ).*
+
+> *2011年，当Yahoo将Hortonworks剥离成一个独立且专注于Hadoop的软件公司时，Yahoo的Hadoop基础设施包括42,000个节点和数百P的存储容量 ( http://gigaom.com/2013/03/04/the-history-of-hadoop-from-4-nodes-to-the-future-of-data/ )。*
 
 ## Hadoop 技术
 
