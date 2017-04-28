@@ -45,6 +45,8 @@ Yahoo注意到了这点，他们正在使用Nutch，由Doug Cutting和Mike Caffa
 
 > **Note** Keep in mind the original GFS (Google Filesystem) is not the same as what has become Hadoop. GFS was a framework while Hadoop become the translation of the framework put into action. GFS within Google remained proprietary, i.e., not open source.
 
+> **注** 请记住Hadoop与原始的GFS（Google文件系统）已经不一样了。GFS是一个框架，而Hadoop是这个框架的实现。Google内的GFS仍然是专有的，即，没有开源。
+
 When we think of Hadoop, we usually think of the storage portion that Google encapsulated in the GFS whitepaper. In fact, the other half of the equation and, arguably more important, was a paper Google published in 2004 titled “MapReduce: Simplified Data Processing on Large Clusters” ( http://static.googleusercontent.com/media/research.google.com/en/us/archive/mapreduce-osdi04.pdf ). The MapReduce paper married the storage of data on a large, distributed cluster with the processing of that same data in what is called an “embarrassingly parallel” method.
 
 > **Note** We’ll discuss MapReduce (MR) throughout this book. MR plays both a significant role as well as an increasingly diminishing role in interactive SQL query processing.
