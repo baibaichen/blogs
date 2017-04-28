@@ -17,7 +17,7 @@ My point is that Hadoop, as we’ll see, is a technology originally created to s
 
 If Hadoop and Big Data are anything, they are a journey. **Few companies come out of the gate requesting a 1,000-node cluster and decide over happy hour to run critical processes on the platform. ** Enterprises go through a predictable journey that can take anywhere from months to years. As you read through this book, the expectation is that it will help begin your journey and help elucidate particular steps in the overall journey. This first chapter is an introduction into why this Hadoop world is different and where it all started. This first chapter gives you a foundation for the later discussions. You will understand the platform before the individual technology and you will also learn about why the open source model is so different and disruptive.
 
-如果问Hadoop和大数据是什么，那么它们是一段旅程。很少有公司一开始就需要一个有1000个节点的集群，且在其上运行关键过程。企业将经历一个可预见的旅程，需要耗时几个月到几年的时间。通过阅读本书，期望它有助于阐明整个旅程中的特定步骤，助你开启自己的Hadoop之旅。第一章介绍为什么Hadoop的世界与众不同，它从那里开始，并为后面提供讨论基础。你将在学习单项技术之前了解平台，还将了解开源模型为什么如此不同且具有颠覆性。
+如果问Hadoop和大数据是什么，那么它们是一段旅程。很少有公司一开始就需要一个有1000个节点的集群，且在其上运行关键过程。企业将经历一段可预见的旅程，需要耗时几个月到几年的时间。通过阅读本书，期望它有助于阐明整个旅程中的某些步骤，助你开启自己的Hadoop之旅。第一章介绍为什么Hadoop的世界与众不同，它从那里开始，是后面讨论的基础。你将在学习单项技术之前先了解Hadoop平台，还将了解开源模型为什么如此不同且那么具有颠覆性。
 
 ## 大象出生
 
