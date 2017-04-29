@@ -1,11 +1,11 @@
 # 简介
 When I first learned about Hive I was working as a consultant on two data warehousing projects. One of them was in its sixth month of development. We had a team of 12 consultants and we were showing little progress. The <u>source</u> database was relational but, for some unknown reason, all the constraints such as primary and foreign key references had been turned off. **For all intents and purposes**, the source was nonrelational and the team was struggling with moving the data into our highly structured data warehouse. We struggled with NULL values and building constraints as well as master data management issues and data quality. The goal at the end of the project was to have a data warehouse that would reproduce reports they already had.
 
-当我第一次了解Hive时，我正在两个数据仓库项目中担任顾问。其中一个是12人的顾问团队，已经开发了六个月，但几乎没什么进展。数据库是关系型的，但由于一些未知原因，关闭了所有的约束，如主键和外键引用。真实原因是，**数据**源是非关系型的，团队正在努力将数据迁移到高度结构化的数据仓库中，努力处理NULL值，构建约束，解决主数据管理的问题以及保证数据质量。在项目结束时，我们的目标是新的数据仓库可以产生以前的报表。
+当我第一次了解Hive时，我正在两个数据仓库项目中担任顾问。其中一个是12人的团队，已经开发了六个月，但几乎没什么进展。数据库是关系型的，但由于一些未知原因，关闭了所有的约束，如主键和外键引用。总而言之，数据源是非关系型的，团队正在努力将数据迁移到高度结构化的数据仓库中，努力处理NULL值，构建约束，解决主数据管理的问题以及保证数据质量。在项目结束时，我们的目标是新的数据仓库可以产生以前的报表。
 
 The second project was smaller but involved hierarchical relationships. For example, a TV has a brand name, a SKU, a product code, and any number of **other descriptive features**. Some of these features are dynamic while others apply to one or more different products or brands. The hierarchy of features would be different from one brand to another. Again we were struggling with representing this business requirement in a relational data warehouse. 
 
-第二个项目较小，但涉及层次关系。例如，电视机有品牌名称，SKU，产品代码以及任意数量的其他分类特征。有些特征是动态的，而有些特征字段则适用于一个或多个不同的产品或品牌。在不同的品牌之间，特征层次各不相同。同样，我们努力在关系型数据仓库中表示这种业务需求。
+第二个项目较小，但涉及层次关系。例如，电视机有品牌名称，SKU，产品代码以及任意数量的其他分类特征。有些特征是动态的，而有些特征字段则适用于一个或多个不同的产品或品牌。在不同的品牌之间，特征层次各不相同。同样，我们努力在关系型数据仓库中实现这种业务需求。
 
 The first project represented the difficulty in moving from one schema to another. **This problem had to be solved before anyone could ask any questions and, even then the questions had to be known ahead of time.** The second project showed the difficulty in expressing business rules that did not fit into a rigid data structure. **We found ourselves** telling the customer to change their business rules to fit the structure. 
 
@@ -17,7 +17,7 @@ When I first copied a file into HDFS and created a Hive table on top of the file
 
 The purpose of this book is the hope that it will provide to you the same “ah-ha” moment I experienced. The purpose is to give you the foundation to explore and experience what Hive and Hadoop have to offer and to help you begin your journey into the technology that will drive innovation for the next decade or more. To survive in the technology field, you must constantly reinvent yourself. Technology is constantly travelling forward. Right now there is a train departing; welcome aboard.
 
-希望通过阅读你也能同样体会到我经历过的“顿悟”时刻，这是本书的目的之一。另外，也为你提供探索和体验Hive和Hadoop所需的基础知识，帮助你进入Hive学习之旅，它会在未来十年或更长的时间内推动技术创新。技术不断前进，要在技术领域生存下去，你必须不断重塑自己，现在我们要出发了，欢迎加入。
+希望你通过阅读也能同样体会到我经历过的“顿悟”时刻，这是本书的目的之一。另外，也为你提供探索和体验Hive和Hadoop所需的基础知识，帮助你进入Hive学习之旅，它会在未来十年或更长的时间内推动技术创新。技术不断前进，要在技术领域生存下去，你必须不断重塑自己，现在我们要出发了，欢迎加入。
 
 # 第一章  为Hive做准备: Hadoop
 
