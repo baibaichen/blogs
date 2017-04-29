@@ -140,13 +140,13 @@ Other advantages include reduced power consumption and reduced physical server f
 
 ## 数据冗余
 
-Data at scale must also be highly available. Hadoop stores data efficiently and cheaply. **There are mechanisms built into the Hadoop software architecture that allow us to use inexpensive hardware**. As stated in the GFS whitepaper, the original design assumed nodes would fail. As clusters expand horizontally into the 100s, 1,000s, or even 10s of thousands, we are left with no option but to assume at least a few servers in the cluster will fail at any given time.
+Data at scale must also be highly available. Hadoop stores data efficiently and cheaply. There are mechanisms built into the Hadoop software architecture that allow us to use inexpensive hardware. As stated in the GFS whitepaper, the original design assumed nodes would fail. As clusters expand horizontally into the 100s, 1,000s, or even 10s of thousands, we are left with no option but to assume at least a few servers in the cluster will fail at any given time.
 
-规模数据也必须高可用。Hadoop高效廉价地存储数据。 <u>Hadoop软件架构内置机制，使我们能够使用廉价的硬件</u>。正如GFS白皮书所述，原始设计假设节点将失效。随着集群水平扩展到上百，上千，甚至上万台，我们别无选择，只能假定集群中至少有几个服务器在任意给定的时间都会失效。
+成规模的数据也必须高可用。Hadoop高效廉价地存储数据。 其软件架构中内建的机制，使得我们能使用廉价的硬件。正如GFS白皮书所述，原始设计假设节点将失效。随着集群水平扩展到上百，上千，甚至上万台，我们别无选择，只能假定集群中至少有几个服务器在任意给定的时间都会失效。
 
 To have a few server failures jeopardize the health and integrity of the entire cluster would defeat any other benefits provided by HDFS, not to mention the Hadoop administrator turnover rate due to lack of sleep. Google and Yahoo engineers faced the daunting task of reducing cost while increasing uptime. **The current HA solutions available were not capable of scaling out to their needs without burying the companies in hardware, software, and maintenance costs**. Something had to change in order to meet their demands. Hadoop became the answer but first we need to look at why existing tools were not the solution.
 
-几台服务器故障就危及整个集群的健康和完整性，将会打败HDFS提供的任何其他好处，更不要说由于缺乏睡眠，导致Hadoop管理员的高流失率。Google和雅虎工程师面临着降低成本，同时<u>延长正常运行时间</u>的艰巨任务。~~目前的HA解决方案无法扩展到其需求，而不会将公司硬件，软件和维护成本进行掩埋~~。为了满足他们的要求，不得不改变有些事情。 Hadoop成为答案，但我们首先需要看看，为何现有的工具不行。
+如果几台服务器故障就危及整个集群的健康和完整性，HDFS的其他优势便一无是处，更别说由于缺乏睡眠，导致Hadoop管理员的高流失率。Google和Yahoo的工程师任务艰巨，降低成本的同时，还要延长正常的运行时间。在不增加公司硬件，软件和维护成本的情况下，目前的HA解决方案无法水平扩展满足需求。为了达到目的，必须做出改变。 Hadoop成为答案，但我们首先需要看看现有的工具为何不行。
 
 ### 传统的高可用
 
