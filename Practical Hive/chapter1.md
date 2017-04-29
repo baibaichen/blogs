@@ -100,43 +100,43 @@ Yahoo内部Hadoop集群数量的增长并不典型，但却是如今典型的实
 
 Hadoop is a general term for two components: storage and processing. The storage component is the Hadoop Distributed File System (HDFS) and the processing is MapReduce.
 
-Hadoop是两个组件，存储和处理的总称。 存储组件是Hadoop的分布式文件系统（HDFS），处理是MapReduce。
+Hadoop是存储和处理这两个组件的总称。 存储组件是Hadoop的分布式文件系统（HDFS），处理组件是MapReduce。
 
-> **Note**  The environment is changing as this is written. MapReduce has now become only one means of processing Hive on HDFS. MR is a traditional batch-orientated processing framework. New processing engines such as Tez are geared more toward **near real-time** query access. With the advent of YARN, HDFS is becoming more and more a multitenant environment allowing for many data access patterns such as batch, real-time, and interactive.
+> **Note**  The environment is changing as this is written. MapReduce has now become only one means of processing Hive on HDFS. MR is a traditional batch-orientated processing framework. New processing engines such as Tez are geared more toward near real-time query access. With the advent of YARN, HDFS is becoming more and more a multitenant environment allowing for many data access patterns such as batch, real-time, and interactive.
 
-> **注** 写这本书的时候，情况正在变化。MapReduce现在已经成为HDFS上处理Hive的一种手段。MR是传统的批处理框架。新的处理引擎（如Tez）更适合<u>近实时</u>查询访问。随着YARN的到来，HDFS正在逐渐变成多租户环境，允许许多数据访问模式，如批量和实时处理，或是交互式查询。
+> **注** 写这本书的时候，情况正在变化。MapReduce现在已经成为HDFS上处理Hive的一种手段。MR是传统的批处理框架。新的处理引擎（如Tez）更适合近实时查询访问。随着YARN的到来，HDFS正在逐渐变成多租户环境，允许多种数据访问模式，如批量，实时，或是交互式查询。
 
 When we consider normal filesystems we think of operating systems like Windows or Linux. Those operating systems are installed on a single computer running essential applications. Now what would happen if we took 50 computers and networked them together? We still have 50 different operating systems and this doesn’t do us much good if we want to run a single application that uses the compute power and resources of all of them.
 
-当我们考虑正常的文件系统时，想到的是如Windows或Linux这样的操作系统。这些操作系统安装在单机上，并允许一些关键应用。现在，如果我们把50台电脑联网，会怎么样？我们还有50个不同的操作系统，如果我们想运行一个使用所有计算能力和资源的应用程序，这**样的联网**对我们没有多大好处。
+当我们考虑正常的文件系统时，想到的是如Windows或Linux这样的操作系统。这些操作系统安装在单机上，并运行一些关键应用。现在，如果我们把50台电脑联网，会发生什么？我们还有50个不同的操作系统，如果想运行一个应用程序，可以使用所有的计算能力和资源，这样的联网对我们没有多大好处。
 
 For example, I am typing this on Microsoft Word, which can only be installed and run on a single operating system and a single computer. If I want to increase the operational performance of my Word application I have no choice but to add CPU and RAM to my computer. The problem is I am limited to the amount of RAM and CPU I can add. I would quickly hit a physical limitation for a single device. 
 
 例如，我正在微软 Word中打字，Word 只能安装和运行在单机上。如果想提高Word程序的运行性能，只能选择在单机上添加CPU和内存。问题是受限于可以添加的RAM和CPU的数量，很快就会达到单个设备的物理上限。
 
-**HDFS, on the other hand, does something unique.** You take 50 computers and install an OS on each of them. After networking them together you install HDFS on all them and declare one of the computers a master node and all the other computers worker nodes. This makes up your HDFS cluster. Now when you copy files to a directory, HDFS automatically stores parts of your file on multiple nodes in the cluster. HDFS becomes a virtual filesystem on top of the Linux filesystem. HDFS abstracts away the fact you’re storing data on multiple nodes in a cluster. Figure 1-1 shows a high level view of how HDFS abstracts multiple systems away from the client. 
+HDFS, on the other hand, does something unique. You take 50 computers and install an OS on each of them. After networking them together you install HDFS on all them and declare one of the computers a master node and all the other computers worker nodes. This makes up your HDFS cluster. Now when you copy files to a directory, HDFS automatically stores parts of your file on multiple nodes in the cluster. HDFS becomes a virtual filesystem on top of the Linux filesystem. HDFS abstracts away the fact you’re storing data on multiple nodes in a cluster. Figure 1-1 shows a high level view of how HDFS abstracts multiple systems away from the client. 
 
-另一方面，HDFS的**做法**不一样。你有50台电脑，每台电脑上都安装了操作系统。将它们联网后，在所有的计算机上安装HDFS，将其中一台计算机声明为主节点，并将其他所有计算机声明为工作节点。这就建好了HDFS集群。现在，把文件往某个目录复制时，HDFS会自动将文件的各个部分存储到集群中的多个节点上。 HDFS成为Linux文件系统之上的虚拟文件系统，将数据存储在群集中的多个节点上的事实抽离出来。图1-1显示了HDFS如何将多个系统从客户机中抽离出来的高级视图。
+另一方面，HDFS的做法不一样。你有50台电脑，每台电脑上都安装了操作系统。将它们联网后，在所有的计算机上安装HDFS，将其中一台计算机声明为主节点，并将其他所有计算机声明为工作节点，这就建好了HDFS集群。现在，往某个目录复制文件，HDFS会自动将文件的各个部分存储到集群中的多个节点上。 HDFS成为Linux文件系统之上的虚拟文件系统，将数据存储在群集中的多个节点上的事实抽像出来。图1-1显示了HDFS如何将多个系统从客户端中抽离出来的高级视图。
 
-Figure 1-1 is simplistic to say the least (we will elaborate on this in the section titled “Hadoop High Availability”). The salient point to take away is the ability to grow is now horizontal instead of vertical. Instead of adding CPU or RAM to a single device, you simply need to add a device, i.e., a node. Linear scalability allows you to quickly expand your capabilities based on your expanding resource needs. The perceptive reader will quickly counter that similar advantages are gained through virtualization. Let’s take a look at the same figure through virtual goggles. Figure 1-2 shows this virtual architecture.
+Figure 1-1 is simplistic to say the least (we will elaborate on this in the section titled “Hadoop High Availability”). The salient point to take away is the ability to grow is now horizontal instead of vertical. Instead of adding CPU or RAM to a single device, you simply need to add a device, i.e., a node. Linear scalability allows you to quickly expand your capabilities based on your expanding resource needs. The perceptive reader will quickly counter that similar advantages are gained through virtualization. Let’s take a look at the same figure through **virtual goggles**. Figure 1-2 shows this virtual architecture.
 
-图1-1是简化的架构概要图（在题为“Hadoop高可用性”这一小节详细阐述HDFS架构）。要抓住的要点是，现在是水平扩展而不是垂直扩展，**提升性能**只需要**向集群**添加一个设备，即一个节点，而不是在单个设备上添加CPU或RAM。线性扩展允许你根据不断扩大的资源需求快速扩展容量。敏锐的读者马上会反驳，虚拟化也有类似的优势。让我们通过**虚拟护目镜**来看看同一幅图。图1-2显示了虚拟化的架构。
+图1-1是简化的架构概要图（在题为“Hadoop高可用性”这一小节详细阐述HDFS架构）。要抓住的要点是，现在是水平扩展而不是垂直扩展，提升性能只需要向集群添加一个设备，即一个节点，而不是在单个设备上添加CPU或RAM。线性扩展允许你根据不断扩大的资源需求快速扩展容量。敏锐的读者马上会反驳，虚拟化也有类似的优势。让我们通过**虚拟护目镜**来看看同一幅图。图1-2显示了虚拟化的架构。
 
 [图1-1]
 
-Administrators install virtual management software on a server or, in most cases, a cluster of servers. The software pools resources such as CPU and memory so that it looks as if there is a single server with a large amount of resources. On top of the virtual OS layer **we had guests** and divide the available pool of resources to each guest. The benefits include maximization of IO resources, dynamic provisioning of resources, and high availability at the physical cluster layer. Some problems include a dependency on SAN storage, inability to scale horizontally, as well as limitations to vertical scaling and reliance on multiple OS installations. Most current data centers follow this pattern and virtualization has been the primary IT trend for the past decade.
+Administrators install virtual management software on a server or, in most cases, a cluster of servers. The software pools resources such as CPU and memory so that it looks as if there is a single server with a large amount of resources. On top of the virtual OS layer we had guests and divide the available pool of resources to each guest. The benefits include maximization of IO resources, dynamic provisioning of resources, and high availability at the physical cluster layer. Some problems include a dependency on SAN storage, inability to scale horizontally, as well as limitations to vertical scaling and reliance on multiple OS installations. Most current data centers follow this pattern and virtualization has been the primary IT trend for the past decade.
 
-管理员在服务器上安装虚拟管理软件，或者在大多数情况下安装一组服务器。该软件可以将资源（如CPU和内存）进行资源汇集，以使其看起来像一个拥有大量资源的单一服务器。~~在虚拟OS层之上，我们有客户，并将可用的资源池划分给每位客人~~。其优点包括IO资源的最大化，资源的动态配置以及物理集群层的高可用性。一些问题包括对SAN存储的依赖性，无法水平缩放，以及<u>垂直缩放和依靠多个OS安装</u>局限性。大多数当前的数据中心遵循这种模式，虚拟化是过去十年的主要IT趋势。
+管理员在服务器上安装虚拟管理软件，或者在大多数情况下安装一组服务器。该软件可以将资源（如CPU和内存）进行汇集，以使其看起来像一个拥有大量资源的单一服务器。客户机在虚拟OS层之上，每台客户机都会从可用的资源池里分配资源。优点包括最大化利用IO资源，动态配置资源以及物理集群层高可用。缺点包括依赖SAN存储，无法水平扩展，以及局限于垂直缩放和依赖于多个OS。当前大多数数据中心遵循这种模式，虚拟化是过去十年IT的主要趋势。
 
->**Note**         Figure 1 -2 uses the term ESX. We certainly don’t intend to pick on VMWare. We show the virtualization architecture only to demonstrate how Hadoop fundamentally changes the data center paradigm for unique modern data needs. Private cloud virtualization is a still a viable technology for many use cases and should be considered in conjunction with other architectures like appliances or public cloud.
+>**Note** Figure 1 -2 uses the term ESX. We certainly don’t intend to pick on VMWare. We show the virtualization architecture only to demonstrate how Hadoop fundamentally changes the data center paradigm for unique modern data needs. Private cloud virtualization is a still a viable technology for many use cases and should be considered in conjunction with other architectures like appliances or public cloud.
 
-> **注**          图1-2使用术语“ESX”。 我们当然不打算选择VMWare。 我们展示虚拟化架构，只是为了演示Hadoop如何从根本上改变数据中心<u>范例</u>，以满足独特的现代数据需求。 私有云虚拟化对许多<u>用例</u>来说仍然是一项可行的技术，应与其他架构（如家用电器或公共云）结合考虑。
+> **注** 图1-2使用术语“ESX”。 我们当然不打算选择VMWare。 展示虚拟化架构只是为了演示Hadoop如何从根本上改变数据中心的范式，以满足当前独特的数据需求。 许多场景下，私有云虚拟化仍是一项可行的技术，应与其他架构（如家用电器或公共云）结合考虑。
 
 [图1-2]
 
-Other advantages include reduced power consumption and reduced physical server footprint and dynamic provisioning. **Hadoop has the unenviable task of going against a decade-long trend in virtual architecture**. Enterprises have for years been moving away from physical architecture and making significant headway in diminishing the amount of physical servers they support in their data center. If Hadoop only provided the ability to add another physical node when needed to expand a filesystem, we would not be writing this book and **Hadoop would go the way of Pets.com**.  **There’s much more to the architecture to make it transformative to businesses and worth the investment in a physical architecture**.
+Other advantages include reduced power consumption and reduced physical server footprint and dynamic provisioning. Hadoop has the unenviable task of going against a decade-long trend in virtual architecture. Enterprises have for years been moving away from physical architecture and making significant headway in diminishing the amount of physical servers they support in their data center. If Hadoop only provided the ability to add another physical node when needed to expand a filesystem, we would not be writing this book and **Hadoop would go the way of Pets.com**.  There’s much more to the architecture to make it transformative to businesses and worth the investment in a physical architecture.
 
-其他优点包括降低功耗，减少物理服务器占用空间和动态配置。~~Hadoop已经违背建筑虚拟一个长达十年的趋势并不令人羡慕的任务~~。多年来，企业一直在摆脱物理架构，并在减少数据中心支持的物理服务器数量方面取得了重大进展。如果Hadoop只提供了在需要扩展文件系统**容量**时添加另一个物理节点的能力，那么我们不会写这本书，~~而Hadoop将会进入Pets.com~~。<u>这个架构还有更多的内容，对企业来说具有变革性，使其成为值得投资的物理架构</u>。
+其他优点包括降低功耗，减少物理服务器占用空间和动态配置。Hadoop有个艰难的任务，即反转长达十年的虚拟化架构的趋势。多年来，企业一直在摆脱物理架构，并在减少数据中心支持的物理服务器数量方面取得了重大进展。如果Hadoop只提供了在需要扩展文件系统容量时添加另一个物理节点的能力，那就没必要写这么一本书，而Hadoop将会进入Pets.com（变成宠物）。这个架构还有更多的内容，对业务来说具有变革性，使其成为值得投资的物理架构。
 
 ## 数据冗余
 
