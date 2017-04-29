@@ -150,27 +150,27 @@ To have a few server failures jeopardize the health and integrity of the entire 
 
 ### 传统的高可用
 
-When we normally think of redundancy, we think in terms of high availability (HA). HA is an architecture describing how often you have access to your environment. We normally measure HA in terms of nines. We might say our uptime is 99.999, or five nines. Table 1-1 shows the actual downtime expected based on the HA percentage ( http://en.wikipedia.org/wiki/High_availability ).
+When we normally think of redundancy, we think in terms of high availability (HA). **HA is an architecture describing how often you have access to your environment**. We normally measure HA in terms of nines. We might say our uptime is 99.999, or five nines. Table 1-1 shows the actual downtime expected based on the HA percentage ( http://en.wikipedia.org/wiki/High_availability ).
 
-通常想到冗余时，我们考虑的是高可用（HA）。HA是一种架构，<u>描述您多长时间可以访问您的环境</u>。通常以几个9的方式测量HA。 我们可能会说正常运行时间是99.999，或者是五个九。 <u>根据HA百分比</u>，表1-1显示了预期的实际停机时间 ( http://en.wikipedia.org/wiki/High_availability )。
+我们通常从高可用（HA）的角度考虑冗余。HA是一种架构，描述系统的正常工作时间。通常以几个9的方式测量HA。 我们可能会说正常运行时间是99.999，或者是五个九。 根据HA百分值，表1-1显示了预期的实际停机时间 ( http://en.wikipedia.org/wiki/High_availability )。
 
-Cost is traditionally a ratio of uptime. More uptime means higher cost. The majority of HA solutions center on hardware though a few solutions are also software dependent. **Most involve the concept of a set of passive systems sitting in wait to be utilized if the primary system fails**. Most cluster infrastructures fit this model. You may have a primary node and any number of secondary nodes containing replicated application binaries as well as the cluster specific software. Once the primary node fails, a secondary node takes over.
+Cost is traditionally a ratio of uptime. More uptime means higher cost. The majority of HA solutions center on hardware though a few solutions are also software dependent. Most involve the concept of a set of passive systems sitting in wait to be utilized if the primary system fails. Most cluster infrastructures fit this model. You may have a primary node and any number of secondary nodes containing replicated application binaries as well as the cluster specific software. Once the primary node fails, a secondary node takes over.
 
-成本通常是运行时间的比率。更多的运行时间意味着更高的成本。大多数HA解决方案都集中在硬件上，但几个解决方案也依赖于软件。~~大多数涉及一系列被动系统的概念，如果主系统发生故障，则坐在等待使用的被动系统~~。大多数集群基础设施适合这种模式。您可能拥有主节点和任何数量的辅助节点，辅助节点上备份了应用程序的二进制文件以及集群特定的软件。 一旦主节点发生故障，辅助节点就会接管。
+成本通常是正常运行时间的比率，更多的运行时间意味着更高的成本。少数几个HA解决方案依赖于软件，但大多数都集中于硬件。几乎都引入了主动和被动系统的概念，一旦主系统出故障，则使用等待中的被动系统。大多数集群基础设施符合这种模式。你可可能拥有主节点和任何数量的辅助节点，辅助节点上备份了应用程序的二进制文件以及集群特定的软件。 一旦主节点发生故障，辅助节点就会接管。
 
 > **Note** You can optionally set up an active/active cluster in which both systems are used. Your cost is still high since you need to account for, from a resource perspective, the chance of the applications from both systems running on one server in the event of a failure.
 
->**注** 您可以选择设置主/主集群，两个系统可同时使用。但是成本仍然很高，因为从资源的角度来看，在出现故障的情况下，你需要考虑一台服务器上运行两个系统的应用程序的概率。
+>**注** 您可以选择设置主/主集群，两个系统可同时使用。但是成本仍然很高，因为从资源的角度来看，你需要考虑故障时两套系统的应用程序运行在一台服务器的可能性。
 
 Quick failover minimizes downtime and, if the application running is cluster-aware and can account for the drop in session, the end user may never realize the system has failed. Virtualization uses this model. The physical hosts are generally a cluster of three or more systems in which one system remains passive in order to take over in the event an active system fails. The virtual guests can move across systems without the client even realizing the OS has moved to a different server. This model can also help with maintenance such as applying updates, patches, or swapping out hardware. Administrators perform maintenance on the secondary system and then make the secondary the primary for maintenance on the original system. Private clouds use a similar framework and, in most cases, have an idle server in the cluster primarily used for replacing a failed cluster node. Figure 1-3 shows a typical cluster configuration.
 
-快速的故障切换最小化停机时间，如果正在运行的应用程序具有集群感知能力，并且解决了会话丢失，那么最终用户可能永远不会意识到系统出现过故障。虚拟化采用这种模式。物理主机通常是三个或更多系统的集群，<u>其中一个系统保持被动</u>，以便在主系统出故障的情况下接管**其工作**。虚拟客户端则可以跨系统移动，客户端甚至不知道操作系统已经移动到不同的服务器。该模型还有助于维护，如更新应用，打补丁，或替换硬件。管理员**先**在**备份**系统上进行维护，然后**备份**系统升级为主系统，再在原来的主系统上进行维护。私有云使用类似的框架，大多数情况下，集群中的空闲服务器主要用于替换故障节点。典型的集群配置如图1-3所示。
+快速容灾最小化了停机时间，如果正在运行的应用程序具有集群感知能力，并且解决了会话丢失，那么最终用户可能永远不会意识到系统出现过故障。虚拟化采用这种模式。物理主机通常是三个或更多系统的集群，其中一个是被动系统，以便在主系统出故障的情况下接管**其工作**。虚拟客户端可以跨系统移动，客户端甚至不知道操作系统已经移动到不同的服务器。该模型还有助于维护，如更新应用，打补丁，或替换硬件。管理员先在辅助系统上进行维护，然后把辅助系统升级为主系统，再在原来的主系统上进行维护。私有云使用类似的框架，大多数情况下，集群中的空闲服务器主要用于替换故障节点。典型的集群配置如图1-3所示。
 
 [图1-3]
 
 The cost for such a model can be high. Clusters require shared storage architecture, usually served by a SAN infrastructure. SANs can store a tremendous amount of data but they are expensive to build and maintain. SANs exist separate from the servers so data transmits across network interfaces. Furthermore, SANs intermix random IO with sequential IO, which means all IO becomes random. Finally, administrators configure most clusters to be active/passive. The passive standby server remains unused until a failure event. In this scenario hardware costs double without doubling your available resources.
 
-<u>这样的模型成本可能很高</u>。集群<u>需要</u>共享存储架构，底层的基础设施一般由SAN提供。SANs可以存储大量的数据，但是建立和维护成本很高。SANs与服务器<u>分开存在</u>，所以要跨网络传输数据。此外，SANs将混合随机IO与随机IO，这意味着所有IO都是随机的。最后，管理员将大多数集群配置为主动/被动，被动备用服务器直到发生故障时才启用，在这种情况下，硬件成本翻倍，但可用资源没有翻倍。
+这种模型成本很高。集群需要共享的存储架构，一般由SAN提供底层基础设施。SANs可以存储大量的数据，但是建立和维护成本很高。SANs与服务器分开存在，所以要跨网络传输数据。此外，SANs将混合随机IO与顺序IO，这意味着全是随机IO。最后，管理员将大多数集群配置为主动/被动，被动备用服务器直到发生故障时才启用，在这种情况下，硬件成本翻倍，但可用资源没有翻倍。
 
 Storage vendors use a number of means to maintain storage HA or storage redundancy. The most common is the use of RAID (Redundant Array of Independent Disks) configurations. Table 1-2 shows a quick overview of the most common RAID configurations.
 
@@ -180,26 +180,23 @@ Storage vendors use a number of means to maintain storage HA or storage redundan
 
 RAID is popular due to the fact it provides data protection as well as performance enhancements for most workloads. RAID 0 for example supplies no data protection but speeds up write speed due to the increased amount of spindles. RAID, like clusters, come at a cost. In the case of mirrored RAID configuration you are setting aside a dedicated disk solely for the purpose of data recovery. Systems use the secondary disk only to replicate the data on write. This process slows down writes as well as doubling cost without doubling your storage capacity. To implement 5 TB of mirrored disk RAID, you would need to purchase 10 TB of storage. Most enterprises and hardware vendors do not implement RAID 0 or RAID 1 in server architectures.
 
-RAID比较流行，除了提供数据保护的功能，同时在大多数工作负载下能提高性能。例如，RAID 0没有数据保护，<u>但由于主轴数量的增加（其实就是并行写）</u>，加快了写入速度。***RAID，像集群一样，成本不菲。***例如，镜像RAID配置时，需要专门预留磁盘用于数据恢复，仅在写入时，系统向**镜像**磁盘复制写入的数据。这个过程会减慢写入速度，成本翻倍，但并不加倍存储容量。要实现5 TB镜像磁盘RAID，需要购买10 TB的存储。大多数企业和硬件厂商并不在服务器架构中使用RAID 0或RAID 1。
+RAID比较流行，除了提供数据保护的功能，同时在大多数工作负载下能提高性能。例如，RAID 0没有数据保护，但由于主轴数量的增加（其实就是并行写），加快了写入速度。RAID，像集群一样，成本不菲。例如，镜像配置RAID时，需要专门预留磁盘用于数据恢复，仅在写入时，系统向镜像磁盘复制写入的数据。这个过程会减慢写入速度，成本翻倍，但并不加倍存储容量。要实现5 TB的镜像磁盘RAID，需要购买10 TB的存储。大多数企业和硬件厂商并不在服务器架构中使用RAID 0或RAID 1。
 
 Storage vendors such as EMC and NetApp configure their SAN environments with RAID 1+0 (RAID “ten”). This supplies the high-availability storage requirements as well as the performance capabilities. This works well for large SAN environments where arrays may consist of six or more drives and there may be dozens of arrays on the SAN. These arrays are carved up into LUNs (logical unit numbers) and presented to servers for use. These then become your mount points or your standard Windows drive letters.
 
-EMC和NetApp等存储厂商通过RAID 1 + 0（RAID“10”）配置其SAN环境。这既能满足高可用的存储需求，又能提高性能。这适用于大型SAN环境，其中阵列可能包含六个或更多磁盘，SAN上可能有数十个阵列。这些阵列划分为LUN（逻辑单元号），给服务器使用。然后，这些LUN将变成**（Linux下的）**挂载点或Windows的标准驱动器盘符。
+EMC和NetApp等存储厂商通过RAID 1 + 0（RAID“10”）配置其SAN环境。这既能满足高可用的存储需求，又能提高性能。这适用于大型SAN环境，其中阵列可能包含六个或更多磁盘，SAN上可能有数十个阵列。这些阵列划分为LUN（逻辑单元号），给服务器使用。然后，这些LUN将变成（Linux下的）挂载点或Windows的标准驱动器盘符。
 
->**Note** Bear with me. The discussion around SANs and RAID storage may seem mundane and unimportant
->but understanding traditional storage design will help you understand the Hadoop storage structure. The use
->of SANs and RAID has been the de facto standard for the last 20 years and removing this prejudice is a major
->obstacle when provisioning Hadoop in data centers.
+>**Note** Bear with me. The discussion around SANs and RAID storage may seem mundane and unimportant but understanding traditional storage design will help you understand the Hadoop storage structure. The use of SANs and RAID has been the de facto standard for the last 20 years and removing this prejudice is a major obstacle when provisioning Hadoop in data centers.
 
->**注** <u>请稍耐心些</u>。围绕SANS和RAID存储的讨论似乎平淡无奇，但是了解传统的存储设计将有助于了解Hadoop存储结构。SAN和RAID的使用一直是过去20年的事实标准，消除这种偏见是在数据中心配置Hadoop时的主要障碍。
+>**注** 请耐心些。围绕SANS和RAID存储的讨论似乎平淡无奇，但是了解传统的存储设计将有助于了解Hadoop存储结构。使用SAN和RAID一直是过去20年的事实标准，消除这种偏见是在数据中心配置Hadoop时的主要障碍。
 
 So, in essence SANs are large containers holding multiple disk arrays and managed by a central console. A company purchases a server, and then the server is provisioned in the data center with minimal storage usually on a small DAS (direct attached storage) disk for the OS and connected via network links to the SAN infrastructure. Applications, whether point of sale applications or databases, request data from the SAN, which then pulls through the network for processing on the server. SANs become a monolithic storage infrastructure handing out data with little to no regard to the overarching IO processing. The added HA, licensing, and management components on SANs add significantly to the per-TB cost.
 
-因此，本质上，SAN是容纳多个磁盘阵列并由中央控制台管理的大容器。通常，公司购买一台服务器**放在**数据中心内，然后为其OS配置最小的DAS（直接连接存储）磁盘，并通过网络链接到SAN基础设施。应用程序，无论是POS应用还是数据库，向SAN请求数据，然后通过网络提取数据，以便在服务器上进行处理。SANs成为一个单一的存储基础设施，分发数据时不会从整体上考虑IO处理。再加上HA、软件许可费和管理组件，显著增加了每TB的存储成本。
+因此，本质上，SAN是容纳多个磁盘阵列并由中央控制台管理的大容器。通常，公司购买一台服务器放在数据中心内，然后为其OS配置最小的DAS（直接连接存储）磁盘，并通过网络链接到SAN基础设施。应用程序，无论是POS应用还是数据库，向SAN请求数据，然后通过网络提取数据，以便在服务器上进行处理。SANs成为一个单一的存储基础设施，分发数据时不会从整体上考虑IO处理。再加上HA、软件许可费和管理组件，显著增加了每TB的存储成本。
 
 A lot of enhancements have been made in SAN technologies, such as faster network interconnects and memory cache, but despite all the advances the primary purpose of a SAN was never high performance. The cost per TB has dramatically dropped in the last 15 years and will continue to drop, but going out and buying a TB thumb drive is much different than purchasing a TB of SAN storage. Again, as with the virtualization example, SAN has real-world uses and is the foundation for most large enterprises. The point here is that companies need a faster, less expensive means to store and process data at scale while still maintaining stringent HA requirements.
 
-SAN技术已经进行了许多改进，如更快的网络互连和内存缓存，但尽管有这些进步，SAN的主要目的从来不是高性能。过去15年，每TB的存储成本大幅下降，并将持续下降，但出去买个1TB的**U盘**远远不同于购买1TB SAN存储。再次，与虚拟化示例一样，SAN具有现实世界的用途，是大多数大型企业的基础。这里的要点是，企业需要更快，更便宜的手段来存储和处理规模数据，同时仍保持严格的HA要求。
+SAN技术已经进行了许多改进，如更快的网络互连和内存缓存，但尽管有这些进步，SAN的主要目的从来不是高性能。过去15年，每TB的存储成本大幅下降，并将持续下降，但出去买个1TB的U盘远远不同于购买1TB SAN存储。与虚拟化示例一样，SAN具有现实世界的用途，是大多数大型企业的基础。关键是企业需要更快，更便宜的手段来存储和处理成规模的数据，同时仍保持严格的HA要求。
 
 ### Hadoop 的高可用
 
