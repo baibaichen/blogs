@@ -1828,7 +1828,7 @@ As long as you override the `apply` method in your `PTransform` subclass to 
 
 > The `apply` method of a `PTransform` is not meant to be invoked directly by the user of a transform. Instead, you should [call the `apply` method](#overview-of-transform) on the `PCollection` itself with the transform as an argument. This allows transforms to be nested within the structure of your pipeline.
 >
-> **注意**：`PTransform.apply` 已经被重命名为 `PTransform.expamd`，参见[Rename one of PTransform.apply and PInput.apply](https://issues.apache.org/jira/browse/BEAM-438)
+> **注意**：`PTransform.apply` 已经被重命名为 `PTransform.expand`，参见[Rename one of PTransform.apply and PInput.apply](https://issues.apache.org/jira/browse/BEAM-438)
 
 ### Pre-Written Transforms in the Cloud Dataflow SDK
 
