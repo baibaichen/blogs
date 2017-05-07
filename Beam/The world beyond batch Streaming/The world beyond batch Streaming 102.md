@@ -72,7 +72,7 @@
 - `PCollection`s，表示数据集（可能是海量数据集），可以并行执行转换（名字开头“P”的由来，即表示parallel）。
 - `PTransform`s：应用于`PCollection`s，以创建新的`PCollection`s。`PTransform`s可以执行元素级别的转换，也可以把多个元素聚合到一起，或是其它`PTransform`s的复合组合。
 
-![图1，transformation的类型](102-figure-1.png) 图1，转换的类型
+![图1，transformation的类型](102-figure-1.png)*图1，转换的类型*
 
 如果发现自己越发不能理解例子，或者只是想要查查参考手册，可以去看看[Dataflow Java SDK]()的官方文档。
 
@@ -96,7 +96,7 @@ PCollection<KV<String, Integer>> scores = input.apply(Sum.integersPerKey());
 > 1. 这里贴出的是静态图像，要看动图请点击<u>动画</u>
 > 2. 输出最终结果时，靠近顶部显示的聚合值会变色
 
-![图2，传统的批处理](102-figure-2.png) 图2，传统的批处理，[动画](https://embedwistia-a.akamaihd.net/deliveries/3116f7c9159e25b3bd5ff05fa6a3adf1f53c6252/file.mp4)
+![图2，传统的批处理](102-figure-2.png) *图2，传统的批处理*，[动画](https://embedwistia-a.akamaihd.net/deliveries/3116f7c9159e25b3bd5ff05fa6a3adf1f53c6252/file.mp4)
 
 由于是批处理管道，因此会将输入值累积在管道的中间状态中，直到看到所有的输入（顶部的绿色虚线处）才产生单个输出51。本例没有使用窗口转换，是对事件时间维度出现的所有值求和，因此，表示『状态和输出』的矩形覆盖了整个X轴。传统的批处理引擎无法处理无穷数据，因为不可能等到输入结束再计算，然而，无穷数据实际上永远不会结束。因此，我们需要窗口这一概念（在Streaming 101中引入）。这样，就要回答第二个问题：计算**什么时候**（事件时间维度上）的数据？现在，简要回顾一下窗口。
 
@@ -117,7 +117,7 @@ PCollection<KV<String, Integer>> scores = input
 
 回想一下，Dataflow为批处理和流式处理提供了统一模型，语义上，批处理只是流式处理的一个子集。因此，我们首先在机制更简单的批处理引擎上执行此管道，当我们切换到流式处理引擎时，==~~这会给我们一些直接比较的东西~~==。
 
-![图4](102-figure-4.png) *图4. 在批处理引擎中执行分窗求和，[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)*
+![图4](102-figure-4.png) *图4. 在批处理引擎中执行分窗求和*，[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)
 
 如前所述，在管道的内部状态中累积输入，直到消费完所有的输入之后产生输出。不过此时，不再是一个而是四个输出：每个『事件时间维度、时长2分钟的』窗口都有一个相关的输出。
 
