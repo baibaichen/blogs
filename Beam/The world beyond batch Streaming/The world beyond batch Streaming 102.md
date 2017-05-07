@@ -53,76 +53,74 @@
 - ***When***：在**什么时候**（处理时间维度上）进行计算，并输出结果？这个问题由水位和触发器来回答。这个主题有无限的变化，但是最常见的模式是，对于给定窗口，使用水位来描述其输入完成度，使用触发器允许输出早期结果（在窗口的输入结束之前，输出猜测性的，或者部分结果）和处理晚到的数据并输出晚期结果（在水位仅仅是窗口输入完整性估计的情况下，对于给定窗口，即使水位声明该窗口的输入已经结束，仍然可能会有更多的数据进入该窗口）。
 - ***How***：**如何**细化**窗口多次输出**的结果？这个问题由用到的累积类型来回答：**丢弃**（每次输出的结果独立且不相关），**累积**（后续的结果建立在先前的结果上），或**累积且回收**（输出累积值，并回收上次触发时输出的结果）。
 
-本文后面的文章中将会详细地讨论这些问题。是的，我将在本文中一直使用这种配色方案，试图使大家清楚地知道哪些概念与What / Where / When / How 中的哪个问题有关。不用谢<眨眼笑/>^[2]^。
+本文后面的文章中将会详细地讨论这些问题。是的，我将在本文中一直使用这种==配色方案==，试图让大家清楚地知道哪些概念与What / Where / When / How 中的哪个问题有关。不用谢<眨眼笑/>^[2]^。
 
-## Streaming 101 重温
+### Streaming 101 重温
 
-首先，我们来回顾一下Streaming 101中提出的一些概念，但是这一次还有一些详细的例子，有助于使这些概念更具体。
+首先，我们来回顾一下Streaming 101中提出的一些概念，但是这次多了一些详细的例子，有助于使这些概念更加具体。
 
-###*What*：transformation
+####*What*：转换
 
-传统批处理中使用**transformation**回答这个问题：计算逻辑是**什么**？尽管许多人可能早就熟悉传统的批处理，但还是要从此开始，因为我们将以它为基础，添加所有其他概念。
+传统批处理使用转换回答“计算逻辑是**什么**？”这个问题。尽管许多人可能早就熟悉，但我们还是从传统的批处理开始，因为我们将以它为基础，逐步添加其他概念。
 
-本节，我们看一个简单的例子：在一个由10个值组成的简单数据集上，按键值分组并求和。如果想稍微务实一点的话，你可以把它想像成为某个团队计算总分，团队正在玩某种手机游戏，需要将团队中个人成绩综合起来。可以想象，这也同样适用于计费和使用监控的场景。
+本节，我们看一个简单的例子：在一个由10个值组成的简单数据集上，按键值分组并求和。如果想稍微务实一点的话，你可以假设团队正在玩某种手机游戏，要为他们计算总分，需要将团队中个人成绩综合起来。可以想象，这也同样适用于计费和==使用监控==的场景。
 
-对于每个示例，为了使管道的定义更具体，我将包含一个简短的Dataflow Java SDK伪码片段。我有时会修改规则以使示例更清晰，清除细节（比如没有引入具体的I / O 数据源）或简化名称（当前Java触发器的名称太TM冗长了，为了清晰起见，将使用更简单的名称）。除了这些小修改（大部分我在后记中有明确列举）之外，它基本上就是真正的Dataflow SDK代码。稍后，我还将提供实际[代码走读的链接](https://cloud.google.com/dataflow/examples/gaming-example)，那些对类似例子感兴趣的人，自己可以编译和运行。
+为了使管道的定义更具体，每个示例将包含一段简短的Dataflow伪码片段。我有时会修改规则以使示例更加清晰，清除细节（比如没有引入具体的I / O 数据源）或简化名称（当前Java触发器的名称太TM冗长了，为了清晰起见，将使用更简单的名称）。除了这些小修改（大部分我在后记中有明确列举）之外，它几乎就是真正的Dataflow代码。稍后，我还将提供[代码走读的链接](https://cloud.google.com/dataflow/examples/gaming-example)，如果对类似例子感兴趣，可以自己可以编译和运行。
 
-如果你至少熟悉像Spark Streaming或Flink这样的系统，==你应该有一个相对轻松的时间来彻底了解Dataflow 的代码做了什么。~~也为你准备了一个速成课程~~==，Dataflow有两个基本的原语：
+如果你至少熟悉Spark Streaming或Flink，那么理解Dataflow代码在做什么就要相对轻松些。为了让你速成，Dataflow有两个基本的原语：
 
-- `PCollection`s，表示数据集（可能是海量数据集），可以执行并行转换（名字开头“P”的由来，即表示parallel）。
+- `PCollection`s，表示数据集（可能是海量数据集），可以并行执行转换（名字开头“P”的由来，即表示parallel）。
 - `PTransform`s：应用于`PCollection`s，以创建新的`PCollection`s。`PTransform`s可以执行元素级别的转换，也可以把多个元素聚合到一起，或是其它`PTransform`s的复合组合。
 
-![图1，transformation的类型](102-figure-1.png) 图1，transformation的类型
+![图1，transformation的类型](102-figure-1.png) 图1，转换的类型
 
-如果发现自己越来越不能理解，或者只是想要查查参考手册，可以去看看[Dataflow Java SDK]()的官方文档。
+如果发现自己越发不能理解例子，或者只是想要查查参考手册，可以去看看[Dataflow Java SDK]()的官方文档。
 
 对于我们的例子而言，假设从一个`PCollection <KV<String，Integer>>`开始，命名为`input`（即，包含字符串和整数的键/值对的`PCollection`，其中字符串类似于团队名称，整数是相应团队中的个人得分）。但构建真实管道时，可能从I / O源（如日志文件）读取数据以获得原始输入数据集（`PCollection <String>`），然后解析日志记录将其转换为相应的键/值对（`PCollection <KV <String，Integer >>`）。为了在第一个例子中清楚起见，我将包括所有这些步骤的伪码，但是在随后的例子中，我删除了I / O和解析部分。
 
-因此从I / O源读取数据，解析出团队/分数这样的键/值对，计算每队总分，这个简单管道的伪码如下：
+因此从I / O源读取数据，解析出团队/分数这样的键/值对，并计算每队总分，这个简单管道的伪码如下：
 
 ```java
 PCollection<String> raw = IO.read(...);
 PCollection<KV<String, Integer>> input = raw.apply(ParDo.of(new ParseFn());
 PCollection<KV<String, Integer>> scores = input.apply(Sum.integersPerKey());
 ```
-*列表1 Summation pipeline. Key/value data are read from an I/O source, with String (e.g., team name) as the key and Integer (e.g., individual team member scores) as the values. The values for each key are then summed together to generate per-key sums (e.g., total team score) in the output collection.*
+***列表1 求和管道。****从I / O源读取键/值数据，其中字符串（例如，团队名称）作为键，整数（例如，团队成员的得分）作为值。 然后将每个键的值相加在一起以产生输出集合中每个键的总和（例如，团队的总得分）。*
 
-对于所有示例，会先看构建管道的代码片段，并分析之，然后用动画演示管道在具体数据集上的执行情况。更具体地说，管道的输入数据集有10条不同的记录，但只有一个键值（即每条记录的键值一样）。在真实的管道中，你可以想象类似的操作将在多台机器上并行发生，但对于示例而言，越简单越清晰。
+对于所有示例，会先分析构建管道的代码片段，然后用动画演示管道在具体数据集上的执行情况。更具体地说，管道的输入数据集有10条不同的记录，**一个键**（即每条记录的键一样）。你可以想象在真实的管道中，类似的操作将会在多台机器上并行执行，但对于示例而言，越简单越清晰。
 
-每个动画在两个维度上绘制输入和输出：事件时间（X轴）和处理时间（Y轴）。这样，管道的处理进度是从底部向上移动，表示了当前真实的处理时间，如图中的白色粗线所示。输入用圆圈表示，圆圈内的数字表示该条记录的值。圆圈开始是灰色，一旦管道处理了某条记录，圆圈就会变色。
+每个动画在两个维度上绘制输入和输出：事件时间（X轴）和处理时间（Y轴）。这样，管道的处理进度从底部向上移动，且代表了当前真实的处理时间，如图中的白色粗线所示。输入用圆圈表示，圆圈内的数字表示该条记录的值。圆圈开始是灰色，一旦管道处理了某条记录，圆圈就会变色。
 
-当管道处理记录时，会将其累积到管道的内部状态中，并最终输出聚合的结果。状态和输出由矩形表示，聚合值靠近顶部显示，矩形由事件时间和处理时间表示，其覆盖区域里的数值会被累积到结果中。对于列表1中的管道，在传统的批处理引擎上执行的效果如下图：
+当管道处理记录时，会将其累积到管道的内部状态中，并最终输出聚合的结果。状态和输出由矩形表示，聚合值靠近顶部显示，矩形由事件时间和处理时间组成，其覆盖区域里的数值会被累积到结果中。对于列表1中的管道，在传统的批处理引擎上执行的效果如下图：
 > 译注：
 > 1. 这里贴出的是静态图像，要看动图请点击<u>动画</u>
-> 2. 输出最终结果时，靠近顶部显示的结果值会变色
+> 2. 输出最终结果时，靠近顶部显示的聚合值会变色
 
 ![图2，传统的批处理](102-figure-2.png) 图2，传统的批处理，[动画](https://embedwistia-a.akamaihd.net/deliveries/3116f7c9159e25b3bd5ff05fa6a3adf1f53c6252/file.mp4)
 
-Since this is a batch pipeline, it accumulates state until it’s seen all of the inputs (represented by the dashed green line at the top), at which point, it produces its single output of 51. In this example, we’re calculating a sum over all of event time since we haven’t applied any specific windowing transformations; hence, the rectangles for state and output cover the entirety of the X axis. If we want to process an unbounded data source, however, classic batch processing won’t be sufficient; we can’t wait for the input to end since it effectively never will. One of the concepts we’ll want is windowing, which we introduced in Streaming 101. Thus, within the context of our second question: “Where in event-time are results calculated?” we’ll now briefly revisit windowing.
+由于是批处理管道，因此会将输入值累积在管道的中间状态中，直到看到所有的输入（顶部的绿色虚线处）才产生单个输出51。本例没有使用窗口转换，是对事件时间维度出现的所有值求和，因此，表示『状态和输出』的矩形覆盖了整个X轴。传统的批处理引擎无法处理无穷数据，因为不可能等到输入结束再计算，然而，无穷数据实际上永远不会结束。因此，我们需要窗口这一概念（在Streaming 101中引入）。这样，就要回答第二个问题：计算**什么时候**（事件时间维度上）的数据？现在，简要回顾一下窗口。
 
-由于是批处理管道，因此==会积累状态==，直到==看到==所有的输入（在顶部的绿色虚线处）才产生单个输出51。本例没有使用窗口转换，所以对事件时间维度出现的所有值求和，因此，表示『状态和输出』的矩形覆盖了整个X轴。传统的批处理引擎无法处理无穷数据，因为不可能等到输入结束再计算，然而，无穷数据实际上永远不会结束。我们需要的一个概念是窗口，在Streaming 101中有介绍。因此，在我们的第二个问题的背景下：计算**什么时候**（事件时间维度上）的数据？现在简要回顾一下窗口。
+####*Where*：窗口
 
-###*Where*：窗口
+如上次讨论的那样，分窗是沿着时间边界分割数据源的过程。 常见的分窗策略包括固定窗口，滑动窗口和Session窗口：
 
-如上次讨论的那样，分窗是沿着时间边界分割数据源的过程。 常见的窗口策略包括固定窗口，滑动窗口和Session窗口：
+![图3](102-figure-3.png) *图3 分窗策略示例。 每个例子显示了三个不同的键，突出显示了对齐窗口（适用于所有数据）和不对齐窗口（适用于数据子集）之间的差异。 授权：Tyler Akidau，灵感来自Robert Bradshaw的插图。*
 
-![图3](102-figure-3.png) *图3 Example windowing strategies. Each example is shown for three different keys, highlighting the difference between aligned windows (which apply across all the data) and unaligned windows (which apply across a subset of the data). Credit: Tyler Akidau, inspired by an illustration from Robert Bradshaw.*
-
-To get a better sense of what windowing looks like in practice, let’s take our integer summation pipeline and window it into fixed, two-minute windows. With the Dataflow SDK, the change is a simple addition of a Window.into transform (highlighted in blue text):
+为了更好的理解窗口在实践中看起像啥，我们用『时长2分钟的固定窗口』切分整数求和的管道。使用Dataflow SDK，只需要简单地添加`Window.into`转换即可（==蓝色部分的文本==）：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
   .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2))))
   .apply(Sum.integersPerKey());
 ```
-列表2：Windowed summation code.
+列表2：分窗求和的代码
 
-Recall that Dataflow provides a unified model that works in both batch and streaming, since semantically batch is really just a subset of streaming. As such, let’s first execute this pipeline on a batch engine; the mechanics are more straightforward, and it will give us something to directly compare against when we switch to a streaming engine.
+回想一下，Dataflow为批处理和流式处理提供了统一模型，语义上，批处理只是流式处理的一个子集。因此，我们首先在机制更简单的批处理引擎上执行此管道，当我们切换到流式处理引擎时，==~~这会给我们一些直接比较的东西~~==。
 
-![图4](102-figure-4.png) *图4. Windowed summation on a batch engine.[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)*
+![图4](102-figure-4.png) *图4. 在批处理引擎中执行分窗求和，[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)*
 
-As before, inputs are accumulated in state until they are entirely consumed, after which output is produced. In this case, however, instead of one output we get four: a single output for each of the four relevant two-minute event-time windows.
+如前所述，在管道的内部状态中累积输入，直到消费完所有的输入之后产生输出。不过此时，不再是一个而是四个输出：每个『事件时间维度、时长2分钟的』窗口都有一个相关的输出。
 
-At this point, we’ve revisited the two main concepts introduced in Streaming 101: the relationship between the event-time and processing-time domains, and windowing. If we want to go any further, we’ll need to start adding the new concepts mentioned at the beginning of this section: watermarks, triggers, and accumulation. Thus begins Streaming 102.
+至此，我们重新回顾了Streaming 101中引入的两个主要概念：事件时间和处理时间之间的关系，以及分窗。要想再进一步，就需要在管道中加入本节开头提到的新概念：水位，触发器和累积。Streaming 102出场。
 
 ##Streaming 102
