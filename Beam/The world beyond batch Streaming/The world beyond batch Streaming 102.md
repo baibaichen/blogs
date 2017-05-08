@@ -158,11 +158,24 @@ Watermarks are a fascinating and complex topic, with far more to talk about than
 
 In both cases, windows are materialized as the watermark passes the end of the window. The primary difference between the two executions is that the heuristic algorithm used in watermark calculation on the right fails to take the value of 9 into account, which drastically changes the shape of the watermark^[3]^. These examples highlight two shortcomings of watermarks (and any other notion of completeness), specifically that they can be:
 
+两种情况下，当水位通过窗口末尾时，输出窗口结果。两次执行的主要区别是：右侧的启发式算法计算水位时没有考虑9，从而大大改变了水位的形状^[3]^。这些例子突出了水印（以及任何其他完整性概念）的两个缺点，具体是：
+
 - Too slow: When a watermark of any type is correctly delayed due to known unprocessed data (e.g., slowly growing input logs due to network bandwidth constraints), that translates directly into delays in output if advancement of the watermark is the only thing you depend on for stimulating results.
 
   This is most obvious in the left diagram, where the late arriving 9 holds back the watermark for all the subsequent windows, even though the input data for those windows become complete earlier. This is particularly apparent for the second window, [12:02, 12:04), where it takes nearly seven minutes from the time the first value in the window occurs until we see any results for the window whatsoever. The heuristic watermark in this example doesn’t suffer the same issue quite so badly (five minutes until output), but don’t take that to mean heuristic watermarks never suffer from watermark lag; that’s really just a consequence of the record I chose to omit from the heuristic watermark in this specific example.
 
   The important point here is the following: while watermarks provide a very useful notion of completeness, depending upon completeness for producing output is often not ideal from a latency perspective. Imagine a dashboard that contains valuable metrics, windowed by hour or day. It’s unlikely you’d want to wait a full hour or day to begin seeing results for the current window; that’s one of the pain points of using classic batch systems to power such systems. Instead, it’d be much nicer to see the results for those windows refine over time as the inputs evolve and eventually become complete.
+
+- **太慢**：当任何类型的水位由于已知的未处理数据而被正确地延迟时（例如，由于网络带宽限制而缓慢导入的输入日志），如果系统仅仅依靠水位的提升来输出结果，那么将直接转换为输出延迟。
+
+  这在左图中最明显，延迟抵达的9阻碍了水位的前进，因此，即使后续窗口的输入数据早就完整，也不能及时输出结果。这对于第二个窗口[12:02，12:04)尤其明显，从窗口中的第一个值发生到我们看到窗口结果，耗时将近7分钟。这个例子中，启发式水位的延迟没那么严重（从窗口中的第一个值发生到我们看到窗口结果，耗时5分钟），但不要认为这意味着启发式算法不会滞后，在这个特定的例子中，是我选择忽略的记录才导致了这样的结果。
+
+  这里的重点是：水位位输入完整性提供了一个非常有用的概念，但是依赖完整性产生输出，从延迟的角度来看通常不是很理想。设想一个仪表板，包含了有价值的指标，按小时或天分窗显示。不可能说等待一整个小时或者一整天，才能看到当前窗口的结果，而这正是传统批处理系统的痛点之一。相反，随着时间的推移，窗口的结果随着输入的变化而逐渐完善，将会更好一些。
+
 - Too fast: When a heuristic watermark is incorrectly advanced earlier than it should be, it’s possible for data with event times before the watermark to arrive some time later, creating late data. This is what happened in the example on the right: the watermark advanced past the end of the first window before all the input data for that window had been observed, resulting in an incorrect output value of 5 instead of 14. This shortcoming is strictly a problem with heuristic watermarks; their heuristic nature implies they will sometimes be wrong. As a result, relying on them alone for determining when to materialize output is insufficient if you care about correctness.
 
+- **太快**：当启发式水位错误地前进，早于它应该处于的位置，那么，水位之前的数据仍可能出现，这导致延迟数据。右边的例子就是一例：在观察到第一个窗口的所有输入数据之前，水位就已通过了该窗口，导致输出错误的结果5而不是14。这个缺点严格说来就是启发式水位的问题，启发式的本质意味着总有出错的时候。因此，如果你关心正确性，单独依靠启发式水位，确定何时输出结果是不够的。
+
 In Streaming 101, I made some rather emphatic statements about notions of completeness being insufficient for robust out-of-order processing of unbounded data streams. These two shortcomings, watermarks being too slow or too fast, are the foundations for those arguments. You simply cannot get both low latency and correctness out of a system that relies solely on notions of completeness. Addressing these shortcomings is where triggers come into play.
+
+在Streaming 101中，我强调完整性的概念并不足以处理无穷数据流中的乱序。这两个缺点，水位太慢或太快，是这些论据的基础。如果系统只依赖于完整性的概念，那么无法同时满足低延迟和正确性。解决这些缺点是触发器发挥作用的地方。
