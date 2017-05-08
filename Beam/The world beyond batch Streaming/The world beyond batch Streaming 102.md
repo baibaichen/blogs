@@ -7,6 +7,7 @@
 > 3. Pipeline：管道
 > 4. ==transformation==：转换
 > 5. windowing：窗口，分窗
+> 6. pane ：窗格
 
 ## 简介
 
@@ -179,3 +180,64 @@ In both cases, windows are materialized as the watermark passes the end of the w
 In Streaming 101, I made some rather emphatic statements about notions of completeness being insufficient for robust out-of-order processing of unbounded data streams. These two shortcomings, watermarks being too slow or too fast, are the foundations for those arguments. You simply cannot get both low latency and correctness out of a system that relies solely on notions of completeness. Addressing these shortcomings is where triggers come into play.
 
 在Streaming 101中，我强调完整性的概念并不足以处理无穷数据流中的乱序。这两个缺点，水位太慢或太快，是这些论据的基础。如果系统只依赖于完整性的概念，那么无法同时满足低延迟和正确性。解决这些缺点是触发器发挥作用的地方。
+
+### *When*: ==触发器的奇妙之处是触发器是奇妙的东西!==
+
+Triggers are the second half of the answer to the question: “When in processing time are results materialized?” Triggers declare when output for a window should happen in processing time (though the triggers themselves may make those decisions based off of things that happen in other time domains, such as watermarks progressing in the event time domain). Each specific output for a window is referred to as a pane of the window.
+
+触发器是“在**什么时候**（处理时间维度上）进行计算？”的==答案的后半部分==，触发器声明窗口应在何时（处理时间维度，但触发器自身可以根据发生在其他时间维度的事情做出触发决定，例如，在事件时间维度上，水位前进了）输出结果。窗口的每个特定输出被称之为窗口的一个窗格。
+
+Examples of signals used for triggering include:
+
+触发信号包括：
+
+- Watermark progress (i.e., event time progress), an implicit version of which we already saw in Figure 6, where outputs were materialized when the watermark passed the end of the window^[4]^. Another use case is triggering garbage collection when the lifetime of a window exceeds some useful horizon, an example of which we’ll see a little later on.
+- **水位进度（即，事件时间进度）**，我们已经在图6中看到的一个隐式版本，当水位通过窗口时，输出结果^[4]^。另一个使用水位进度的场景是，当窗口的生命周期超出一定的范围，触发垃圾回收，稍后我们将看到一个例子。
+- Processing time progress, which is useful for providing regular, periodic updates since processing time (unlike event time) always progresses more or less uniformly and without delay.
+- **处理时间进度**，对于提供周期性更新是有用的，因为处理时间（不像事件时间）总是大致均匀地进行，而不会延迟。
+- Element counts, which are useful for triggering after some finite number of elements have been observed in a window.
+- **元素数量**，用于在窗口中观察到一定数量的元素后触发。
+- Punctuations, or other data-dependent triggers, where some record or feature of a record (e.g., an EOF element or a flush event) indicates that output should be generated.
+- **特殊标记或者其它数据依赖的触发器**，某些记录或者记录的某个标记（例如，EOF元素或者表示刷新的事件）指示系统应该输出结果。
+
+In addition to simple triggers that fire based off of concrete signals, there are also composite triggers that allow for the creation of more sophisticated triggering logic. Example composite triggers include:
+
+
+
+- Repetitions, which are particularly useful in conjunction with processing time triggers for providing regular, periodic updates.
+- Conjunctions (logical AND), which fire only once all child triggers have fired (e.g., after the watermark passes the end of the window AND we observe a terminating punctuation record).
+- Disjunctions (logical OR), which fire after any child triggers fire (e.g., after the watermark passes the end of the window OR we observe a terminating punctuation record).
+- Sequences, which fire a progression of child triggers in a predefined order.
+
+To make the notion of triggers a bit more concrete (and give us something to build upon), let’s go ahead and make explicit the implicit default trigger used in Figure 6 by adding it to the code from Listing 2:
+
+[Listing 3 ]
+
+With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
+
+In the too slow case (i.e., providing early, speculative results), we probably should assume that there may be a steady amount of incoming data for any given window since we know (by definition of being in the early stage for the window) that the input we’ve observed for the window is thus far incomplete. As such, triggering periodically when processing time advances (e.g., once per minute) is probably wise because the number of trigger firings won’t be dependent upon the amount of data actually observed for the window; at worst, we’ll just get a steady flow of periodic trigger firings.
+
+In the too fast case (i.e., providing updated results in response to late data due to a heuristic watermark), let’s assume our watermark is based on a relatively accurate heuristic (often a reasonably safe assumption). In that case, we don’t expect to see late data very often, but when we do, it’d be nice to amend our results quickly. Triggering after observing an element count of 1 will give us quick updates to our results (i.e., immediately any time we see late data), but is not likely to overwhelm the system given the expected infrequency of late data.
+
+Note that these are just examples: we’re free to choose different triggers (or to choose not to trigger at all for one or both of them) if appropriate for the use case at hand.
+
+Lastly, we need to orchestrate the timing of these various triggers: early, on-time, and late. We can do this with a `Sequence` trigger and a special `OrFinally` trigger, which installs a child trigger that terminates the parent trigger when the child fires.
+
+[Listing 4 ]
+
+However, that’s pretty wordy. And given that the pattern of repeated-early | on-time | repeated-late firings is so common, we provide a custom (but semantically equivalent) API in Dataflow to make specifying such triggers simpler and clearer:
+
+[Listing 5 ]
+
+Executing either Listing 4 or 5 on a streaming engine (with both perfect and heuristic watermarks, as before) then yields results that look like this:
+
+[Figure 7]
+
+This version has two clear improvements over Figure 6:
+
+- For the “watermarks too slow” case in the second window, [12:02, 12:04): we now provide periodic early updates once per minute. The difference is most stark in the perfect watermark case, where time-to-first-output is reduced from almost seven minutes down to three and a half; but it’s also clearly improved in the heuristic case as well. Both versions now provide steady refinements over time (panes with values 7, 14, then 22), with relatively minimal latency between the input becoming complete and materialization of the final output pane for the window.
+- For the “heuristic watermarks too fast” case in the first window, [12:00, 12:02): when the value of 9 shows up late, we immediately incorporate it into a new, corrected pane with value of 14.
+
+One interesting side effect of these new triggers is that they effectively normalize the output pattern between the perfect and heuristic watermark versions. Whereas the two versions in Figure 6 were starkly different, the two versions here look quite similar.
+
+The biggest remaining difference at this point is window lifetime bounds. In the perfect watermark case, we know we’ll never see any more data for a window once the watermark has passed the end of it, hence we can drop all of our state for the window at that time. In the heuristic watermark case, we still need to hold on to the state for a window for some amount of time to account for late data. But as of yet, our system doesn’t have any good way of knowing just how long state needs to be kept around for each window. That’s where allowed lateness comes in.
