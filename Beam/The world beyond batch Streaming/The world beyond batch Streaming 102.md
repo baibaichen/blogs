@@ -124,3 +124,23 @@ PCollection<KV<String, Integer>> scores = input
 至此，我们重新回顾了Streaming 101中引入的两个主要概念：事件时间和处理时间之间的关系，以及分窗。要想再进一步，就需要在管道中加入本节开头提到的新概念：水位，触发器和累积。Streaming 102出场。
 
 ## Streaming 102
+
+我们刚刚在批处理引擎上执行定义了窗口的管道。理想的是：引擎能实时产生结果，并且自身就支持无穷数据源。切换到流式引擎是朝正确方向迈出了一步，然而，批处理引擎知道每个窗口何时具有完整的输入（即，有穷输入源中所有数据都被消费完的时刻），目前缺乏一个实用的方法确定无穷数据源的输入完整性。我们需要为窗口引入水位。
+
+### *When*: watermarks
+
+Watermarks are the first half of the answer to the question: “When in processing time are results materialized?” Watermarks are temporal notions of input completeness in the event-time domain. Worded differently, they are the way the system measures progress and completeness relative to the event times of the records being processed in a stream of events (either bounded or unbounded, though their usefulness is more apparent in the unbounded case).
+
+Recall this diagram from Streaming 101, slightly modified here, where I described the skew between event time and processing time as an ever-changing function of time for most real-world distributed data processing systems.
+
+[Figure 5. Event time progress, skew, and watermarks]
+
+That meandering red line that I claimed represented reality is essentially the watermark; it captures the progress of event time completeness as processing time progresses. Conceptually, you can think of the watermark as a function, F(P) -> E, which takes a point in processing time and returns a point in event time. (More accurately, the input to the function is really the current state of everything upstream of the point in the pipeline where the watermark is being observed: the input source, buffered data, data actively being processed, etc.; but conceptually, it’s simpler to think of it as a mapping from processing time to event time.) That point in event time, E, is the point up to which the system believes all inputs with event times less than E have been observed. In other words, it’s an assertion that no more data with event times less than E will ever be seen again. Depending upon the type of watermark, perfect or heuristic, that assertion may be a strict guarantee or an educated guess, respectively:
+
+Perfect watermarks: In the case where we have perfect knowledge of all of the input data, it’s possible to construct a perfect watermark; in such a case, there is no such thing as late data; all data are early or on time.
+
+Heuristic watermarks: For many distributed input sources, perfect knowledge of the input data is impractical, in which case the next best option is to provide a heuristic watermark. Heuristic watermarks use whatever information is available about the inputs (partitions, ordering within partitions if any, growth rates of files, etc.) to provide an estimate of progress that is as accurate as possible. In many cases, such watermarks can be remarkably accurate in their predictions. Even so, the use of a heuristic watermark means it may sometimes be wrong, which will lead to late data. We’ll learn about ways to deal with late data in the triggers section below.
+
+Watermarks are a fascinating and complex topic, with far more to talk about than I can reasonably fit here or in the margin, so a further deep dive on them will have to wait for a future post. For now, to get a better sense of the role that watermarks play as well as some of their shortcomings, let’s look at two examples of a streaming engine using watermarks alone to determine when to materialize output while executing the windowed pipeline from Listing 2. The example on the left uses a perfect watermark; the one on the right uses a heuristic watermark.
+
+[Figure 6. Windowed summation on a streaming engine with perfect (left) and heuristic (right) watermarks.]
