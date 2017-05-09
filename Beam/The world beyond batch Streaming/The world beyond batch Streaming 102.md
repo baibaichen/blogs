@@ -202,20 +202,30 @@ Examples of signals used for triggering include:
 
 In addition to simple triggers that fire based off of concrete signals, there are also composite triggers that allow for the creation of more sophisticated triggering logic. Example composite triggers include:
 
-
+除了基于具体信号触发的简单触发器，你还可以创建组合触发器，获得更复杂的触发逻辑。复合触发器的例子有：
 
 - Repetitions, which are particularly useful in conjunction with processing time triggers for providing regular, periodic updates.
+- 重复，特别有用于和处理时间触发器一起提供有规律的定期更新。
 - Conjunctions (logical AND), which fire only once all child triggers have fired (e.g., after the watermark passes the end of the window AND we observe a terminating punctuation record).
+- 逻辑与（联合），所有子触发器满足条件时，只触发一次（例如，水印通过通过窗口尾端，并且，观察到一个终止符号记录）。
 - Disjunctions (logical OR), which fire after any child triggers fire (e.g., after the watermark passes the end of the window OR we observe a terminating punctuation record).
+- 逻辑或（析取），任一子触发器满足条件时触发（例如，水印通过通过窗口尾端，或者，观察到一个终止符号记录）。
 - Sequences, which fire a progression of child triggers in a predefined order.
+- 序列，以预定义的顺序，子触发器依次触发。
 
 To make the notion of triggers a bit more concrete (and give us something to build upon), let’s go ahead and make explicit the implicit default trigger used in Figure 6 by adding it to the code from Listing 2:
+
+为了稍微具体化触发器的概念（以便后续基于此构建更复杂的触发器），我们在图6的基础上修改，把图6隐含使用的默认触发器明确地写出来，将其添加到列表2的代码中：
 
 [Listing 3 ]
 
 With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
 
+记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。两种情况下，基本的想法是，对于一个给定的窗口，无论是在水位通过窗口的尾端之前还是之后，提供某种形式的有规律的更新（除了更新，我们将收到水位通过窗口尾端的消息）。所以，我们需要重复触发。现在问题就变成了：我们在重复什么？
+
 In the too slow case (i.e., providing early, speculative results), we probably should assume that there may be a steady amount of incoming data for any given window since we know (by definition of being in the early stage for the window) that the input we’ve observed for the window is thus far incomplete. As such, triggering periodically when processing time advances (e.g., once per minute) is probably wise because the number of trigger firings won’t be dependent upon the amount of data actually observed for the window; at worst, we’ll just get a steady flow of periodic trigger firings.
+
+太慢的场景（即，提供早期，投机的结果），我们也许应该假设可能有一个稳定的任何窗口输入数据，因为我们知道（通过在早期的窗口定义），我们已经观察到的窗口输入是迄今不完全。
 
 In the too fast case (i.e., providing updated results in response to late data due to a heuristic watermark), let’s assume our watermark is based on a relatively accurate heuristic (often a reasonably safe assumption). In that case, we don’t expect to see late data very often, but when we do, it’d be nice to amend our results quickly. Triggering after observing an element count of 1 will give us quick updates to our results (i.e., immediately any time we see late data), but is not likely to overwhelm the system given the expected infrequency of late data.
 
