@@ -8,6 +8,8 @@
 > 4. ==transformation==：转换
 > 5. windowing：窗口，分窗
 > 6. pane ：窗格
+> 7. observe
+> 8. speculative
 
 ## 简介
 
@@ -221,15 +223,19 @@ To make the notion of triggers a bit more concrete (and give us something to bui
 
 With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
 
-记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。两种情况下，基本的想法是，对于一个给定的窗口，无论是在水位通过窗口的尾端之前还是之后，提供某种形式的有规律的更新（除了更新，我们将收到水位通过窗口尾端的消息）。所以，我们需要重复触发。现在问题就变成了：我们在重复什么？
+记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。两种情况下，基本的想法是，对于一个给定的窗口，无论是在水位通过窗口的尾端之前还是之后，以某种形式提供有规律的更新（除了更新，我们将收到水位通过窗口尾端的消息）。因此，我们需要重复触发。现在问题就变成了：我们在重复什么？
 
 In the too slow case (i.e., providing early, speculative results), we probably should assume that there may be a steady amount of incoming data for any given window since we know (by definition of being in the early stage for the window) that the input we’ve observed for the window is thus far incomplete. As such, triggering periodically when processing time advances (e.g., once per minute) is probably wise because the number of trigger firings won’t be dependent upon the amount of data actually observed for the window; at worst, we’ll just get a steady flow of periodic trigger firings.
 
-太慢的场景（即，提供早期，投机的结果），我们也许应该假设可能有一个稳定的任何窗口输入数据，因为我们知道（通过在早期的窗口定义），我们已经观察到的窗口输入是迄今不完全。
+太慢的场景（即，提供早期猜测性的结果），对于任意给定的窗口，应该可以假设它有稳定的输入数据，因为我们知道（根据定义，窗口处于早期阶段）离输入结束还为时尚早。因此，随着处理时间的前进，周期性（例如，每分钟一次）触发或许是明智的，因为触发的数量并不依赖于实际观察到的数据量，在最坏的情况下，我们只会得到稳定的定时触发消息流。
 
 In the too fast case (i.e., providing updated results in response to late data due to a heuristic watermark), let’s assume our watermark is based on a relatively accurate heuristic (often a reasonably safe assumption). In that case, we don’t expect to see late data very often, but when we do, it’d be nice to amend our results quickly. Triggering after observing an element count of 1 will give us quick updates to our results (i.e., immediately any time we see late data), but is not likely to overwhelm the system given the expected infrequency of late data.
 
+太快的场景（即，由于启发式水位会产生延迟数据，需要为延迟时间提供更新后的结果）。假设我们的启发式水位相对比较准确（通常是一个相当安全的假设）。在这种情况下，我们预计不会频繁看到延迟数据，但是如果我们这么做，最好能快速更新结果。即观察到1个元素就触发，使得我们可以快速更新结果（观察到延迟数据后立即触发），考虑到预期的延迟数据并不频繁，触发消息不太可能淹没系统。
+
 Note that these are just examples: we’re free to choose different triggers (or to choose not to trigger at all for one or both of them) if appropriate for the use case at hand.
+
+
 
 Lastly, we need to orchestrate the timing of these various triggers: early, on-time, and late. We can do this with a `Sequence` trigger and a special `OrFinally` trigger, which installs a child trigger that terminates the parent trigger when the child fires.
 
