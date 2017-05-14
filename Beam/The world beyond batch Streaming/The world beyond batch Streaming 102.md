@@ -436,42 +436,60 @@ Processing-time windowing is important for two reasons:
 有两个原因，处理时间窗口很重要：
 
 - For certain use cases, such as usage monitoring (e.g., Web service traffic QPS), where you want to analyze an incoming stream of data as it’s observed, processing-time windowing is absolutely the appropriate approach to take.
-
+- 某些特定场景，像使用监控（例如，Web服务流量QPS），此时，以观察到数据进入系统的处理时间窗口来分析输流，是绝对适当的方法。
 - For use cases where the time that events happened is important (e.g., analyzing user behavior trends, billing, scoring, etc), processing time windowing is absolutely the wrong approach to take, and being able to recognize these cases is critical.
+- 对于发生事件时的时间很重要（例如，分析用户行为的趋势，计费，评分等）的情况，==至关重要的是，使用处理时间窗口，有助于识别出这是绝对错误的做法==。
 
 As such, it’s worth gaining a solid understanding of the differences between processing-time windowing and event-time windowing, particularly given the prevalence of processing-time windowing in most streaming systems today.
+因此值得深入了解处理时间窗口和事件时间窗口之间的差异，特别是考虑到，当今大多数流式系统普及的是处理时间窗口。
 
 When working within a model, such as the one presented in this post, where windowing as a first-class notion is strictly event-time based, there are two methods one can use to achieve processing-time windowing:
+在以窗口作为第一类概念的模型中，例如本文描述的模型，窗口严格基于事件时间。实现处理时间窗口有两种方法：
 
 - **Triggers**: Ignore event time (i.e., use a global window spanning all of event time) and use triggers to provide snapshots of that window in the processing-time axis.
+- **触发器**：忽略事件时间（即，使用全局窗口覆盖所有事件时间），使用触发器在处理时间维度上提供该窗口的快照。
 - **Ingress time**: Assign ingress times as the event times for data as they arrive, and use normal event time windowing from there on. This is essentially what something like Spark Streaming does currently.
+- **数据进入时间**：当数据到达时，指定进入时间作为其事件时间，此后使用正常的事件时间窗口。这基本上是Spark Streaming目前的做法。
 
 Note that the two methods are more or less equivalent, although they differ slightly in the case of multi-stage pipelines: **in the triggers version**, each stage slices up the processing time “windows” independently, so for example, data in window X for one stage may end up in window X-1 or X+1 in the next stage; **in the ingress time version**, once a datum is incorporated into window X, it will remain in window X for the duration of the pipeline due to synchronization of progress between stages via watermarks (in the Dataflow case), micro-batch boundaries (in the Spark Streaming case), or whatever other coordinating factor is involved at the engine level.
+请注意，这两种方法或多或少是等价的。但是在多阶段管道下，它们略有不同：触发器版本，每个阶段各自独立地切分处理时间窗口，例如，在某个阶段，数据出现在窗口X，而在下一个阶段，可能最终出现在窗口X-1或窗口X+1；进入时间版本，一旦数据被纳入窗口X，那么在管道的整个生命周期，会一直在窗口X，==这是因为各阶段之间进度的同步，通过水位（Dataflow），micro-batch（Spark），或任何在引擎层的其它同步机制。==
 
-As I’ve noted to death, the big downside of processing time-windowing is that the contents of the windows change when the observation order of the inputs changes. To drive this point home(为了真正理解这一点) in a more concrete manner, we’re going to look at these three use cases:
+==As I’ve noted to death==, the big downside of processing time-windowing is that the contents of the windows change when the observation order of the inputs changes. To drive this point home in a more concrete manner, we’re going to look at these three use cases:
+处理时间窗口的最大缺点是，输入的顺序一旦改变，窗口内容会发生变化。为了真正理解这一点，我们来看三个场景：
 
 -   Event-time windowing
 -   Processing-time windowing via triggers
 -   Processing-time windowing via ingress time
+-   事件时间
+-   处理时间窗口，使用触发器
+-   处理时间窗口，使用进入时间
 
 We'll apply each to two different input sets (so, six variations total). **The two input sets will be for the exact same events** (i.e., same values, occurring at the same event times), **but with different observation orders**. The first set will be the observation order we’ve seen all along, colored white; the second one will have all the values shifted in the processing-time axis as in Figure 12 below, colored purple. You can simply imagine that the purple example is another way reality could have happened if the winds had been blowing in from the east instead of the west (i.e., the underlying set of complex distributed systems had played things out in a slightly different order).
+每个场景应用两个不同的输入集（总共执行六次）。两个输入集有相同的事件（即，相同的值和事件时间），但系统观察到的顺序不同。如图12所示，第一组白色，是我们一直使用的观察顺序；第二组紫色，所有的值沿着处理时间维度（Y轴）移动了位置。你可以简单地认为，紫色例子是现实中另一种可能发生的事实，比如今天刮东风，而不是西风（也就是说，底层复杂的分布式系统以稍微不同的顺序发挥了作用）。
 
 [Figure 12. Shifting input observation order in processing time, holding values and event times constant. ]
 
 ### 事件时间窗口
 
 To establish a baseline, let’s first compare fixed windowing in event-time with a heuristic watermark over these two observation orderings. We’ll reuse the early/late code from Listing 5/Figure 7 to get the results below. The left-hand side is essentially what we saw before; the right-hand side is the results over the second observation order. The important thing to note here is: even though the overall shape of the outputs differs (due to the different orders of observation in processing time), **the final results for the four windows remain the sam**e: 14, 22, 3, and 12:
+为了建立基准，让我们先看看使用事件时间窗口和启发式水位，在观察顺序不同的两个数据集上的执行情况。我们重用代码清单5（图7）中早期和延迟的触发器，得到下面的结果。左边本质上就是我们前面看到的，右边是在另一个观察顺序数据集上执行的结果。这里的重点是：即使输出的整体形状不同（由于在处理时间观察到的顺序不同），四个窗口的最终结果保持不变：14，22，3，和12：
 
 [Figure 13. Event-time windowing over two different processing-time orderings of the same inputs.]
 
 ### 处理时间窗口：使用触发器
 
 Let’s now compare this to the two processing time methods described above. First, we’ll try the triggers method. There are three aspects to making processing-time “windowing” work in this manner:
+现在，我们开始比较前述两种使用处理时间的方法。首先尝试触发器。要以这种方式使得处理时间“分窗”可以工作，要考虑三个方面：
 
 - **Windowing**: We use the global event-time window since we’re essentially emulating processing-time windows with event-time panes.
+- **窗口**：我们使用全局事件时间窗口，本质上是用事件时间窗格模拟处理时间窗口
 - **Triggering**: We trigger periodically in the processing-time domain, based off of the desired size of the processing-time windows.
+- **触发器**：我们根据所需处理时间窗口的大小，在处理时间维度定期触发。
+- **Accumulation:** We use discarding mode to keep the panes independent from one     another, thus letting each of them act like an independent processing-time “window.”
+- **累积**：我们使用丢弃模式，以保持窗格彼此独立，从而让每个窗口都像一个独立的处理时间“窗口”。
 
 The corresponding code looks something like Listing 9; note that global windowing is the default, hence there is no specific override of the windowing strategy:
+参考代码清单9，注意全局窗口是默认的，因此没有明确指定分窗策略：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
@@ -483,24 +501,31 @@ PCollection<KV<String, Integer>> scores = input
 ```
 
 When executed on a streaming runner against our two different orderings of the input data, the results look like Figure 14 below. Interesting notes with this figure:
+在流式引擎上执行上述代码，在==观察顺序不同的两个数据集上==的运行结果如下图14，此图有趣的注释如下：
 
 - Since we’re emulating processing time windows via event-time panes, the “windows” are delineated in the processing-time axis, which means their width is measured on the Y axis instead of the X axis.
-
+- 由于我们通过事件时间窗格来模拟处理时间窗口，所以在处理时间轴定义“窗口”，这意味着窗口宽度是在Y轴，而不是X轴上测量的。
 - Since processing-time windowing is sensitive to the order that input data are encountered, the results for each of the “windows” differs for each of the two observation orders, even though the events themselves technically happened at the same times in each version. On the left we get 12, 21, 18, whereas on the right we get 7, 36, 4.
+- 由于处理时间窗口对数据输入顺序敏感，不同的观察顺序，即使技术上两个数据集的事件发生在同一时间，但对应窗口的结果不同。左边是12，21，18，而右边是7，36，4。
 
 [Figure 14. Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.]
 
 ### 处理时间窗口：使用进入时间
 
 Lastly, let’s look at processing-time windowing achieved by mapping the event times of input data to be their ingress times. Code-wise, there are four aspects worth mentioning here:
+最后，让我们来看看实现处理时间窗口的另一个方法，==输入数据的事件时间就是它们的进入时间==。代码层面，这里有四个方面值得一提：
 
 - **Time-shifting**: When elements arrive, their event times need to be overwritten with the time of ingress. Note that we don’t currently have a standard API for this in Dataflow, although we may in the future (hence the use of a fictional method on the pseudo-code I/O source to represent this in the code below). For Google Cloud Pub/Sub, you simply need to leave the timestampLabel field of the message empty when publishing messages; for other sources, you’d need to consult the source-specific documentation.
-
+- **时间偏移**：当记录到达时，用进入时间覆盖事件时间。请注意尽管未来可能实现，但目前Dataflow没有标准API来做到这点（下面伪码中的I / O源使用的是虚构方法来表示这点）。对于Google Cloud Pub/Sub服务，发消息时，只需要让`timestampLabel`字段为空即可；对于其他数据源，需要查阅它们的具体文档。
 - **Windowing**: Return to using standard fixed event-time windowing.
+- **窗口**：回到标准的、事件时间维度上的固定窗口。
 - **Triggering**: Since ingress time affords the ability to calculate a perfect watermark, we can use the default trigger, which in this case implicitly fires exactly once when the watermark passes the end of the window.
-- **Accumulation** mode: Since we only ever have one output per window, the accumulation mode is irrelevant.
+- **触发器**：由于==进入时间提供了计算完美水位的能力==，可使用默认触发器，在这种情况下，当水位通过**窗口末端**时，隐式地触发一次
+- **Accumulation mode**: Since we only ever have one output per window, the accumulation mode is irrelevant.
+- **累积模式**：因为每个窗口只有一个输出（使用缺省触发器，只触发一次），不需要设置累积模式。
 
 The actual code might thus looks something like this:
+代码看起来如下：
 
 ```java
 PCollection<String> raw = IO.read().withIngressTimeAsTimestamp();
@@ -512,41 +537,55 @@ PCollection<KV<String, Integer>> scores = input
 ```
 
 And execution on a streaming engine would look like Figure 15 below. As data arrive, their event times are updated to match their ingress times (i.e., the processing times at arrival), resulting in a rightward horizontal shift onto the ideal watermark line. Interesting notes in this figure:
+流式引擎上的执行效果如下图15。数据到达后，用进入时间覆盖事件时间（即到达时的处理时间），导致向右水平移动到理想的水位线。此图有趣的注释如下：
 
 - As with the other processing-time windowing example, we get different results when the ordering of inputs change, even though the values and event times for the input stay constant.
-
+- 与上一个例子一样的是，即使输入值和事件时间保持不变，但输入顺序有变化，我们得到的结果不同了。
 - Unlike the other example, the windows are once again delineated in the event-time domain (and thus along the X axis). Despite this, they aren’t bonafide event-time windows; we’ve simply mapped processing time onto the event-time domain, erasing the original record of occurrence for each input and replacing it with a new one that instead represents the time the datum was first observed by the pipeline.
+- 与上一个例子不同的是，窗口再次被划定在事件时间维度（因此沿X轴）。尽管如此，这并不是真正的事件时间窗口；我们只是在处理时间和事件发生时间之间做了简单地映射，删除每个输入原始发生的时间，更换成新的、表示首次在管道观察到数据的时间。
 - Despite this, thanks to the watermark, trigger firings still happen at exactly the same time as in the previous processing-time example. Furthermore, the output values produced are identical to that example, as predicted: 12, 21, 18 on the left, and 7, 36, 4 on the right.
+- 尽管这样，由于水位，触发器触发的时间和上一个例子的触发时间完全一至。此外，产生的输出值也和上例一样，如预测：左边12、21、18和右边7、36、4。
 - Since perfect watermarks are possible when using ingress time, the actual watermark matches the ideal watermark, ascending up and to the right with a slope of one.
+- 使用进入时间，完美水位成为可能。此时，实际水位和理想水位匹配，是一条向右上升的斜线。
 
 [Figure 15. Processing-time windowing via the use of ingress time, over two different processing-time orderings of the same inputs. Credit: Tyler Akidau.]
 
 While it’s interesting to see the different ways one can implement processing-time windowing, the big takeaway here is the one I’ve been harping on since the first post: event-time windowing is order-agnostic, at least in the limit (actual panes along the way may differ until the input becomes complete); processing-time windowing is not. If you care about the times at which your events actually happened, you must use event-time windowing or your results will be meaningless. I will get off my soapbox now.
 
+尽管用不同的方式实现处理时间窗口很有趣，但这里的核心关键点，正是我在第一篇文章中反复唠叨的：至少在某个时限内，事件时间窗口是顺序无关的（事实上，在输入变得完整之前，整个过程中窗格的输出可能会有所不同）；处理时间窗口是顺序相关的。如果你关心的是事件发生的实际时间，那就必须使用事件时间窗口，否则结果将毫无意义。好了，唠叨结束。
+
 ## Where：Session 窗口
 
 We are soooooooo close to being done with examples. If you’ve made it this far, you are a very patient reader. The good news is, your patience has not been for naught. We’re now going to look at one of my favorite features: the dynamic, data-driven windows called sessions. Hold on to your hats and glasses.
+我们如如如如此接近完成。读到这，你真是一个非常有耐心的读者。好消息是，你的耐心并没有白费。现在来看一个我最喜欢的功能：动态的、数据驱动的Session 窗口。准备好，我们继续了。
 
 Sessions are a special type of window that captures a period of activity in the data that is terminated by a gap of inactivity. They’re particularly useful in data analysis because they can provide a view of the activities for a specific user over a specific period of time where they were engaged in some activity. This allows for the correlation of activities within the session, drawing inferences about levels of engagement based off of the lengths of the sessions, etc.
+Session是一种特殊类型的窗口，它**捕获**数据中的活动周期，由不活动的间隔终止。在数据分析中Session特别有用，因为它们可以为特定用户在特定时间内从事某些活动提供==活跃视图==。例如，支持Session内活动的相关性分析，可基于Session的长度推论用户的参与度，等等。
 
 From a windowing perspective, sessions are particularly interesting in two ways:
+从窗口的角度，Session在两个方面特别有趣：
 
 - They are an example of a data-driven window: the location and sizes of the windows are a direct consequence of the input data themselves, rather than being based off of some predefined pattern within time, like fixed and sliding windows are.
-
+- 它是数据驱动窗口的一个例子：窗口的位置和大小是输入数据自身的直接结果，而不是像固定窗口和滑动窗口那样，基于某些预定义的时间模式。
 - They are also an example of an unaligned window, i.e., a window that does not apply uniformly across the data, but instead only to a specific subset of the data (e.g., per user). This is in contrast to aligned windows like fixed and sliding windows, which typically apply uniformly across the data.
+- 它也是非对齐窗口的一个例子：即，并不是一致地切分所有数据，不同的数据子集（例如，按用户）有不同地切分方式。对比对齐窗口，例如固定窗口和滑动窗口总是一致地切分所有数据。
 
 For some use cases, it’s possible to tag the data within a single session with a common identifier ahead of time (e.g., a video player that emits heartbeat pings with quality of service information; for any given viewing, all of the pings can be tagged ahead of time with a single session ID). In this case, sessions are much easier to construct since it’s basically just a form of grouping by key.
+某些情况下，可以事先为单个Session里的数据用共同的标识符打标签（例如，视频播放器的心跳带有服务质量信息；对于任何给定的观察，所有的心跳信息可以提前标记单个Session ID）。此时，构造Session更容易，因为它基本上只是一种按键分组的形式。
 
 However, in the more general case (i.e., where the actual session itself is not known ahead of time), the sessions must be constructed from the locations of the data within time alone. When dealing with out-of-order data, this becomes particularly tricky.
+然而，更一般的情况下（即，无法提前知道实际的Session），只能通过事件发生的时间独自构造Session。处理乱序数据时，这变得特别棘手。
 
 They key insight in providing general session support is that a complete session window is, by definition, a composition of a set of smaller, overlapping windows, each containing a single record, with each record in the sequence separated from the next by a gap of inactivity no larger than a predefined timeout. Thus, even if we observe the data in the session out of order, we can build up the final session simply by merging together any overlapping windows for individual data as they arrive.
+提供通用Session支持的关键直觉是：根据定义，完整的Session窗口由一组重叠的小窗口序列组成，每个窗口包含一个记录，序列中前后两个记录的不活跃间隔小于预定义的超时。这样，即使在Session中观察到乱序数据，当单独的延迟数据到达时，也只需简单地将所有重叠的窗口合并起来。
 
 [Figure 16. Unmerged proto-session windows, and the resultant merged sessions.]
 
 Let’s look at an example, by taking the early/late code with retractions enabled from Listing 8 and updating the windowing to build sessions instead:
+让我们看一个例子，修改代码清单8的分窗策略以构建Session，早期和延迟的触发器配置不变，使用带有回收值得累积模式。
 
 ```java
-PCollection<KV<String, Integer>> scores = input
+PCollection<KV<String, Integer>> scores = input;
   .apply(Window.into(Sessions.withGapDuration(Duration.standardMinutes(1)))
                .triggering(
                  AtWatermark()
@@ -558,22 +597,32 @@ PCollection<KV<String, Integer>> scores = input
 ```
 
 Executed on a streaming engine, you’d get something like Figure 17 below:
+流式引擎上的执行效果如下图17：
 
 [Figure 17. Early and late firings with sessions windows and retractions on a streaming engine.]
 
 There’s quite a lot going on here, so I’ll walk you through some of it:
+这幅图有太多的内容，我只讲一些：
 
 - When the first record with value 5 is encountered, it’s placed into a single proto-session window that begins at that record’s event-time and spans the width of the session gap duration—e.g., one minute beyond the point at which that datum occurred. Any windows we encounter in the future that overlap this window should be part of the same session, and will be merged into it as such.
-
+- 遇到的第一个记录是5，被放到一个原始的Session窗口中。窗口以记录的事件时间为起点，宽度是Session的间隔时间 —— 即一分钟。后续遇到的任何窗口，如果与之重叠，那就应该是整个Session的一部分，并将被合并到一起。
 - The second record to arrive is the 7, which similarly is placed into its own proto-session window, since it doesn’t overlap with the window for the 5.
+- 第二个到达的记录是7，同样被放置在它自己的原始Session窗口中，因为它与包含记录5的窗口没有重叠。
 - In the meantime, the watermark has passed the end of the first window, so the value of 5 is materialized as an on-time result just before 12:06. Shortly thereafter, the second window is also materialized as a speculative result with value 7, right as processing time hits 12:06.
+- 同时，水位通过了第一个窗口的末端，因此就在12:06之前，作为准时的结果输出值5。不久，就在处理时间走到12:06，第二个窗口也被实体化，输出预测结果7。
 - We next observe a sequence of records, 3, 4, and 3, the proto-sessions for which all overlap. As a result, they are all merged together, and by the time the early trigger for 12:07 fires, a single window with value 10 is emitted.
+- 接下来，我们观察到一系列的记录，3，4，和3，它们的原始Session相互重叠，因此，合并在一起，同时，12:07的早期触发器触发，输出一个包含值10的窗口。
 - When the 8 arrives shortly thereafter, it overlaps with both the proto-session with value 7, and the session with value 10. All three are thus merged together, forming a new combined session with value 25. When the watermark then passes the end of this session, it materializes both the new session with value 25 as well as retractions for the two windows that were previously emitted, but later incorporated into it: the 7 and the 10.
-- A similar dance occurs when the 9 arrives late, joining the proto-session with value 5 and session with value 25 into a single larger session of value 39. The 39 and the retractions for the 5 and 25 windows are all emitted immediately by the late data trigger.
+- 记录8不久后到达，它和值7，值10的两个原始Session重叠。这三个Session合并在一起组成一个新的Session，值为25。当水位通过这个Session窗口的末端，实体化一个值为25的新Session，以及前面两个窗口的回收值7和10，它们已被后面的窗口纳入。
+- **A similar dance occurs when the 9 arrives late**, joining the proto-session with value 5 and session with value 25 into a single larger session of value 39. The 39 and the retractions for the 5 and 25 windows are all emitted immediately by the late data trigger.
+- 当记录9延迟到达时，重复做类似的事情，新Session，值为5的Session，以及值为25的Session合并在一起，组成一个更大的、值为39的Session。由于延迟触发器，立即输出39以及回收值5和25。
 
 This is some pretty powerful stuff. And what’s really awesome is how easy it is to describe something like this within a model that breaks apart the dimensions of stream processing into distinct, composable pieces. In the end, you can focus more on the interesting business logic at hand and less on the minutiae of shaping the data into some usable form.
 
+Session窗口非常强大。真正棒的是：我们的模型把流式处理问题分割成独立的、可组合的不同部分；在我们的模型里描述像Session窗口这样的东西是如此简单。最后，你可以把注意力更多地放在手边有趣的业务逻辑上，而较少关注在将数据转换成==可用形式==这样的细枝末节上。
+
 If you don’t believe me, check out this blog post describing how to manually build up sessions on Spark Streaming (note that this is not done to point fingers at them; the Spark folks have just done a good enough job with everything else that someone’s actually bothered to go to the trouble of documenting what it takes to build a specific variety of sessions support on top of them; I can’t say the same for most other systems out there). It’s quite involved, and they’re not even doing proper event-time sessions, or providing speculative or late firings, nor retractions.
+如果你不相信，看看这篇博客：[如何用Spark Streaming手动建立Session](http://blog.cloudera.com/blog/2014/11/how-to-do-near-real-time-sessionization-with-spark-streaming-and-apache-hadoop/)（请注意，这不是为了指责他们；Spark的伙计们做得足够好了，但是如何基于Spark Streaming构建特定的Session，则需要人不辞辛劳去记录一些繁琐的细节；我不太清楚其它大多数系统）。相当复杂，他们甚至没有正确地实现事件时间维度上的Session窗口，没有早期和延迟触发，也没有回收值。
 
 ## 知道该结束了，我感觉还不错
 
