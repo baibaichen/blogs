@@ -408,3 +408,25 @@ Comparing the final frames of Figures 9, 7 (heuristic only), and 10 side-by-side
 As you can imagine, the modes in the order presented (discarding, accumulating, accumulating & retracting) are each successively more expensive in terms of storage and computation costs. To that end, choice of accumulation mode provides yet another dimension for making tradeoffs along the axes of correctness, latency, and cost.
 
 你可以想象，在存储和计算成本方面，按模式呈现的先后顺序（丢弃，累积，累积和收回）一个比一个更贵。为此，累积模式提供了另一个维度，用于在正确性，延迟和成本之间进行权衡。
+
+## **转场插曲**
+
+At this point, we’ve touched upon all four questions:
+
+- *What* results are calculated? Answered via transformations.
+- *Where* in event time are results calculated? Answered via windowing.
+- *When* in processing time are results materialized? Answered via watermarks and triggers.
+- *How* do refinements of results relate? Answered via accumulation modes.
+
+However, we’ve really only looked at one type of windowing: fixed windowing in event-time. As you know from Streaming 101, there are a number of dimensions to windowing, two of which I’d like to visit before we call it day: fixed windowing in processing-time and session windowing in event-time.
+
+至此，我们已经触及了所有四个问题：
+
+- 计算逻辑是什么？由转换回答。
+
+- 计算什么时候（事件时间维度上）的数据？由窗口回答
+- 在什么时候（处理时间维度上）进行计算，并输出结果？由水位和触发器回答
+- 如何细化窗口多次输出的结果？由聚合模式回答
+
+不过，我们只看了一种类型的窗口：事件时间维度上的固定窗口。正如你所知道，Streaming 101中还有一些其它类型的窗口。今天要讨论的其中两个是：处理时间维度上的固定窗口和事件时间维度上的Session窗口。
+
