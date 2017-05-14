@@ -322,3 +322,89 @@ Two final side notes about lateness horizons:
 Practicality sated, let’s move on to our fourth and final question.
 
 垃圾回收讲完，继续讨论第四个，也是最后一个问题。
+
+### How：累计模式
+
+When triggers are used to produce multiple panes for a single window over time, we find ourselves confronted with the last question: “How do refinements of results relate?” In the examples we’ve seen so far, each successive pane built upon the one immediately preceding it. However, there are actually three different modes of accumulation[6]:
+
+使用触发器，随着时间推移，一个窗口生成多个窗格后，我们将面临最后一个问题：如何细化窗口多次输出的结果？在迄今为止我们看到的所有例子中，后续的窗格总是基于其前面一个窗格构建。不过，实际上有三种不同的累积方式^[6]^：
+
+- **Discarding**: Every time a pane is materialized, any stored state is discarded. This means each successive pane is independent from any that came before. Discarding mode is useful when the downstream consumer is performing some sort of accumulation itself—e.g., when sending integers into a system that expects to receive deltas that it will sum together to produce a final count.
+- **丢弃**：每次实体化窗格时，丢弃所有的中间状态。这意味着后续窗格和其前面的窗格相互独立。丢弃模式用于下游用户自身会执行某种累积操作时（例如求和），==发送这意味着数增量即可，系统自己相加以产生最后的结果==。
+- **Accumulating**: As in Figure 7, every time a pane is materialized, any stored state is retained, and future inputs are accumulated into the existing state. This means each successive pane builds upon the previous panes. Accumulating mode is useful when later results can simply overwrite previous results, such as when storing output in a key/value store like BigTable or HBase.
+- **累积**：如图7每次实体化窗格时，仍然保留中间状态，后续的输入也会被累积到现有的状态中去。这意味着后续的窗格基于其前面的窗格构建。累积模式用于后面的结果可以简单地覆盖以前的结果，例如，将输出存入像Bigtable或HBase这样的键值存储中。
+- **Accumulating & retracting:** Like accumulating mode, but when producing a new pane, also produces independent retractions for the previous pane(s). Retractions (combined with the new accumulated result) are essentially an explicit way of saying, “I previously told you the result was X, but I was wrong. Get rid of the X I told you last time, and replace it with Y.” There are two cases where retractions are particularly helpful:
+- **累积且回收**：类似于累积模式，但是每次产生新窗格时，同时为前面的窗格产生独立的回收值。回收（并结合新累积的结果）本质上是明确表达，‘’我以前告诉你结果是X，但我错了。把我上次告诉你的X去掉，用Y替换‘’。有两种场景，回收特别有帮助：
+  - When consumers downstream are re-grouping data by a different dimension, it’s entirely possible the new value may end up keyed differently from the previous value, and thus end up in a different group. In that case, the new value can’t just overwrite the old value; you instead need the retraction to remove the old value from the oldgroup, while the new value is incorporated the new group.
+  - 当下游消费者按不同的维度重新分组数据时，新值和旧值完全可能由于键值不同，因此最终被分到不同的组。这种情况下，新值不能只覆盖旧值，而是需要从旧组中移除旧值，再将新值将并入新组。
+  - When dynamic windows (e.g., sessions, which we’ll look at more closely below) are in use, the new value may be replacing more than one previous window, due to window merging. In this case, it can be difficult to determine from the new window alone which old windows are being replaced. Having explicit retractions for the old windows makes the task straightforward.
+  - 使用动态窗口（例如，Session，我们后面会再细看）时，由于窗口合并，新值可能会替代前面好几个窗口的值。这种情况下，只有新窗口的值，很难确定需要替换的老窗口。有旧窗口的回收值，可使得任务变简单。
+
+The different semantics for each group are somewhat clearer when seen side-by-side. Consider the three panes for the second window in Figure 7(the one with event time range [12:02, 12:04)). The table below shows what the values for each pane would look like across the three supported accumulation modes (with Accumulating mode being the specific mode used in Figure 7):
+
+并排对比每种模式，它们之间不同的语义会更加清晰。考虑图7中第二个窗口的三个窗格（事件时间范围[12:02，12:04））。 下表显示了三种累积模式下，每个窗格的值是多少（在图7的管道中使用三种特定的累积模式）：
+
+[Table 1. Comparing accumulation modes using the second window from Figure 7.]
+
+- **Discarding**: Each pane incorporates only the values that arrived during that specific pane. As such, the final value observed does not fully capture the total sum. However, if you were to sum all the independent panes themselves, you would arrive at a correct answer of 22. This is why discarding mode is useful when the downstream consumer itself is performing some sort of aggregation on the materialized panes.
+- **丢弃**：每个窗格仅包含当前窗格中到达的值。因此，观察到的最终值不能完全==捕获总和==。 但是，如果自己基于所有独立的窗格求和，将得到正确答案22。当实体化窗格，下游消费者自身会执行某种聚合操作时，是丢弃模式有用的场景。
+- **Accumulating**: As in Figure 7, each pane incorporates the values that arrived during that specific pane, plus all the values from previous panes. As such, the final value observed correctly captures the total sum of 22. If you were to sum up the individual panes themselves, however, you’d effectively be double- and triple-counting the inputs from panes 2 and 1, respectively, giving you an incorrect total sum of 51. This is why accumulating mode is most useful when you can simply overwrite previous values with new values: the new value already incorporates all the data seen thus far.
+- **累积**：如图7所示，每个窗格除包含当前窗格中到达的值，还会包含前面窗格中的所有值。因此，观察到的最终值正确地捕获了总和22。但是，如果你自己基于单个窗格求和，那么实际上对窗格2和1中的输入，分别进行了两次和三次重复计算，得到不正确的总和44。当你可以简单地用新值覆盖以前的旧值时，是积累模式是最有用的场景：此时，新值已经集成了迄今为止看到的所有数据。
+- **Accumulating & retracting**: Each pane includes both a new accumulating mode value as well as a retraction of the previous pane’s value. As such, both the last (non-retraction) value observed as well as the total sum of all materialized panes (including retractions) provide you with the correct answer of 22. This is why retractions are so powerful.
+- **累积和回收**：每个窗格都包含新的累积值以及前一个窗格累积值用于回收。因此，观察到的最后一个窗格的值（非回收）以及所有实体化窗格（包括回收）的总和，都为正确的答案22。这就是为什么回收如此强大的原因。
+
+To see discarding mode in action, we would make the following change to Listing 5:
+使用丢弃模式，需要对代码清单5做如下修改：
+
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(
+                 AtWatermark()
+                   .withEarlyFirings(AtPeriod(Duration.standardMinutes(1)))
+                   .withLateFirings(AtCount(1)))
+               .discardingFiredPanes())
+  .apply(Sum.integersPerKey());
+//Listing 7. Discarding mode version of early/late firings.
+```
+Running again on a streaming engine with a heuristic watermark would produce output like the following:
+在具有启发式水位的流式引擎上再次运行，将产生如下所示的输出：
+
+[Figure 9. Discarding mode version of early/late firings on a streaming engine.]
+
+While the overall shape of the output is similar to the accumulating mode version from Figure 7, note how none of the panes in this discarding version overlap. As a result, each output is independent from the others.
+
+虽然输出的整体形状和图7中累积模式版本类似，但请注意，在这个丢弃版本中没有一个窗格重叠，因此每个窗格输出是独立的。
+
+If we want to look at retractions in action, the change would be similar (note, however, that retractions are still in development for Google Cloud Dataflow at this point, so the naming in this API is somewhat speculative, though unlikely to differ wildly from what we end up shipping):
+
+使用累积和回收模式，代码的修改类似（注意：目前还未实现，API可能会变）：
+
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(
+                 AtWatermark()
+                   .withEarlyFirings(AtPeriod(Duration.standardMinutes(1)))
+                   .withLateFirings(AtCount(1)))
+               .accumulatingAndRetractingFiredPanes())
+  .apply(Sum.integersPerKey());
+//Listing 8. Accumulating & retracting mode version of early/late firings.
+```
+And run on a streaming engine, this would yield output like the following:
+在流式引擎上运行，产生如下输出：
+
+[Figure 10. Accumulating & retracting mode version of early/late firings on a streaming engine.]
+
+Since the panes for each window all overlap, it’s a little tricky to see the retractions clearly. The retractions are indicated in red, which combines with the overlapping blue panes to yield a slightly purplish color. I’ve also horizontally shifted the values of the two outputs within a given pane slightly (and separated them with a comma) to make them easier to differentiate.
+
+由于窗口的窗格都重叠，因此不太容易看清楚回收的值，用红色显示它，蓝色的窗格覆盖其上产生略带紫颜色的效果。我也在窗格中向两边平移了两个输出值（用逗号分隔），使它们更容易区分。
+
+Comparing the final frames of Figures 9, 7 (heuristic only), and 10 side-by-side provides a nice visual contrast of the three modes:
+并排比较图9，图7（启发式水位）和图10的最后一帧，为对比这三种模式提供了很好的视觉效果：
+
+[Figure 11. Side-by-side comparison of accumulation modes: discarding (left), accumulating (center), and accumulating & retracting (right).]
+
+As you can imagine, the modes in the order presented (discarding, accumulating, accumulating & retracting) are each successively more expensive in terms of storage and computation costs. To that end, choice of accumulation mode provides yet another dimension for making tradeoffs along the axes of correctness, latency, and cost.
+
+你可以想象，在存储和计算成本方面，按模式呈现的先后顺序（丢弃，累积，累积和收回）一个比一个更贵。为此，累积模式提供了另一个维度，用于在正确性，延迟和成本之间进行权衡。
