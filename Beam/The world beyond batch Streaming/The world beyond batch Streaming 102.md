@@ -87,8 +87,10 @@
 PCollection<String> raw = IO.read(...);
 PCollection<KV<String, Integer>> input = raw.apply(ParDo.of(new ParseFn());
 PCollection<KV<String, Integer>> scores = input.apply(Sum.integersPerKey());
+// 代码清单1 求和管道。从I / O源读取键/值数据，其中字符串（例如，团队名称）作为键，
+// 整数（例如，团队成员的得分）作为值。 然后将每个键的值相加在一起以产生输出
+// 集合中每个键的总和（例如，团队的总得分）。
 ```
-***列表1 求和管道。****从I / O源读取键/值数据，其中字符串（例如，团队名称）作为键，整数（例如，团队成员的得分）作为值。 然后将每个键的值相加在一起以产生输出集合中每个键的总和（例如，团队的总得分）。*
 
 对于所有示例，会先分析构建管道的代码片段，然后用动画演示管道在具体数据集上的执行情况。更具体地说，管道的输入数据集有10条不同的记录，**一个键**（即每条记录的键一样）。你可以想象在真实的管道中，类似的操作将会在多台机器上并行执行，但对于示例而言，越简单越清晰。
 
@@ -115,9 +117,8 @@ PCollection<KV<String, Integer>> scores = input.apply(Sum.integersPerKey());
 PCollection<KV<String, Integer>> scores = input
   .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2))))
   .apply(Sum.integersPerKey());
+//代码清单2：分窗求和的代码
 ```
-列表2：分窗求和的代码
-
 回想一下，Dataflow为批处理和流式处理提供了统一模型，语义上，批处理只是流式处理的一个子集。因此，我们首先在机制更简单的批处理引擎上执行此管道，当我们切换到流式处理引擎时，==~~这会给我们一些直接比较的东西~~==。
 
 ![图4. 在批处理引擎中执行分窗求和](102-figure-4.png) *图4. 在批处理引擎中执行分窗求和*，[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)
@@ -191,7 +192,7 @@ Triggers are the second half of the answer to the question: “When in processin
 
 Examples of signals used for triggering include:
 
-触发信号包括：
+触发信号的例子包括：
 
 - Watermark progress (i.e., event time progress), an implicit version of which we already saw in Figure 6, where outputs were materialized when the watermark passed the end of the window^[4]^. Another use case is triggering garbage collection when the lifetime of a window exceeds some useful horizon, an example of which we’ll see a little later on.
 - **水位进度（即，事件时间进度）**，我们已经在图6中看到的一个隐式版本，当水位通过窗口时，输出结果^[4]^。另一个使用水位进度的场景是，当窗口的生命周期超出一定的范围，触发垃圾回收，稍后我们将看到一个例子。
@@ -219,8 +220,13 @@ To make the notion of triggers a bit more concrete (and give us something to bui
 
 为了稍微具体化触发器的概念（以便后续基于此构建更复杂的触发器），我们在图6的基础上修改，把图6隐含使用的默认触发器明确地写出来，将其添加到列表2的代码中：
 
-[Listing 3 ]
-
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(AtWatermark()))
+  .apply(Sum.integersPerKey());
+//Listing 3. Explicit default trigger.
+```
 With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
 
 记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。两种情况下，基本的想法是，对于一个给定的窗口，无论是在水位通过窗口的尾端之前还是之后，以某种形式提供有规律的更新（除了更新，我们将收到水位通过窗口尾端的消息）。因此，我们需要重复触发。现在问题就变成了：我们在重复什么？
@@ -241,14 +247,30 @@ Lastly, we need to orchestrate the timing of these various triggers: early, on-t
 
 最后，我们需要好好规划各种触发器触发的时机：早期（），准时（）和晚期（）。我们可以使用`Sequence`触发器和特殊的`OrFinally`触发器来完成。`OrFinally`作为子触发器，触发之后会终止其父触发器。
 
-[Listing 4 ]
-
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(Sequence(
+                 Repeat(AtPeriod(Duration.standardMinutes(1)))
+                   .OrFinally(AtWatermark()),
+                 Repeat(AtCount(1))))
+  .apply(Sum.integersPerKey());
+//Listing 4. Manually specified early and late firings.
+```
 However, that’s pretty wordy. And given that the pattern of repeated-early | on-time | repeated-late firings is so common, we provide a custom (but semantically equivalent) API in Dataflow to make specifying such triggers simpler and clearer:
 
 不过这相当烦琐。考虑到，早期重复触发|准时触发一次|晚期重复触发，这样的模式很常见，Dataflow提供了一个自定义API（语义等价），可以更加简单清晰地声明这样的触发器。
 
-[Listing 5 ]
-
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(
+                 AtWatermark()
+                   .withEarlyFirings(AtPeriod(Duration.standardMinutes(1)))
+                   .withLateFirings(AtCount(1))))
+  .apply(Sum.integersPerKey());
+//Listing 5. Early and late firings via the early/late API.
+```
 Executing either Listing 4 or 5 on a streaming engine (with both perfect and heuristic watermarks, as before) then yields results that look like this:
 
 在流式引擎上执行代码清单4或5（像以前一样，左边完美型水位，右边启发式水印位），产生的结果看起来像这样：
@@ -287,7 +309,17 @@ Since the interaction between allowed lateness and the watermark is a little sub
 
 由于允许的延迟和水位之间的相互作用==有点微妙==，值得看一看例子。我们给代码清单5/图7中启发式水位的管道，加上一分钟的延迟区间（请注意，这个特别选定的小区间能很好地在图中演示，真实场景下，更大的延迟区间可能更实用）：
 
-[Listing 6. Early and late firings with allowed lateness.]
+```java
+PCollection<KV<String, Integer>> scores = input
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
+               .triggering(
+                 AtWatermark()
+                   .withEarlyFirings(AtPeriod(Duration.standardMinutes(1)))
+                   .withLateFirings(AtCount(1)))
+               .withAllowedLateness(Duration.standardMinutes(1)))
+  .apply(Sum.integersPerKey());
+//Listing 6. Early and late firings with allowed lateness.
+```
 
 The execution of this pipeline would look something like Figure 8 below, where I’ve added the following features to highlight the effects of allowed lateness:
 
