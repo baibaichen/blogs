@@ -275,7 +275,7 @@ Executing either Listing 4 or 5 on a streaming engine (with both perfect and heu
 
 在流式引擎上执行代码清单4或5（像以前一样，左边完美型水位，右边启发式水印位），产生的结果看起来像这样：
 
-![图7](102-figure-7.png) *图7.*，[动画]()
+![图7](102-figure-7.png) *图7.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/a956f3a2e3da28718444e303672bfebf450b3437/file.mp4)
 
 This version has two clear improvements over Figure 6:
 
@@ -337,14 +337,13 @@ For this diagram only, I’ve added an additional late datum for the first windo
 
 只在这幅图为第一个窗口增加了一个额外的延迟数据6。尽管数据6延迟了，但仍在允许的延迟区间内，所以它被纳入更新，输出结果11。然而，数值9到达时，超出了延迟区间，因此简单地丢弃。
 
-![图8](102-figure-8.png) *图8 Windowed summation on a streaming engine with early and late firings and allowed lateness.*，[动画]()
+![图8](102-figure-8.png) *图8 Windowed summation on a streaming engine with early and late firings and allowed lateness.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/0fe570080208aa6b0b2a44790a95813e08889fdc/file.mp4)
 
 Two final side notes about lateness horizons:
 
 - To be absolutely clear, if you happen to be consuming data from sources for which perfect watermarks are available, then there’s no need to deal with late data, and an allowed lateness horizon of zero seconds will be optimal. This is what we saw in the perfect watermark portion of Figure 7.
 
 - One noteworthy exception to the rule of needing to specify lateness horizons, even when heuristic watermarks are in use, would be something like computing global aggregates over all time for a tractably finite number of keys (e.g., computing the total number of visits to your site over all time, grouped by Web browser family). In this case, the number of active windows in the system is bounded by the limited keyspace in use. As long as the number of keys remains manageably low, there’s no need to worry about limiting the lifetime of windows via allowed lateness.
-
 
 关于允许的延迟区间，最后两点注解：
 
@@ -402,7 +401,7 @@ PCollection<KV<String, Integer>> scores = input
 Running again on a streaming engine with a heuristic watermark would produce output like the following:
 在具有启发式水位的流式引擎上再次运行，将产生如下所示的输出：
 
-![图9](102-figure-9.png) *图9 Discarding mode version of early/late firings on a streaming engine.*，[动画]()
+![图9](102-figure-9.png) *图9 Discarding mode version of early/late firings on a streaming engine.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/4a74df3fe91c2aeb1e77a96218c08c6d25fd7632/file.mp4)
 
 While the overall shape of the output is similar to the accumulating mode version from Figure 7, note how none of the panes in this discarding version overlap. As a result, each output is independent from the others.
 
@@ -426,7 +425,7 @@ PCollection<KV<String, Integer>> scores = input
 And run on a streaming engine, this would yield output like the following:
 在流式引擎上运行，产生如下输出：
 
-![图10](102-figure-10.png) *图10 Accumulating & retracting mode version of early/late firings on a streaming engine.*，[动画]()
+![图10](102-figure-10.png) *图10 Accumulating & retracting mode version of early/late firings on a streaming engine.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/69dc164b3c205a742ee4fa663312dc5f74358cb5/file.mp4)
 
 Since the panes for each window all overlap, it’s a little tricky to see the retractions clearly. The retractions are indicated in red, which combines with the overlapping blue panes to yield a slightly purplish color. I’ve also horizontally shifted the values of the two outputs within a given pane slightly (and separated them with a comma) to make them easier to differentiate.
 
@@ -499,14 +498,14 @@ Note that the two methods are more or less equivalent, although they differ slig
 We'll apply each to two different input sets (so, six variations total). **The two input sets will be for the exact same events** (i.e., same values, occurring at the same event times), **but with different observation orders**. The first set will be the observation order we’ve seen all along, colored white; the second one will have all the values shifted in the processing-time axis as in Figure 12 below, colored purple. You can simply imagine that the purple example is another way reality could have happened if the winds had been blowing in from the east instead of the west (i.e., the underlying set of complex distributed systems had played things out in a slightly different order).
 每个场景应用两个不同的输入集（总共执行六次）。两个输入集有相同的事件（即，相同的值和事件时间），但系统观察到的顺序不同。如图12所示，第一组白色，是我们一直使用的观察顺序；第二组紫色，所有的值沿着处理时间维度（Y轴）移动了位置。你可以简单地认为，紫色例子是现实中另一种可能发生的事实，比如今天刮东风，而不是西风（也就是说，底层复杂的分布式系统以稍微不同的顺序发挥了作用）。
 
-![图12](102-figure-12-1.png)![图12](102-figure-12-2.png) *图12 Shifting input observation order in processing time, holding values and event times constant.*，[动画]()
+![图12](102-figure-12-1.png)![图12](102-figure-12-2.png) *图12 Shifting input observation order in processing time, holding values and event times constant.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/30831a9ed334cdb87d247d2a21a0be53e729e869/file.mp4)
 
 ### 事件时间窗口
 
 To establish a baseline, let’s first compare fixed windowing in event-time with a heuristic watermark over these two observation orderings. We’ll reuse the early/late code from Listing 5/Figure 7 to get the results below. The left-hand side is essentially what we saw before; the right-hand side is the results over the second observation order. The important thing to note here is: even though the overall shape of the outputs differs (due to the different orders of observation in processing time), **the final results for the four windows remain the sam**e: 14, 22, 3, and 12:
 为了建立基准，让我们先看看使用事件时间窗口和启发式水位，在观察顺序不同的两个数据集上的执行情况。我们重用代码清单5（图7）中早期和延迟的触发器，得到下面的结果。左边本质上就是我们前面看到的，右边是在另一个观察顺序数据集上执行的结果。这里的重点是：即使输出的整体形状不同（由于在处理时间观察到的顺序不同），四个窗口的最终结果保持不变：14，22，3，和12：
 
-![图13](102-figure-13.png) *图13 Event-time windowing over two different processing-time orderings of the same inputs.*，[动画]()
+![图13](102-figure-13.png) *图13 Event-time windowing over two different processing-time orderings of the same inputs.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/1c4b79c3f318b6873c417d10f0fdc16418176e9d/file.mp4)
 
 ### 处理时间窗口：使用触发器
 
@@ -540,7 +539,7 @@ When executed on a streaming runner against our two different orderings of the i
 - Since processing-time windowing is sensitive to the order that input data are encountered, the results for each of the “windows” differs for each of the two observation orders, even though the events themselves technically happened at the same times in each version. On the left we get 12, 21, 18, whereas on the right we get 7, 36, 4.
 - 由于处理时间窗口对数据输入顺序敏感，不同的观察顺序，即使技术上两个数据集的事件发生在同一时间，但对应窗口的结果不同。左边是12，21，18，而右边是7，36，4。
 
-![图14](102-figure-14.png) *图14 Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.*，[动画]()
+![图14](102-figure-14.png) *图14 Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/3d49514e2689726da73c2ef1a96dd53dd5d829a6/file.mp4)
 
 ### 处理时间窗口：使用进入时间
 
@@ -580,7 +579,7 @@ And execution on a streaming engine would look like Figure 15 below. As data arr
 - Since perfect watermarks are possible when using ingress time, the actual watermark matches the ideal watermark, ascending up and to the right with a slope of one.
 - 使用进入时间，完美水位成为可能。此时，实际水位和理想水位匹配，是一条向右上升的斜线。
 
-![图15](102-figure-15.png) *图15 Processing-time windowing via the use of ingress time, over two different processing-time orderings of the same inputs.*，[动画]()
+![图15](102-figure-15.png) *图15 Processing-time windowing via the use of ingress time, over two different processing-time orderings of the same inputs.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/c0b1c7b54a3d17cc417e3250d55b5b4c1197f04b/file.mp4)
 
 While it’s interesting to see the different ways one can implement processing-time windowing, the big takeaway here is the one I’ve been harping on since the first post: event-time windowing is order-agnostic, at least in the limit (actual panes along the way may differ until the input becomes complete); processing-time windowing is not. If you care about the times at which your events actually happened, you must use event-time windowing or your results will be meaningless. I will get off my soapbox now.
 
@@ -631,7 +630,7 @@ PCollection<KV<String, Integer>> scores = input;
 Executed on a streaming engine, you’d get something like Figure 17 below:
 流式引擎上的执行效果如下图17：
 
-![图17](102-figure-17.png) *图17 Early and late firings with sessions windows and retractions on a streaming engine*，[动画]()
+![图17](102-figure-17.png) *图17 Early and late firings with sessions windows and retractions on a streaming engine*，[动画](https://embedwistia-a.akamaihd.net/deliveries/b4113a985cb18a945fb0fc0306dd2d100bb529bf/file.mp4)
 
 There’s quite a lot going on here, so I’ll walk you through some of it:
 这幅图有太多的内容，我只讲一些：
