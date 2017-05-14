@@ -275,7 +275,7 @@ Executing either Listing 4 or 5 on a streaming engine (with both perfect and heu
 
 在流式引擎上执行代码清单4或5（像以前一样，左边完美型水位，右边启发式水印位），产生的结果看起来像这样：
 
-[Figure 7]
+![图7](102-figure-7.png) *图7.*，[动画]()
 
 This version has two clear improvements over Figure 6:
 
@@ -337,7 +337,7 @@ For this diagram only, I’ve added an additional late datum for the first windo
 
 只在这幅图为第一个窗口增加了一个额外的延迟数据6。尽管数据6延迟了，但仍在允许的延迟区间内，所以它被纳入更新，输出结果11。然而，数值9到达时，超出了延迟区间，因此简单地丢弃。
 
-[Figure 8. Windowed summation on a streaming engine with early and late firings and allowed lateness. ]
+![图8](102-figure-8.png) *图8 Windowed summation on a streaming engine with early and late firings and allowed lateness.*，[动画]()
 
 Two final side notes about lateness horizons:
 
@@ -376,7 +376,7 @@ The different semantics for each group are somewhat clearer when seen side-by-si
 
 并排对比每种模式，它们之间不同的语义会更加清晰。考虑图7中第二个窗口的三个窗格（事件时间范围[12:02，12:04））。 下表显示了三种累积模式下，每个窗格的值是多少（在图7的管道中使用三种特定的累积模式）：
 
-[Table 1. Comparing accumulation modes using the second window from Figure 7.]
+![表1](102-figure-table1.png) *表1. Comparing accumulation modes using the second window from Figure 7.*
 
 - **Discarding**: Each pane incorporates only the values that arrived during that specific pane. As such, the final value observed does not fully capture the total sum. However, if you were to sum all the independent panes themselves, you would arrive at a correct answer of 22. This is why discarding mode is useful when the downstream consumer itself is performing some sort of aggregation on the materialized panes.
 - **丢弃**：每个窗格仅包含当前窗格中到达的值。因此，观察到的最终值不能完全==捕获总和==。 但是，如果自己基于所有独立的窗格求和，将得到正确答案22。当实体化窗格，下游消费者自身会执行某种聚合操作时，是丢弃模式有用的场景。
@@ -402,7 +402,7 @@ PCollection<KV<String, Integer>> scores = input
 Running again on a streaming engine with a heuristic watermark would produce output like the following:
 在具有启发式水位的流式引擎上再次运行，将产生如下所示的输出：
 
-[Figure 9. Discarding mode version of early/late firings on a streaming engine.]
+![图9](102-figure-9.png) *图9 Discarding mode version of early/late firings on a streaming engine.*，[动画]()
 
 While the overall shape of the output is similar to the accumulating mode version from Figure 7, note how none of the panes in this discarding version overlap. As a result, each output is independent from the others.
 
@@ -426,7 +426,7 @@ PCollection<KV<String, Integer>> scores = input
 And run on a streaming engine, this would yield output like the following:
 在流式引擎上运行，产生如下输出：
 
-[Figure 10. Accumulating & retracting mode version of early/late firings on a streaming engine.]
+![图10](102-figure-10.png) *图10 Accumulating & retracting mode version of early/late firings on a streaming engine.*，[动画]()
 
 Since the panes for each window all overlap, it’s a little tricky to see the retractions clearly. The retractions are indicated in red, which combines with the overlapping blue panes to yield a slightly purplish color. I’ve also horizontally shifted the values of the two outputs within a given pane slightly (and separated them with a comma) to make them easier to differentiate.
 
@@ -435,7 +435,7 @@ Since the panes for each window all overlap, it’s a little tricky to see the r
 Comparing the final frames of Figures 9, 7 (heuristic only), and 10 side-by-side provides a nice visual contrast of the three modes:
 并排比较图9，图7（启发式水位）和图10的最后一帧，为对比这三种模式提供了很好的视觉效果：
 
-[Figure 11. Side-by-side comparison of accumulation modes: discarding (left), accumulating (center), and accumulating & retracting (right).]
+![图11](102-figure-11.png) *图11 Side-by-side comparison of accumulation modes: discarding (left), accumulating (center), and accumulating & retracting (right).*，[动画]()
 
 As you can imagine, the modes in the order presented (discarding, accumulating, accumulating & retracting) are each successively more expensive in terms of storage and computation costs. To that end, choice of accumulation mode provides yet another dimension for making tradeoffs along the axes of correctness, latency, and cost.
 
@@ -499,14 +499,14 @@ Note that the two methods are more or less equivalent, although they differ slig
 We'll apply each to two different input sets (so, six variations total). **The two input sets will be for the exact same events** (i.e., same values, occurring at the same event times), **but with different observation orders**. The first set will be the observation order we’ve seen all along, colored white; the second one will have all the values shifted in the processing-time axis as in Figure 12 below, colored purple. You can simply imagine that the purple example is another way reality could have happened if the winds had been blowing in from the east instead of the west (i.e., the underlying set of complex distributed systems had played things out in a slightly different order).
 每个场景应用两个不同的输入集（总共执行六次）。两个输入集有相同的事件（即，相同的值和事件时间），但系统观察到的顺序不同。如图12所示，第一组白色，是我们一直使用的观察顺序；第二组紫色，所有的值沿着处理时间维度（Y轴）移动了位置。你可以简单地认为，紫色例子是现实中另一种可能发生的事实，比如今天刮东风，而不是西风（也就是说，底层复杂的分布式系统以稍微不同的顺序发挥了作用）。
 
-[Figure 12. Shifting input observation order in processing time, holding values and event times constant. ]
+![图12](102-figure-12-1.png)![图12](102-figure-12-2.png) *图12 Shifting input observation order in processing time, holding values and event times constant.*，[动画]()
 
 ### 事件时间窗口
 
 To establish a baseline, let’s first compare fixed windowing in event-time with a heuristic watermark over these two observation orderings. We’ll reuse the early/late code from Listing 5/Figure 7 to get the results below. The left-hand side is essentially what we saw before; the right-hand side is the results over the second observation order. The important thing to note here is: even though the overall shape of the outputs differs (due to the different orders of observation in processing time), **the final results for the four windows remain the sam**e: 14, 22, 3, and 12:
 为了建立基准，让我们先看看使用事件时间窗口和启发式水位，在观察顺序不同的两个数据集上的执行情况。我们重用代码清单5（图7）中早期和延迟的触发器，得到下面的结果。左边本质上就是我们前面看到的，右边是在另一个观察顺序数据集上执行的结果。这里的重点是：即使输出的整体形状不同（由于在处理时间观察到的顺序不同），四个窗口的最终结果保持不变：14，22，3，和12：
 
-[Figure 13. Event-time windowing over two different processing-time orderings of the same inputs.]
+![图13](102-figure-13.png) *图13 Event-time windowing over two different processing-time orderings of the same inputs.*，[动画]()
 
 ### 处理时间窗口：使用触发器
 
@@ -540,7 +540,7 @@ When executed on a streaming runner against our two different orderings of the i
 - Since processing-time windowing is sensitive to the order that input data are encountered, the results for each of the “windows” differs for each of the two observation orders, even though the events themselves technically happened at the same times in each version. On the left we get 12, 21, 18, whereas on the right we get 7, 36, 4.
 - 由于处理时间窗口对数据输入顺序敏感，不同的观察顺序，即使技术上两个数据集的事件发生在同一时间，但对应窗口的结果不同。左边是12，21，18，而右边是7，36，4。
 
-[Figure 14. Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.]
+![图14](102-figure-14.png) *图14 Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.*，[动画]()
 
 ### 处理时间窗口：使用进入时间
 
@@ -580,7 +580,7 @@ And execution on a streaming engine would look like Figure 15 below. As data arr
 - Since perfect watermarks are possible when using ingress time, the actual watermark matches the ideal watermark, ascending up and to the right with a slope of one.
 - 使用进入时间，完美水位成为可能。此时，实际水位和理想水位匹配，是一条向右上升的斜线。
 
-[Figure 15. Processing-time windowing via the use of ingress time, over two different processing-time orderings of the same inputs. Credit: Tyler Akidau.]
+![图15](102-figure-15.png) *图15 Processing-time windowing via the use of ingress time, over two different processing-time orderings of the same inputs.*，[动画]()
 
 While it’s interesting to see the different ways one can implement processing-time windowing, the big takeaway here is the one I’ve been harping on since the first post: event-time windowing is order-agnostic, at least in the limit (actual panes along the way may differ until the input becomes complete); processing-time windowing is not. If you care about the times at which your events actually happened, you must use event-time windowing or your results will be meaningless. I will get off my soapbox now.
 
@@ -611,7 +611,7 @@ However, in the more general case (i.e., where the actual session itself is not 
 They key insight in providing general session support is that a complete session window is, by definition, a composition of a set of smaller, overlapping windows, each containing a single record, with each record in the sequence separated from the next by a gap of inactivity no larger than a predefined timeout. Thus, even if we observe the data in the session out of order, we can build up the final session simply by merging together any overlapping windows for individual data as they arrive.
 提供通用Session支持的关键直觉是：根据定义，完整的Session窗口由一组重叠的小窗口序列组成，每个窗口包含一个记录，序列中前后两个记录的不活跃间隔小于预定义的超时。这样，即使在Session中观察到乱序数据，当单独的延迟数据到达时，也只需简单地将所有重叠的窗口合并起来。
 
-[Figure 16. Unmerged proto-session windows, and the resultant merged sessions.]
+![图16](102-figure-16.png) *图16 Unmerged proto-session windows, and the resultant merged sessions.*
 
 Let’s look at an example, by taking the early/late code with retractions enabled from Listing 8 and updating the windowing to build sessions instead:
 让我们看一个例子，修改代码清单8的分窗策略以构建Session，早期和延迟的触发器配置不变，使用带有回收值得累积模式。
@@ -631,7 +631,7 @@ PCollection<KV<String, Integer>> scores = input;
 Executed on a streaming engine, you’d get something like Figure 17 below:
 流式引擎上的执行效果如下图17：
 
-[Figure 17. Early and late firings with sessions windows and retractions on a streaming engine.]
+![图17](102-figure-17.png) *图17 Early and late firings with sessions windows and retractions on a streaming engine*，[动画]()
 
 There’s quite a lot going on here, so I’ll walk you through some of it:
 这幅图有太多的内容，我只讲一些：
@@ -677,7 +677,7 @@ Secondly, the four questions we used to frame our exploration (and which I promi
 
 Thirdly and lastly, to drive home the flexibility afforded by this model of stream processing (since in the end, that’s really what this is all about: balancing competing tensions like correctness, latency, and cost), a recap of the major variations in output we were able to achieve over the same data set with only a minimal amount of code change:
 
-[Figure 18. Nine variations in output over the same input set.]
+![图18](102-figure-18.png) *图18 Nine variations in output over the same input set.*
 
 Thank you for your patience and interest. I’ll see you all next time!
 
