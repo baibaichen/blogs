@@ -655,30 +655,38 @@ Session窗口非常强大。真正棒的是：我们的模型把流式处理问�
 If you don’t believe me, check out this blog post describing how to manually build up sessions on Spark Streaming (note that this is not done to point fingers at them; the Spark folks have just done a good enough job with everything else that someone’s actually bothered to go to the trouble of documenting what it takes to build a specific variety of sessions support on top of them; I can’t say the same for most other systems out there). It’s quite involved, and they’re not even doing proper event-time sessions, or providing speculative or late firings, nor retractions.
 如果你不相信，看看这篇博客：[如何用Spark Streaming手动建立Session](http://blog.cloudera.com/blog/2014/11/how-to-do-near-real-time-sessionization-with-spark-streaming-and-apache-hadoop/)（请注意，这不是为了指责他们；Spark的伙计们做得足够好了，但是如何基于Spark Streaming构建特定的Session，则需要人不辞辛劳去记录一些繁琐的细节；我不太清楚其它大多数系统）。相当复杂，他们甚至没有正确地实现事件时间维度上的Session窗口，没有早期和延迟触发，也没有回收值。
 
-## 知道该结束了，我感觉还不错
+## It’s the end of the blog as we know it, and I feel fine
 
 That’s it! I am done with examples. Applause, applause! You are now well steeped in the foundations of robust stream processing, and ready to go forth into the world and do amazing things. But before you leave, I’d like to recap quickly what we’ve covered, lest you forget any of it in your haste. Firstly, the major concepts we touched upon:
 
-- **Event-time versus processing-time**: The all-important distinction between when events occurred and when they are observed by your data processing system.
+就这些！ 例子演示完了。 掌声，掌声！ ==你现在已经很好地沉浸在强大的流式处理的基础之上，并准备进入世界，做出惊人的事情。== 但在结束之前，我想快速回顾一下本文所涵盖的内容，以免你在匆忙中忘了。 首先，我们所涉及的主要概念：
 
+- **Event-time versus processing-time**: The all-important distinction between when events occurred and when they are observed by your data processing system.
+- **事件时间与处理时间**：最重要的区别是事件**发生的时间**和事件**被数据处理系统观察到的时间**。
 - **Windowing**: The commonly utilized approach to managing unbounded data by slicing it up along temporal boundaries (in either processing-time or event-time, though we narrow the definition of windowing in the Dataflow model to mean only within event-time).
+- **窗口**：管理无穷数据的常用方法是沿着时间边界（处理时间维度或事件时间维度皆可，不过Dataflow模型中的窗口**只在事件时间维度定义**）对数据进行切片。
 - **Watermarks**: The powerful notion of progress in event-time that provides a means of reasoning about completeness in an out-of-order processing system operating on unbounded data.
+- **水位**：事件时间维度表示数据进度的强大概念，为处理乱序、无穷数据的流式系统提供了一种推断数据完整性的手段。
 - **Triggers**: The declarative mechanism for specifying precisely when materialization of output makes sense for your particular use case.
+- **触发器**：一种声明式机制，用于精确表达何时实体化输出有意义。
 - **Accumulation**: The relationship between refinements of results for a single window in cases where it’s materialized multiple times as it evolves.
+- **累积模式**：如果窗口随着时间推移实体化输出多次，累积模式用于细化单个窗口多次输出的结果。
 
 Secondly, the four questions we used to frame our exploration (and which I promise I will not make you read any more after this):
+其次，用于探索流式处理引擎的四个问题（我保证再不会提了）：
 
-- **What results are calculated?** = transformations
-
-- **Where in event-time are results calculated?** = windowing
-- **When in processing-time are results materialized?** = watermarks + triggers
-- **How do refinements of results relate?** = accumulation
+- **计算逻辑是什么？**= 转换。
+- **计算什么时候（事件时间维度上）的数据？**= 窗口
+- **在什么时候（处理时间维度上）进行计算，并输出结果？**= 水位 + 触发器
+- **如何细化窗口多次输出的结果？**= 聚合模式
 
 Thirdly and lastly, to drive home the flexibility afforded by this model of stream processing (since in the end, that’s really what this is all about: balancing competing tensions like correctness, latency, and cost), a recap of the major variations in output we were able to achieve over the same data set with only a minimal amount of code change:
+第三，也是最后一点，这种流式处理模式提供了巨大的灵活性（最终在相互冲突的关系，如正确性，延迟和成本之间，取得平衡），我们只需要修改少量代码，在相同的数据集上输出结果的各种变化如下：
 
 ![图18](102-figure-18.png) *图18 Nine variations in output over the same input set.*
 
 Thank you for your patience and interest. I’ll see you all next time!
+谢谢你的耐心和兴趣。下次再见！
 
 ## 后记
 
@@ -692,11 +700,16 @@ And if for some reason you have a craving to hear me wax academic, I wrote a pap
 
 ### 与现实的偏差
 For the sake of completeness, I wanted to point a few deviations from reality (by which I mean the current Google Cloud Dataflow implementation at the time of publication) in the examples provided in this post:
+为了完整起见，我想在本文提供的示例中指出一些偏离现实的情况（我的意思是该文发表时，Google Cloud Dataflow的实现）
 
 1. In Listings 4, 5, and 6, no accumulation mode is specified, but accumulating mode is what we get upon execution. In reality, there is currently no default accumulation mode in Dataflow: you must either specify discarding or accumulating mode. We’re reserving the default for accumulating and retracting mode once that feature is released.
-2. Retractions aren’t supported yet. We’re working on it.
-3. The default allowed lateness is in fact 0. Thus, for all of the examples where allowed lateness is unspecified, we would never see any late panes since state for each window would be dropped immediately after the watermark passed the end of it.
-4. The default trigger is actually a repeated watermark trigger bounded by the default allowed lateness of 0. In Listing 3, I claim (equivalently) that it’s a single watermark trigger, for the sake of simplicity.
+2. 在代码清单4、5、6中，没有指定累积模式，但累积模式是在执行时获到。 实际上，Dataflow当前没有默认的累积模式：您必须指定丢弃或累积模式。 没有实现累积和回收模式之前，我们将保留它作为缺省的累积模式。
+3. Retractions aren’t supported yet. We’re working on it.
+4. 我们正在努力支持累积和回收模式，
+5. The default allowed lateness is in fact 0. Thus, for all of the examples where allowed lateness is unspecified, we would never see any late panes since state for each window would be dropped immediately after the watermark passed the end of it.
+6. 允许的默认延迟实际上是0。因此，对于未指定允许延迟的所有示例，永远不会看到任何延迟的窗格，因为每个窗口的状态在水位通过其末端之后立即被丢弃。
+7. The default trigger is actually a repeated watermark trigger bounded by the default allowed lateness of 0. In Listing 3, I claim (equivalently) that it’s a single watermark trigger, for the sake of simplicity.
+8. 默认触发器实际上是一个重复触发器，由允许的默认延迟为0。在代码清单3中，为了简单起见，我声明它是一个（等价于）触发一次的水位触发器。
 
 ## 感谢
 
