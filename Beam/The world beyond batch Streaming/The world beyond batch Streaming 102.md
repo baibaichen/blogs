@@ -129,13 +129,11 @@ PCollection<KV<String, Integer>> scores = input
 
 ## Streaming 102
 
-我们刚刚在批处理引擎上执行定义了窗口的管道。理想的是：引擎能实时产生结果，并且自身就支持无穷数据源。切换到流式引擎是朝正确方向迈出了一步，然而，批处理引擎知道每个窗口何时具有完整的输入（即，有穷输入源中所有数据都被消费完的时刻），目前缺乏一个实用的方法确定无穷数据源的输入完整性。我们需要为窗口引入水位。
+刚才，在批处理引擎上执行带有窗口的管道。如果引擎能产生低延迟的结果且支持无穷数据源，那就理想了，切换到流式引擎是迈出了正确的一步。然而，批处理引擎知道每个窗口何时具有完整的输入（即，消费完有穷输入源所有数据的时刻），目前，我们缺乏确定无穷数据源输入完整性的实用方法。因此，引入水位。
 
 ### *When*: watermarks
 
-Watermarks are the first half of the answer to the question: “When in processing time are results materialized?” Watermarks are temporal notions of input completeness in the event-time domain. Worded differently, they are the way the system measures progress and completeness relative to the event times of the records being processed in a stream of events (either bounded or unbounded, though their usefulness is more apparent in the unbounded case).
-
-水位是“在**什么时候**（处理时间维度上）进行计算？”的==答案的前半部分==，它是事件时间维度上，输入完整性的时间概念。换句话说，水位是系统衡量管道进度和输入完整性的方法 ，它基于事件流中正被处理记录的事件时间（有穷或无穷数据源皆可，尽管对无穷数据源的用处更明显）。
+“在什么时候（处理时间维度上）进行计算？”的前半部分答案是**水位**。在事件时间维度上，用时间表示输入完整性。换句话说，基于事件流中正被处理记录的事件时间（有穷或无穷数据源皆可，尽管对无穷数据源的用处更明显），用**水位**衡量系统进度和输入完整性 。
 
 Recall this diagram from Streaming 101, slightly modified here, where I described the skew between event time and processing time as an ever-changing function of time for most real-world distributed data processing systems.
 
