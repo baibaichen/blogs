@@ -707,3 +707,5 @@ This is all what I wanted to say about Spark shuffles. It is a very interesting 
 > 2. [Sort-based shuffle implementation](https://issues.apache.org/jira/browse/SPARK-2045)
 > 3. [In sort-based shuffle, store map outputs in serialized form](https://issues.apache.org/jira/browse/SPARK-4550)
 > 4. [Faster sort-based shuffle path using binary processing cache-aware sort](https://issues.apache.org/jira/browse/SPARK-7081)
+> 5. Obviously, Static variable with data will not work with Spark. See answer of [Spark program structure: broadcast variables vs final static vs external static attributes in classes.] (https://stackoverflow.com/questions/37660664/spark-program-structure-broadcast-variables-vs-final-static-vs-external-static) However, in the ` GlobalWatermarkHolder`,there is a `private static volatile Broadcast<Map<Integer, SparkWatermarks>> broadcast` for maintaining watermark. Is static volatile variable serialized at runtime? Also see [Using Non-Serializable Objects in Apache Spark](https://www.nicolaferraro.me/2016/02/22/using-non-serializable-objects-in-apache-spark/)
+
