@@ -137,7 +137,7 @@ PCollection<KV<String, Integer>> scores = input
 
 Recall this diagram from Streaming 101, slightly modified here, where I described the skew between event time and processing time as an ever-changing function of time for most real-world distributed data processing systems.
 
-回忆一下Streaming 101中的这幅图，这里稍作修改，它描述了事件时间和处理时间之间的偏差，==在大多数真实世界分布式数据处理系统中==，这类偏差会随着时间不断变化。
+回想一下Streaming 101中的下图，这里稍作修改，它描述了事件时间和处理时间之间的偏差，在大多数实际的分布式数据处理系统中，这类偏差会随着时间不断变化。
 
 ![图5. 事件时间进度，偏差和水位](102-figure-5.png)*图5. 事件时间进度，偏差和水位*
 
