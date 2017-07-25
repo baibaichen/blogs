@@ -188,6 +188,7 @@ Row trie中每一个 Row node 的数据结构如下：
 #### 代码
 
 - [ ] 这里把相关的代码贴出来
+- [ ] https://issues.apache.org/jira/browse/HBASE-17375
 
 ## 调试方法
 
