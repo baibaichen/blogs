@@ -8,7 +8,7 @@
 
 以Shuffle为边界，Spark将一个Job划分为不同的Stage，这些Stage构成了一个大粒度的DAG。Spark的Shuffle分为Write和Read两个阶段，分属于两个不同的Stage，前者是Parent Stage的最后一步，后者是Child Stage的第一步。如下图所示:
 
-![img](http://upload-images.jianshu.io/upload_images/35301-05f2e70588800a10.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![img](Shuffle.png)
 
 **执行Shuffle的主体是Stage中的并发任务，这些任务分ShuffleMapTask和ResultTask两种，ShuffleMapTask要进行Shuffle，ResultTask负责返回计算结果，一个Job中只有最后的Stage采用ResultTask，其他的均为ShuffleMapTask。如果要按照map端和reduce端来分析的话，ShuffleMapTask可以即是map端任务，又是reduce端任务，==因为Spark中的Shuffle是可以串行的；ResultTask则只能充当reduce端任务的角色。==**
 
