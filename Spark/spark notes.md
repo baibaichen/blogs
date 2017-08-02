@@ -709,3 +709,12 @@ This is all what I wanted to say about Spark shuffles. It is a very interesting 
 > 4. [Faster sort-based shuffle path using binary processing cache-aware sort](https://issues.apache.org/jira/browse/SPARK-7081)
 > 5. Obviously, Static variable with data will not work with Spark. See answer of [Spark program structure: broadcast variables vs final static vs external static attributes in classes.] (https://stackoverflow.com/questions/37660664/spark-program-structure-broadcast-variables-vs-final-static-vs-external-static) However, in the ` GlobalWatermarkHolder`,there is a `private static volatile Broadcast<Map<Integer, SparkWatermarks>> broadcast` for maintaining watermark. Is static volatile variable serialized at runtime? Also see [Using Non-Serializable Objects in Apache Spark](https://www.nicolaferraro.me/2016/02/22/using-non-serializable-objects-in-apache-spark/)
 
+# Issues
+## SPARK-21475
+
+[[CORE] Use NIO's Files API to replace FileInputStream/FileOutputStream in some critical paths](https://issues.apache.org/jira/browse/SPARK-21475)
+
+参考[FileInputStream / FileOutputStream Considered Harmful](https://www.cloudbees.com/blog/fileinputstream-fileoutputstream-considered-harmful)，[HDFS-8562 HDFS Performance is impacted by FileInputStream Finalizer](https://issues.apache.org/jira/browse/HDFS-8562)，像`FileInputStream`这样的类，由于**overrides**了`finalize`方法，即使已经调用了该类的`close`方法，那么该类仍然不会马上释放，必须等到GC时，调用`finalize`。如果创建了太多的这类对象，将会导致GC的时间过长。
+
+因此将关键路径上的（主要是shuffle阶段）`FileInputStream`和`FileOutputStream`的替换为**NIO**的`Files.newInputStream`和`Files.newOutputStream`。
+
