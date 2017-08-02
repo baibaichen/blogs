@@ -58,23 +58,23 @@ Job由`saveAsTextFile`触发，该Job由RDD-3和`saveAsTextFile`方法组成，�
 
 一个Stage是否被提交，需要判断它的父Stage是否执行，只有在父Stage执行完毕才能提交当前Stage，如果一个Stage没有父Stage，那么从该Stage开始提交。Stage提交时会将Task信息（分区信息以及方法等）序列化并被打包成TaskSet交给`TaskScheduler`，一个Partition对应一个Task，另一方面监控Stage的运行状态，只有Executor丢失或者Task由于Fetch失败才需要重新提交失败的Stage以调度运行失败的任务，其他类型的Task失败会在`TaskScheduler`的调度过程中重试。
 
-相对来说`DAGScheduler`做的事情较为简单，仅仅是在Stage层面上划分DAG，提交Stage并监控相关状态信息。`TaskScheduler`则相对较为复杂，下面详细阐述其细节。
+**相对来说`DAGScheduler`做的事情较为简单，仅仅是在Stage层面上划分DAG，提交Stage并监控相关状态信息。`TaskScheduler`则相对较为复杂，下面详细阐述其细节。**
 
 ### Task级的调度
 
-Spark Task的调度是由`TaskScheduler`来完成，由前文可知，`DAGScheduler`将Stage打包到TaskSet交给`TaskScheduler`，`TaskScheduler`会将其封装为TaskSetManager加入到调度队列中，TaskSetManager负责监控管理同一个Stage中的Tasks，`TaskScheduler`就是以TaskSetManager为单元来调度任务。前面也提到，`TaskScheduler`初始化后会启动`SchedulerBackend`，它负责跟外界打交道，接收Executor的注册信息，并维护Executor的状态，所以说`SchedulerBackend`是管“粮食”的，同时它在启动后会定期地去“询问”`TaskScheduler`有没有任务要运行，也就是说，它会定期地“问”`TaskScheduler`“我有这么余量，你要不要啊”，`TaskScheduler`在`SchedulerBackend`“问”它的时候，会从调度队列中按照指定的调度策略选择TaskSetManager去调度运行，大致方法调用流程如下图所示。
+Spark Task的调度是由`TaskScheduler`来完成，由前文可知，`DAGScheduler`将Stage打包到TaskSet交给`TaskScheduler`，`TaskScheduler`会将其封装为`TaskSetManager`加入到调度队列中，`TaskSetManager`负责监控管理同一个Stage中的Tasks，`TaskScheduler`就是以`TaskSetManager`为单元来调度任务。前面也提到，`TaskScheduler`初始化后会启动`SchedulerBackend`，它负责跟外界打交道，接收Executor的注册信息，并维护Executor的状态，所以说`SchedulerBackend`是管“粮食”的，同时它在启动后会定期地去“询问”`TaskScheduler`有没有任务要运行，也就是说，它会定期地“问”`TaskScheduler`“我有这么余量，你要不要啊”，`TaskScheduler`在`SchedulerBackend`“问”它的时候，会从调度队列中按照指定的调度策略选择`TaskSetManager`去调度运行，大致方法调用流程如下图所示。
 
 [![spark-scheduler-task-process](http://sharkdtu.com/images/spark-scheduler-task-process.png)](http://sharkdtu.com/images/spark-scheduler-task-process.png)
 
 #### 调度策略
 
-前面讲到，`TaskScheduler`会先把`DAGScheduler`给过来的TaskSet封装成TaskSetManager扔到任务队列里，然后再从任务队列里按照一定的规则把它们取出来在`SchedulerBackend`给过来的Executor上运行。这个调度过程实际上还是比较粗粒度的，是面向TaskSetManager的。
+前面讲到，`TaskScheduler`会先把`DAGScheduler`给过来的TaskSet封装成`TaskSetManager`扔到任务队列里，然后再从任务队列里按照一定的规则把它们取出来在`SchedulerBackend`给过来的Executor上运行。这个调度过程实际上还是比较粗粒度的，是面向`TaskSetManager`的。
 
-`TaskScheduler`是以树的方式来管理任务队列，树中的节点类型为Schdulable，叶子节点为TaskSetManager，非叶子节点为Pool，下图是它们之间的继承关系。
+`TaskScheduler`是以树的方式来管理任务队列，树中的节点类型为Schdulable，叶子节点为`TaskSetManager`，非叶子节点为Pool，下图是它们之间的继承关系。
 
 [![spark-scheduler-pool](http://sharkdtu.com/images/spark-scheduler-pool.png)](http://sharkdtu.com/images/spark-scheduler-pool.png)
 
-`TaskScheduler`支持两种调度策略，一种是FIFO，也是默认的调度策略，另一种是FAIR。在`TaskScheduler`初始化过程中会实例化rootPool，表示树的根节点，是Pool类型。如果是采用FIFO调度策略，则直接简单地将TaskSetManager按照先来先到的方式入队，出队时直接拿出最先进队的TaskSetManager，其树结构大致如下图所示，TaskSetManager保存在一个FIFO队列中。
+`TaskScheduler`支持两种调度策略，一种是FIFO，也是默认的调度策略，另一种是FAIR。在`TaskScheduler`初始化过程中会实例化rootPool，表示树的根节点，是Pool类型。如果是采用FIFO调度策略，则直接简单地将`TaskSetManager`按照先来先到的方式入队，出队时直接拿出最先进队的`TaskSetManager`，其树结构大致如下图所示，`TaskSetManager`保存在一个FIFO队列中。
 
 [![spark-scheduler-fifo-tree](http://sharkdtu.com/images/spark-scheduler-fifo-tree.png)](http://sharkdtu.com/images/spark-scheduler-fifo-tree.png)
 
@@ -120,7 +120,7 @@ object MultiJobTest {
 
 [![spark-scheduler-fair-tree](http://sharkdtu.com/images/spark-scheduler-fair-tree.png)](http://sharkdtu.com/images/spark-scheduler-fair-tree.png)
 
-在出队时，则会对所有TaskSetManager排序，具体排序过程是从根节点`rootPool`开始，递归地去排序子节点，最后合并到一个`ArrayBuffer`里，代码逻辑如下。
+在出队时，则会对所有`TaskSetManager`排序，具体排序过程是从根节点`rootPool`开始，递归地去排序子节点，最后合并到一个`ArrayBuffer`里，代码逻辑如下。
 
 ```
 def getSortedTaskSetQueue: ArrayBuffer[TaskSetManager] = {
@@ -136,17 +136,17 @@ def getSortedTaskSetQueue: ArrayBuffer[TaskSetManager] = {
 
 使用FAIR调度策略时，上面代码中的`taskSetSchedulingAlgorithm`的类型为`FairSchedulingAlgorithm`，排序过程的比较是基于Fair-share来比较的，每个要排序的对象包含三个属性: `runningTasks`值（正在运行的Task数）、`minShare`值、`weight`值，比较时会综合考量`runningTasks`值，`minShare`以及`weight`值。如果A对象的`runningTasks`大于它的`minShare`，B对象的`runningTasks`小于它的`minShare`，那么B排在A前面；如果A、B对象的`runningTasks`都小于它们的`minShare`，那么就比较`runningTasks`与`minShare`的比值，谁小谁排前面；如果A、B对象的`runningTasks`都大于它们的`minShare`，那么就比较`runningTasks`与`weight`的比值，谁小谁排前面。整体上来说就是通过`minShare`和`weight`这两个参数控制比较过程，可以做到不让资源被某些长时间Task给一直占了。
 
-从调度队列中拿到TaskSetManager后，那么接下来的工作就是TaskSetManager按照一定的规则一个个取出Task给`TaskScheduler`，`TaskScheduler`再交给`SchedulerBackend`去发到Executor上执行。前面也提到，TaskSetManager封装了一个Stage的所有Task，并负责管理调度这些Task。
+从调度队列中拿到`TaskSetManager`后，那么接下来的工作就是`TaskSetManager`按照一定的规则一个个取出Task给`TaskScheduler`，`TaskScheduler`再交给`SchedulerBackend`去发到Executor上执行。前面也提到，`TaskSetManager`封装了一个Stage的所有Task，并负责管理调度这些Task。
 
 #### 本地化调度
 
-从调度队列中拿到TaskSetManager后，那么接下来的工作就是TaskSetManager按照一定的规则一个个取出Task给`TaskScheduler`，`TaskScheduler`再交给`SchedulerBackend`去发到Executor上执行。前面也提到，TaskSetManager封装了一个Stage的所有Task，并负责管理调度这些Task。
+从调度队列中拿到`TaskSetManager`后，那么接下来的工作就是`TaskSetManager`按照一定的规则一个个取出Task给`TaskScheduler`，`TaskScheduler`再交给`SchedulerBackend`去发到Executor上执行。前面也提到，`TaskSetManager`封装了一个Stage的所有Task，并负责管理调度这些Task。
 
 [![spark-scheduler-taskset-process](http://sharkdtu.com/images/spark-scheduler-taskset-process.png)](http://sharkdtu.com/images/spark-scheduler-taskset-process.png)
 
-在TaskSetManager初始化过程中，会对Tasks按照Locality级别进行分类，Task的Locality有五种，优先级由高到低顺序：PROCESS_LOCAL(指定的Executor)，NODE_LOCAL(指定的主机节点)，NO_PREF(无所谓)，RACK_LOCAL(指定的机架)，ANY(满足不了Task的Locality就随便调度)。这五种Locality级别存在包含关系，RACK_LOCAL包含NODE_LOCAL，NODE_LOCAL包含PROCESS_LOCAL，然而ANY包含其他所有四种。初始化阶段在对Task分类时，根据Task的preferredLocations判断它属于哪个Locality级别，属于PROCESS_LOCAL的Task同时也会被加入到NODE_LOCAL、RACK_LOCAL类别中，比如，一个Task的preferredLocations指定了在Executor-2上执行，那么它属于Executor-2对应的PROCESS_LOCAL类别，同时也把他加入到Executor-2所在的主机对应的NODE_LOCAL类别，Executor-2所在的主机的机架对应的RACK_LOCAL类别中，以及ANY类别，这样在调度执行时，满足不了PROCESS_LOCAL，就逐步退化到NODE_LOCAL，RACK_LOCAL，ANY。
+在`TaskSetManager`初始化过程中，会对Tasks按照Locality级别进行分类，Task的Locality有五种，优先级由高到低顺序：PROCESS_LOCAL(指定的Executor)，NODE_LOCAL(指定的主机节点)，NO_PREF(无所谓)，RACK_LOCAL(指定的机架)，ANY(满足不了Task的Locality就随便调度)。这五种Locality级别存在包含关系，RACK_LOCAL包含NODE_LOCAL，NODE_LOCAL包含PROCESS_LOCAL，然而ANY包含其他所有四种。初始化阶段在对Task分类时，根据Task的preferredLocations判断它属于哪个Locality级别，属于PROCESS_LOCAL的Task同时也会被加入到NODE_LOCAL、RACK_LOCAL类别中，比如，一个Task的preferredLocations指定了在Executor-2上执行，那么它属于Executor-2对应的PROCESS_LOCAL类别，同时也把他加入到Executor-2所在的主机对应的NODE_LOCAL类别，Executor-2所在的主机的机架对应的RACK_LOCAL类别中，以及ANY类别，这样在调度执行时，满足不了PROCESS_LOCAL，就逐步退化到NODE_LOCAL，RACK_LOCAL，ANY。
 
-TaskSetManager在决定调度哪些Task时，是通过上面流程图中的resourceOffer方法来实现，为了尽可能地将Task调度到它的preferredLocations上，它采用一种延迟调度算法。resourceOffer方法原型如下，参数包括要调度任务的Executor Id、主机地址以及最大可容忍的Locality级别。
+`TaskSetManager`在决定调度哪些Task时，是通过上面流程图中的resourceOffer方法来实现，为了尽可能地将Task调度到它的preferredLocations上，它采用一种延迟调度算法。resourceOffer方法原型如下，参数包括要调度任务的Executor Id、主机地址以及最大可容忍的Locality级别。
 
 ```
 def resourceOffer(
@@ -165,7 +165,7 @@ def resourceOffer(
 
 #### 失败重试与黑名单机制
 
-除了选择合适的Task调度运行外，还需要监控Task的执行状态，前面也提到，与外部打交道的是`SchedulerBackend`，Task被提交到Executor启动执行后，Executor会将执行状态上报给`SchedulerBackend`，`SchedulerBackend`则告诉`TaskScheduler`，`TaskScheduler`找到该Task对应的TaskSetManager，并通知到该TaskSetManager，这样TaskSetManager就知道Task的失败与成功状态，对于失败的Task，会记录它失败的次数，如果失败次数还没有超过最大重试次数，那么就把它放回待调度的Task池子中，否则整个Application失败。
+除了选择合适的Task调度运行外，还需要监控Task的执行状态，前面也提到，与外部打交道的是`SchedulerBackend`，Task被提交到Executor启动执行后，Executor会将执行状态上报给`SchedulerBackend`，`SchedulerBackend`则告诉`TaskScheduler`，`TaskScheduler`找到该Task对应的`TaskSetManager`，并通知到该`TaskSetManager`，这样`TaskSetManager`就知道Task的失败与成功状态，对于失败的Task，会记录它失败的次数，如果失败次数还没有超过最大重试次数，那么就把它放回待调度的Task池子中，否则整个Application失败。
 
 在记录Task失败次数过程中，会记录它上一次失败所在的Executor Id和Host，这样下次再调度这个Task时，会使用黑名单机制，避免它被调度到上一次失败的节点上，起到一定的容错作用。黑名单记录Task上一次失败所在的Executor Id和Host，以及其对应的“黑暗”时间，“黑暗”时间是指这段时间内不要再往这个节点上调度这个Task了。
 
@@ -175,7 +175,7 @@ def resourceOffer(
 
 [![spark-scheduler-speculation-process](http://sharkdtu.com/images/spark-scheduler-speculation-process.png)](http://sharkdtu.com/images/spark-scheduler-speculation-process.png)
 
-检查是否有Task需要推测执行的逻辑最后会交到TaskSetManager，TaskSetManager采用基于统计的算法，检查Task是否需要推测执行，算法流程大致如下图所示。
+检查是否有Task需要推测执行的逻辑最后会交到`TaskSetManager`，`TaskSetManager`采用基于统计的算法，检查Task是否需要推测执行，算法流程大致如下图所示。
 
 [![spark-scheduler-speculation-check](http://sharkdtu.com/images/spark-scheduler-speculation-check.png)](http://sharkdtu.com/images/spark-scheduler-speculation-check.png)
 
