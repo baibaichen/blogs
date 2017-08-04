@@ -48,7 +48,7 @@ Driver初始化`SparkContext`过程中，会分别初始化`DAGScheduler`、`Tas
 
 Spark的任务调度是从DAG切割开始，主要是由`DAGScheduler`来完成。当遇到一个Action操作后就会触发一个Job的计算，并交给`DAGScheduler`来提交，下图是涉及到Job提交的相关方法调用流程图。
 
-[![spark-scheduler-dag-process](http://sharkdtu.com/images/spark-scheduler-dag-process.png)](http://sharkdtu.com/images/spark-scheduler-dag-process.png)
+[![spark-scheduler-dag-process](http://sharkdtu.com/images/spark-scheduler-dag-process.png)](http://sharkdtu.com/images/spark-scheduler-dag-process.png)====
 
 Job由最终的RDD和Action方法封装而成，`SparkContext`将Job交给`DAGScheduler`提交，它会根据RDD的血缘关系构成的DAG进行切分，将一个Job划分为若干Stages，具体划分策略是，由最终的RDD不断通过依赖回溯判断父依赖是否是款依赖，即以Shuffle为界，划分Stage，窄依赖的RDD之间被划分到同一个Stage中，可以进行pipeline式的计算，如上图紫色流程部分。划分的Stages分两类，一类叫做ResultStage，为DAG最下游的Stage，由Action方法决定，另一类叫做ShuffleMapStage，为下游Stage准备数据，下面看一个简单的例子WordCount。
 
@@ -62,7 +62,10 @@ Job由`saveAsTextFile`触发，该Job由RDD-3和`saveAsTextFile`方法组成，�
 
 ### Task级的调度
 
-Spark Task的调度是由`TaskScheduler`来完成，由前文可知，`DAGScheduler`将Stage打包到TaskSet交给`TaskScheduler`，`TaskScheduler`会将其封装为`TaskSetManager`加入到调度队列中，`TaskSetManager`负责监控管理同一个Stage中的Tasks，`TaskScheduler`就是以`TaskSetManager`为单元来调度任务。前面也提到，`TaskScheduler`初始化后会启动`SchedulerBackend`，它负责跟外界打交道，接收Executor的注册信息，并维护Executor的状态，所以说`SchedulerBackend`是管“粮食”的，同时它在启动后会定期地去“询问”`TaskScheduler`有没有任务要运行，也就是说，它会定期地“问”`TaskScheduler`“我有这么余量，你要不要啊”，`TaskScheduler`在`SchedulerBackend`“问”它的时候，会从调度队列中按照指定的调度策略选择`TaskSetManager`去调度运行，大致方法调用流程如下图所示。
+Spark Task的调度是由`TaskScheduler`来完成，由前文可知，
+
+1. `DAGScheduler`将Stage打包到TaskSet交给`TaskScheduler`，`TaskScheduler`会将其封装为`TaskSetManager`加入到调度队列中，==`TaskSetManager`负责监控管理同一个Stage中的Tasks，`TaskScheduler`就是以`TaskSetManager`为单元来调度任务==。
+2. `TaskScheduler`初始化后会启动`SchedulerBackend`，它负责跟外界打交道，接收Executor的注册信息，并维护Executor的状态，所以说`SchedulerBackend`是管“粮食”的，同时它在启动后会定期地去“询问”`TaskScheduler`有没有任务要运行，也就是说，它会定期地“问”`TaskScheduler`“我有这么余量，你要不要啊”，`TaskScheduler`在`SchedulerBackend`“问”它的时候，会从调度队列中按照指定的调度策略选择`TaskSetManager`去调度运行，大致方法调用流程如下图所示。
 
 [![spark-scheduler-task-process](http://sharkdtu.com/images/spark-scheduler-task-process.png)](http://sharkdtu.com/images/spark-scheduler-task-process.png)
 

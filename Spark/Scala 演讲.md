@@ -267,7 +267,7 @@ Iterable        --> GenIterable---------------------------------|
 ### [数组](http://docs.scala-lang.org/zh-cn/overviews/collections/arrays)
 
 在Scala中，数组是一种特殊的collection。一方面，Scala数组与Java数组是一一对应的。即Scala数组`Array[Int]`可看作Java的`Int[]`，`Array[Double]`可看作Java的`double[]`，以及`Array[String]`可看作Java的`String[]`。但Scala数组比Java数组提供了更多内容。
-- 首先，Scala数组是一种泛型。即可以定义一个Array[T]，T可以是一种类型参数或抽象类型。
+- 首先，Scala数组是==一种泛型==。即可以定义一个Array[T]，T可以是一种类型参数或抽象类型。
 - 其次，Scala数组与Scala序列是兼容的 - 在需要Seq[T]的地方可由Array[T]代替。
 - 最后，Scala数组支持所有的序列操作
 
@@ -304,8 +304,10 @@ def evenElems[T: ClassTag](xs: Vector[T]): Array[T] = {
 
 ```java
 // evidence$1 的类型是 ClassTag[T]
-final Object arr = evidence$1.newArray((xs.length() + 1) / 2); //代码1，注意evidence$1就是传进来的隐式值
-ScalaRunTime.array_update(arr, i/2, xs.apply(2))               //代码2，并不是arr.update(i/2)这样的标准语法
+//代码1，注意evidence$1就是传进来的隐式值
+final Object arr = evidence$1.newArray((xs.length() + 1) / 2); 
+//代码2，并不是arr.update(i/2)这样的标准语法
+ScalaRunTime.array_update(arr, i/2, xs.apply(2))               
 ```
 
 `ClassTag.newArry()`会根据**类型T的运行时信息**，在**运行时**选择恰当的方法创建数组
@@ -764,4 +766,16 @@ sumInt(1,2,3)
 sumInt()
 
 //怎么表达至少一个参数？
+```
+
+#### 在Scala中，JavaConverters和JavaConversions有什么区别？
+
+1. [What is the difference between JavaConverters and JavaConversions in Scala?](https://stackoverflow.com/questions/8301947/what-is-the-difference-between-javaconverters-and-javaconversions-in-scala)
+2. [在Scala中，JavaConverters和JavaConversions有什么区别？](https://gxnotes.com/article/42376.html)
+
+Spark中的例子:
+
+``` scala
+// MapOutputTrackerMaster
+val shuffleStatuses = new ConcurrentHashMap[Int, ShuffleStatus]().asScala
 ```
