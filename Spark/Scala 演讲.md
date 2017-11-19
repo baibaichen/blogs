@@ -771,7 +771,7 @@ sumInt()
 #### 在Scala中，JavaConverters和JavaConversions有什么区别？
 
 1. [What is the difference between JavaConverters and JavaConversions in Scala?](https://stackoverflow.com/questions/8301947/what-is-the-difference-between-javaconverters-and-javaconversions-in-scala)
-2. [在Scala中，JavaConverters和JavaConversions有什么区别？](https://gxnotes.com/article/42376.html)
+2. [在Scala中，JavaConverters和JavaConversions有什么区别？](https://ask.helplib.com/others/post_290571)
 
 Spark中的例子:
 
