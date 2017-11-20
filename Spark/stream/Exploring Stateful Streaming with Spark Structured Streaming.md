@@ -2,7 +2,7 @@
 
 30 Jul 2017
 
-[In a previous post](http://asyncified.io/2016/07/31/exploring-stateful-streaming-with-apache-spark/), we explored how to do stateful streaming using Sparks Streaming API with the `DStream` abstraction. Today, I’d like to sail out on a journey with you to explore Spark 2.2 with its new support for stateful streaming under the Structured Streaming API. In this post, we’ll see how the API has matured and evolved, look at the differences between the two approaches (Streaming vs Structured Streaming), and see what changes were made to the API. We’ll do so by taking the example from my previous post, and adapting it to the new API.
+[In a previous post](http://asyncified.io/2016/07/31/exploring-stateful-streaming-with-apache-spark/), we explored how to do stateful streaming using Sparks Streaming API with the `DStream` abstraction. Today, I’d like to ==sail out on a journey== with you to explore Spark 2.2 with its new support for stateful streaming under the Structured Streaming API. In this post, we’ll see how the API has matured and evolved, look at the differences between the two approaches (Streaming vs Structured Streaming), and see what changes were made to the API. We’ll do so by taking the example from my previous post, and adapting it to the new API.
 
 ## A recap of state management with Spark Streaming
 
