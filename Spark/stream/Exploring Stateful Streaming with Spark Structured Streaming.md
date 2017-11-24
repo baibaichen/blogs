@@ -19,9 +19,9 @@ But thing aren’t always perfect…
 
 `mapWithState` was a big improvement over the previous `updateStateByKey`API. But there are a few caveats I’ve experienced over the last year while using it:
 
-### Checkpointing
+### 1. Checkpointing
 
-To ensure Spark can recover from failed tasks, it has to checkpoint data to a distributed file system from which it can consume upon failure. When using `mapWithState`, each executor process is holding a HashMap, in memory, of all the state you’ve accumulated. At every checkpoint, Spark *serializes the entire state, each time*. If you’re holding a lot of state in memory, this can cause significant processing latencies. For example, under the following set up:
+To ensure Spark can recover from failed tasks, it has to checkpoint data to a distributed file system from which it can consume upon failure. **==When using `mapWithState`, each executor process is holding a HashMap, in memory, of all the state you’ve accumulated.==** At every checkpoint, Spark *serializes the entire state, each time*. If you’re holding a lot of state in memory, this can cause significant processing latencies. For example, under the following set up:
 
 - Batch interval: 4 seconds
 - Checkpointing interval: 40 seconds (4 second batch x 10 constant spark factor)
@@ -34,25 +34,25 @@ To ensure Spark can recover from failed tasks, it has to checkpoint data to a di
 
 I’ve experienced accumulated delays **of up to 4 hours**, since each checkpoint under high load was taking between 30 seconds - 1 minute for the entire state and we’re generating batches every 4 seconds. [I’ve also seen people confused by this on StackOverflow](https://stackoverflow.com/questions/36042295/spark-streaming-mapwithstate-seems-to-rebuild-complete-state-periodically/36065778#36065778) as it really isn’t obvious why some batches take drastically longer than others.
 
-If you’re planning on using stateful streaming for high throughput you have to consider this as a serious caveat. This problem was so severe that it sent me looking for an alternative to using in memory state with Spark. But we’ll soon see that things are looking bright ;)
+If you’re planning on using stateful streaming for high throughput you have to consider this as a ==serious caveat==. This problem was so ==severe== that it sent me looking for an alternative to using in memory state with Spark. But we’ll soon see that things are looking bright ;)
 
-### Saving state between version updates
+### 2. Saving state between version updates
 
-Software is an evolving process, we always improve, enhance and implement new feature requirements. As such, we need to be able to upgrade from one version to another, preferably without affecting existing data. This becomes quite tricky with in memory data. How do we preserve the current state of things? How do we ensure that we continue from where we left off?
+Software is an evolving process, we always improve, enhance and implement new feature requirements. As such, we need to be able to upgrade from one version to another, ==preferably== without affecting existing data. This becomes quite tricky with in memory data. How do we preserve the current state of things? How do we ensure that we continue from where we ==left off==?
 
 Out of the box, `mapWithState` doesn’t support evolving our data structure. If you’ve modified the data structure you’re storing state with, you have to *delete all previously checkpointed data* since the `serialVersionUID` will differ between object versions. Additionally, any change to the execution graph defined on the `StreamingContext` won’t take effect since we’re restoring the linage from checkpoint.
 
 `mapWithState` does provide a method for viewing the current state snapshot of our data via `MapWithStateDStream.stateSnapshot()`. This enables us to store state at an external repository and be able to recover from it using `StateSpec.initialRDD`. However, storing data externally can increase the already-significant-delays due to checkpoint latencies.
 
-### Separate timeout per state object
+### 3. Separate timeout per state object
 
 `mapWithState` allows us to set a default timeout for all states via `StateSpec.timeout`. However, at times it may be desired to have separate state timeout for each state object. For example, assume we have a requirement that a user session be no longer than 30 minutes. Then comes along a new client which wants to see user sessions end every 10 minutes, what do we do? Well, we can’t handle this out of the box and we have to implement our own mechanism for timeout. The bigger problem is that `mapWithState` only touches key value pairs which we have data for in the *current batch*, it doesn’t touch all the keys. This means that we have to role back to `updateStateByKey` which by default iterates the entire state, which may be bad for performance (depending on the use case, of course).
 
-### Single executor failure causing data loss
+### 4. Single executor failure causing data loss
 
-Executors are java processes, and as for any process they can fail. I’ve had heap corruptions in production cause a single executor to die. The problem with this is that once a new executor is created by the `Worker` process, it *does not recover the state from checkpoint*. If you look at the [`CheckpointSuite`](https://github.com/apache/spark/blob/master/streaming/src/test/scala/org/apache/spark/streaming/CheckpointSuite.scala#L209) tests, you’ll see that all of them deal with `StreamingContext` recovery, but none for single executor failure.
+Executors are Java processes, and as for any process they can fail. I’ve had heap corruptions in production cause a single executor to die. The problem with this is that once a new executor is created by the `Worker` process, it *does not recover the state from checkpoint*. If you look at the [`CheckpointSuite`](https://github.com/apache/spark/blob/master/streaming/src/test/scala/org/apache/spark/streaming/CheckpointSuite.scala#L209) tests, ==you’ll see that all of them deal with `StreamingContext` recovery, but none for single executor failure==.
 
-### Ok, downsides, fine. Where is this new API you’re talking about?
+### OK, downsides, fine. Where is this new API you’re talking about?
 
 Hold your horses, we’re just getting to it… :)
 
@@ -64,7 +64,7 @@ From the [Structured Streaming Documentation - Overview](https://spark.apache.or
 
 > Structured Streaming is a scalable and fault-tolerant stream processing engine built on the Spark SQL engine. You can **express your streaming computation the same way you would express a batch computation on static data.** The Spark SQL engine will take care of running it incrementally and continuously and updating the final result as streaming data continues to arrive.
 
-Sparks authors realize that reasoning about a distributed streaming application has many hidden concerns one may or may not realize he/she has to deal with other than maintaining the business domain logic. Instead of taking care of all these concerns, they want us to reason about our stream processing the same way we’d use a static SQL table by generating queries while take care of running them over new data as it comes into our stream. Think about it as a unbounded table of data.
+Sparks authors realize that reasoning about a distributed streaming application has many hidden concerns one may or may not realize he/she has to deal with other than maintaining the business domain logic. **Instead of taking care of all these concerns, they want us to reason about our stream processing the same way we’d use a static SQL table by generating queries while take care of running them over new data as it comes into our stream.** Think about it as a unbounded table of data.
 
 For a deeper explanation on Structured Streaming and the `Dataset[T]`abstraction, see [this great post by DataBricks](https://databricks.com/blog/2016/07/28/structured-streaming-in-apache-spark.html). Don’t worry, I’ll wait..
 
