@@ -21,4 +21,4 @@ There is a known issue caused by KAFKA-1894: the query using `KafkaSource` maybe
 This class uses Kafka's own [`KafkaConsumer`]() API to read data offsets from Kafka. The [`ConsumerStrategy`]() class defines which Kafka topics and partitions should be read by this source. These strategies directly correspond to the different consumption options in. This class is designed to return a configured [`KafkaConsumer`]() that is used by the [`KafkaSource`]() to query for the offsets. See the docs on
 [`org.apache.spark.sql.kafka010.ConsumerStrategy`]() for more details.
 
-Note: This class is not ThreadSafe
+Note: This class is not Thread Safe
