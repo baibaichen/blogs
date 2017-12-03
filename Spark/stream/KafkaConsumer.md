@@ -249,7 +249,7 @@ There are many possible variations on this approach. For example each processor 
 
 ------
 
-# [译：使用新的Kafka消费者客户端](https://www。confluent。io/blog/tutorial-getting-started-with-the-new-apache-kafka-0-9-consumer-client/)
+# [译：使用新的Kafka消费者客户端](https://www.confluent.io/blog/tutorial-getting-started-with-the-new-apache-kafka-0-9-consumer-client/)
 
 当Kafka最初创建的时候，它内置了Scala版本的producer和consumer客户端。在使用的过程中我们渐渐发现了这些APIs的限制。 比如，我们有**high-level**的消费者API，可以支持消费组和故障处理，但是不支持更多更复杂的场景需求。 我们也有一个简单的消费者客户端(`SimpleConsumer`，即**low-level**)，可以支持自定义的控制，但是需要应用程序自己**管理故障**和**处理错误**。所以我们决定重新设计这些客户端，它的目标是要能实现之前使用旧的客户端不容易实现甚至无法实现的场景，还要建立一些API的集合，来支持长时间的拉取消息(译注: 即**消费者**通过poll方式保持长时间的消息拉取)。
 
@@ -266,13 +266,13 @@ There are many possible variations on this approach. For example each processor 
 
 首先复习下一些基本概念。在Kafka中，每个topic会被分成一系列的logs，叫做**partitions**(逻辑上topic是由partitions组成)。 Producers写到这些logs的尾部，Consumers以自己的步调读取logs。 Kafka扩展topic的消费是通过将partitions分布在一个消费组，多个消费者共享了相同的组标识。 下图标识一个topic有三个partitions，一个消费组有两个消费者成员。每个partition都只会分配给组中唯一的一个成员。
 
-[![consumer group](http://img。blog。csdn。net/20160221172547706)](http://img。blog。csdn。net/20160221172547706)
+[![consumer group](http://img.blog.csdn.net/20160221172547706)](http://img.blog.csdn.net/20160221172547706)
 
 旧的消费者依赖于zookeeper管理消费组(译注:ZookeeperConsumerConnector->ZKRebalancerListener)，新的消费者使用了消费组协调协议。 对于每个消费组，会选择一个brokers作为消费组的协调者(group coordinator)。协调者负责管理消费者组的状态。 它的主要工作是负责协调partition的分配(assignment): 当有新成员加入，旧成员退出，或者topic的metadata发生变化(topic的partitions改变)。重新分配partition叫做消费组的平衡(group rebalance)
 
 当消费组第一次被初始化时，消费者通常会读取每个partition的最早或最近的offset。然后顺序地读取每个partition log的消息。在消费者读取过程中，它会提交已经成功处理的消息的offsets。 下图中消费者的位置在6位置，最近提交的offset则在位置1。
 
-[![consumer position](http://img。blog。csdn。net/20160221172517706)](http://img。blog。csdn。net/20160221172517706)
+[![consumer position](http://img.blog.csdn.net/20160221172517706)](http://img.blog.csdn.net/20160221172517706)
 
 当一个partition被分配给消费组中的其他消费者，(新的消费者)初始位置会设置为(原始消费者)最近提交的offset。如果示例中的消费者突然崩溃，接管partition的组中其他成员会从offset=1的位置开始消费(lastCommitOffset=1)。这种情况下，新的消费者不得不从offset=1的位置开始，重新处理消息直到崩溃的消费者的offset=6的位置。
 
@@ -284,23 +284,21 @@ There are many possible variations on this approach. For example each processor 
 
 ```xml
 <dependency>
- <groupId>org。apache。kafka</groupId>
+ <groupId>org.apache.kafka</groupId>
  <artifactId>kafka-clients</artifactId>
- <version>0。9。0。0</version>
+ <version>0.9.0.0</version>
 </dependency>
-
 ```
 
 消费者就像其他的kafka客户端一样通过Properties文件构造。下面是使用消费组的最少配置。
 
 ```java
 Properties props = new Properties();
-props。put("bootstrap。servers"， "localhost:9092");
-props。put("group。id"， "consumer-tutorial");
-props。put("key。deserializer"， StringDeserializer。class。getName());
-props。put("value。deserializer"， StringDeserializer。class。getName());
+props.put("bootstrap.servers"， "localhost:9092");
+props.put("group.id"， "consumer-tutorial");
+props.put("key.deserializer"， StringDeserializer.class.getName());
+props.put("value.deserializer"， StringDeserializer.class.getName());
 KafkaConsumer<String， String> consumer = new KafkaConsumer<>(props);
-
 ```
 
 就像旧的生产者和消费者，需要配置一个初始brokers列表，能够让消费者发现集群中的其他brokers。但并不需要指定所有的ervers， 客户端会根据初始brokers找出集群中存活的所有brokers(译注:类似gossip协议)。在本例中，我们假设broker运行在本地(所以只有一个broker)，同时还要告诉消费者怎么序列化消息的keys和values。最后，为了能够加入到一个消费组，需要为消费者指定一个group id。 随着文章的深入，我们会介绍更多的配置。
@@ -310,7 +308,7 @@ KafkaConsumer<String， String> consumer = new KafkaConsumer<>(props);
 为了能够消费消息，应用程序需要指定要订阅的topics。 下面的示例中，我们订阅了”foo”和”bar”两个topics:
 
 ```java
-consumer。subscribe(Arrays。asList("foo"， "bar"));
+consumer.subscribe(Arrays.asList("foo"， "bar"));
 ```
 
 消费者订阅主题之后，这个消费者会和消费组中的其他成员共同协调，来得到分配给它的partition(每个消费者都会分配partition)。这一切都是在你开始消费消息的时候被自动处理。 后面我们会向你展示如何使用assign API手动地分配partitions。但是要注意: 同一个消费者实例是不能混合自动和手动的partition分配。
@@ -326,12 +324,12 @@ subscribe方法不是增量的:你必须包括你想要消费的完整的topics�
 ```java
 try {
   while (running) {
-    ConsumerRecords<String， String> records = consumer。poll(1000);
+    ConsumerRecords<String， String> records = consumer.poll(1000);
     for (ConsumerRecord<String， String> record : records)
-      System。out。println(record。offset() + ": " + record。value());
+      System.out.println(record.offset() + ": " + record.value());
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 
 ```
@@ -347,19 +345,19 @@ poll调用会返回基于当前位置的抓取记录(译注:每次抓取都会�
 ```
 try {
   while (true) {
-    ConsumerRecords<String， String> records = consumer。poll(Long。MAX_VALUE);
+    ConsumerRecords<String， String> records = consumer.poll(Long.MAX_VALUE);
     for (ConsumerRecord<String， String> record : records)
-      System。out。println(record。offset() + “: ” + record。value());
+      System.out.println(record.offset() + “: ” + record.value());
   }
 } catch (WakeupException e) {
   // ignore for shutdown
 } finally {
-  consumer。close();
+  consumer.close();
 }
 
 ```
 
-上面的代码中，我们更改了timeout为`Long。MAX_VALUE`，意味着消费者会无限制地阻塞，直到有下一条记录返回的时候。这时如果使用标志位也是无法退出循环的，所以只能由触发关闭的线程调用consumer。wakeup来中断进行中的poll，这个调用会导致抛出WakeupException。 wakeup在其他线程中调用是安全的(消费者线程中就这个方法是线程安全的)。注意:如果当前没有活动的poll，这个异常会在下次调用是才会抛出。本例中我们捕获了这个异常防止它传播给上层调用。
+上面的代码中，我们更改了timeout为`Long.MAX_VALUE`，意味着消费者会无限制地阻塞，直到有下一条记录返回的时候。这时如果使用标志位也是无法退出循环的，所以只能由触发关闭的线程调用consumer。wakeup来中断进行中的poll，这个调用会导致抛出WakeupException。 wakeup在其他线程中调用是安全的(消费者线程中就这个方法是线程安全的)。注意:如果当前没有活动的poll，这个异常会在下次调用是才会抛出。本例中我们捕获了这个异常防止它传播给上层调用。
 
 > 所以中断事件循环有两种方式:
 > - 较小的timeout， 通过使用标志位来控制
@@ -376,52 +374,52 @@ public class ConsumerLoop implements Runnable {
   private final int id;
 
   public ConsumerLoop(int id， String groupId，  List<String> topics) {
-    this。id = id;
-    this。topics = topics;
+    this.id = id;
+    this.topics = topics;
     Properties props = new Properties();
-    props。put("bootstrap。servers"， "localhost:9092");
-    props。put(“group。id”， groupId);
-    props。put(“key。deserializer”， StringDeserializer。class。getName());
-    props。put(“value。deserializer”， StringDeserializer。class。getName());
-    this。consumer = new KafkaConsumer<>(props);
+    props.put("bootstrap.servers"， "localhost:9092");
+    props.put(“group.id”， groupId);
+    props.put(“key.deserializer”， StringDeserializer.class.getName());
+    props.put(“value.deserializer”， StringDeserializer.class.getName());
+    this.consumer = new KafkaConsumer<>(props);
   }
  
   @Override
   public void run() {
     try {
-      consumer。subscribe(topics);
+      consumer.subscribe(topics);
 
       while (true) {
-        ConsumerRecords<String， String> records = consumer。poll(Long。MAX_VALUE);
+        ConsumerRecords<String， String> records = consumer.poll(Long.MAX_VALUE);
         for (ConsumerRecord<String， String> record : records) {
           Map<String， Object> data = new HashMap<>();
-          data。put("partition"， record。partition());
-          data。put("offset"， record。offset());
-          data。put("value"， record。value());
-          System。out。println(this。id + ": " + data);
+          data.put("partition"， record.partition());
+          data.put("offset"， record.offset());
+          data.put("value"， record.value());
+          System.out.println(this.id + ": " + data);
         }
       }
     } catch (WakeupException e) {
       // ignore for shutdown 
     } finally {
-      consumer。close();
+      consumer.close();
     }
   }
 
   public void shutdown() {
-    consumer。wakeup();
+    consumer.wakeup();
   }
 }
 ```
 
-为了测试这个例子，需要运行的kafka broker版本是0。9。0。0，还要有一些字符串数据构成的topic用来消费。
-最简单的方式是使用kafka-verifiable-producer。sh脚本写一批数据到一个topic中。 为了让事情变得有趣一些，
+为了测试这个例子，需要运行的kafka broker版本是0.9.0.0，还要有一些字符串数据构成的topic用来消费。
+最简单的方式是使用kafka-verifiable-producer.sh脚本写一批数据到一个topic中。 为了让事情变得有趣一些，
 我们还要确保topic有不止一个partition，这样不会有一个消费者成员做所有的工作。
 比如在本地同时运行kafka broker和zookeeper， 在kafka的根目录下运行下面命令:
 
 ```bash
-# bin/kafka-topics。sh --create --topic consumer-tutorial --replication-factor 1 --partitions 3 --zookeeper localhost:2181
-# bin/kafka-verifiable-producer。sh --topic consumer-tutorial --max-messages 200000 --broker-list localhost:9092
+# bin/kafka-topics.sh --create --topic consumer-tutorial --replication-factor 1 --partitions 3 --zookeeper localhost:2181
+# bin/kafka-verifiable-producer.sh --topic consumer-tutorial --max-messages 200000 --broker-list localhost:9092
 ```
 
 然后创建一个Driver客户端程序，设置一个消费组有三个成员，所有的消费者订阅了刚刚创建的相同的topic
@@ -430,27 +428,27 @@ public class ConsumerLoop implements Runnable {
 public static void main(String[] args) { 
   int numConsumers = 3;
   String groupId = "consumer-tutorial-group"
-  List<String> topics = Arrays。asList("consumer-tutorial");
-  ExecutorService executor = Executors。newFixedThreadPool(numConsumers);
+  List<String> topics = Arrays.asList("consumer-tutorial");
+  ExecutorService executor = Executors.newFixedThreadPool(numConsumers);
 
   final List<ConsumerLoop> consumers = new ArrayList<>();
   for (int i = 0; i < numConsumers; i++) {
     ConsumerLoop consumer = new ConsumerLoop(i， groupId， topics);
-    consumers。add(consumer);
-    executor。submit(consumer);
+    consumers.add(consumer);
+    executor.submit(consumer);
   }
 
-  Runtime。getRuntime()。addShutdownHook(new Thread() {
+  Runtime.getRuntime().addShutdownHook(new Thread() {
     @Override
     public void run() {
       for (ConsumerLoop consumer : consumers) {
-        consumer。shutdown();
+        consumer.shutdown();
       } 
-      executor。shutdown();
+      executor.shutdown();
       try {
-        executor。awaitTermination(5000， TimeUnit。MILLISECONDS);
+        executor.awaitTermination(5000， TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        e。printStackTrace;
+        e.printStackTrace;
       }
     }
   });
@@ -487,10 +485,10 @@ public static void main(String[] args) {
 
 作为消费组的一部分，每个消费者会被分配它订阅的topics的一部分partitions。就像在这些partitions上加了一个组锁。只要锁被持有，组中的其他成员就不会读取他们(译注:每个partition都对应唯一的消费者，partition锁只属于唯一的消费者)。当你的消费者是正常状态时，当然是最好不过了，因为这是防止重复消费的唯一方式。但如果消费者失败了，你需要释放掉那个锁，这样可以将partitions分配给其他健康的成员。
 
-kafka的消费组协调协议使用心跳机制解决了这个问题。在每次rebalance，所有当前generation的成员都会定时地发送心跳给group协调者。只要协调者持续接收到心跳，它会假设这个成员是健康的。 每次接收到心跳，协调者就开始或者重置计时器。如果时间超过了，没有收到消费者的心跳，协调者标记消费者为死亡状态，并触发组中其他的消费者重新加入，来重新分配partitions。计时器的时间间隔就是session timeout，即客户端应用程序中配置的`session。timeout。ms`：
+kafka的消费组协调协议使用心跳机制解决了这个问题。在每次rebalance，所有当前generation的成员都会定时地发送心跳给group协调者。只要协调者持续接收到心跳，它会假设这个成员是健康的。 每次接收到心跳，协调者就开始或者重置计时器。如果时间超过了，没有收到消费者的心跳，协调者标记消费者为死亡状态，并触发组中其他的消费者重新加入，来重新分配partitions。计时器的时间间隔就是session timeout，即客户端应用程序中配置的`session.timeout.ms`：
 
 ```java
-props。put(“session。timeout。ms”， “60000”);
+props.put(“session.timeout.ms”， “60000”);
 ```
 
 session timeout确保应用程序崩溃或者partition将消费者和协调者进行了隔离的情况下锁会被释放。注意应用程序的失败(进程还存在)有点不同，因为消费者仍然会发送心跳给协调者，并不代表应用程序是健康的。
@@ -501,14 +499,14 @@ session timeout确保应用程序崩溃或者partition将消费者和协调者�
 
 ## 消息发送语义
 
-当消费组第一次创建时，初始offset会根据配置项auto。offset。reset策略设置。 一旦消费者开始处理消息，它会根据应用程序的需要正常滴提交offset(可以是设置自动提交offset，或者手动提交。可以将offset存储在kafka或者外部存储中)。在之后的每一次rebalance，position都会被设置为在当前组中为这个partition最近提交的offset(即offset针对组级别)。如果消费者已经成功处理了一批消息，但是为这批消息提交offsets之前崩溃了，其他消费者会接着最近提交的offset处重复工作。更加频繁地提交offsets，在发生崩溃的情况下重复消费消息的情况就越少发生(处理完消息后及时地提交offset是明智之举)。
+当消费组第一次创建时，初始offset会根据配置项auto.offset.reset策略设置。 一旦消费者开始处理消息，它会根据应用程序的需要正常滴提交offset(可以是设置自动提交offset，或者手动提交。可以将offset存储在kafka或者外部存储中)。在之后的每一次rebalance，position都会被设置为在当前组中为这个partition最近提交的offset(即offset针对组级别)。如果消费者已经成功处理了一批消息，但是为这批消息提交offsets之前崩溃了，其他消费者会接着最近提交的offset处重复工作。更加频繁地提交offsets，在发生崩溃的情况下重复消费消息的情况就越少发生(处理完消息后及时地提交offset是明智之举)。
 
-目前为止，我们假设开启了自动提交offset的策略。当设置enable。auto。commit=true(这也是默认值)，消费者会根据配置项auto。commit。interval。ms的值定时地触发自动提交offset的行为。通过减少提交时间间隔，你可以限制在发生崩溃事件时，消费者需要重新处理的消息数量(越经常提交，越不容易重复)。
+目前为止，我们假设开启了自动提交offset的策略。当设置enable.auto.commit=true(这也是默认值)，消费者会根据配置项auto.commit.interval.ms的值定时地触发自动提交offset的行为。通过减少提交时间间隔，你可以限制在发生崩溃事件时，消费者需要重新处理的消息数量(越经常提交，越不容易重复)。
 
 如果要使用消费者的commit API，首先需要关闭自动提交的配置项:
 
 ```java
-props。put("enable。auto。commit"， "false");
+props.put("enable.auto.commit"， "false");
 ```
 
 commit API很容易使用，但是怎么和poll循环结合起来才是关键。 下面的示例中包含了完整的循环逻辑，以及提交细节。手动方式处理commits最简单的方式是使用同步方式的提交API，下面的示例读取消息，处理消息，然后提交offsets。
@@ -516,18 +514,18 @@ commit API很容易使用，但是怎么和poll循环结合起来才是关键。
 ```java
 try {
   while (running) {
-    ConsumerRecords<String， String> records = consumer。poll(1000);
+    ConsumerRecords<String， String> records = consumer.poll(1000);
     for (ConsumerRecord<String， String> record : records)
-      System。out。println(record。offset() + ": " + record。value());
+      System.out.println(record.offset() + ": " + record.value());
 
     try {
-      consumer。commitSync();
+      consumer.commitSync();
     } catch (CommitFailedException e) {
       // application specific failure handling
     }
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 ```
 
@@ -535,24 +533,24 @@ try {
 
 通常情况下，你应该保证只有在消息成功被处理之后，才提交offset(但是offset是否能够成功完成是不一定的)。如果消费者在提交offset之前崩溃了，那么已经成功处理的那部分消息(也是最近的消息)就不得不重新处理。如果提交策略能够保证最近提交的offset永远不会超过当前的position，你就能得到”至少一次”的消息发送语义。
 
-[![commit ahead pos](http://img。blog。csdn。net/20160221172452583)](http://img。blog。csdn。net/20160221172452583)
+[![commit ahead pos](http://img.blog.csdn.net/20160221172452583)](http://img.blog.csdn.net/20160221172452583)
 
 通过更改提交策略使得当前position不会超过最近提交的offset(比如上图)，你可以得到”最多一次”的语义。如果消费者在position赶上lastCommittedOffset之前就崩溃了(还没处理消息时就提前提交offset)。那么这中间的那些消息就会丢失了(因此下次只会从lastCommitOffset开始，而不是current position)。虽然有这样的缺点，但你能保证的是不会有消息被处理两次(所以说任何优点都是要牺牲一点代价的)。下面的示例中，只要更改提交offset和消息处理的顺序即可。
 
 ```java
 try {
   while (running) {
-  ConsumerRecords<String， String> records = consumer。poll(1000);
+  ConsumerRecords<String， String> records = consumer.poll(1000);
   try {
-    consumer。commitSync();
+    consumer.commitSync();
     for (ConsumerRecord<String， String> record : records)
-      System。out。println(record。offset() + ": " + record。value());
+      System.out.println(record.offset() + ": " + record.value());
     } catch (CommitFailedException e) {
       // application specific failure handling
     }
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 ```
 
@@ -566,18 +564,18 @@ try {
 ```java
 try {
   while (running) {
-    ConsumerRecords<String， String> records = consumer。poll(1000);
+    ConsumerRecords<String， String> records = consumer.poll(1000);
     try {
       for (ConsumerRecord<String， String> record : records) {
-        System。out。println(record。offset() + ": " + record。value());
-        consumer。commitSync(Collections。singletonMap(record。partition()， new OffsetAndMetadata(record。offset() + 1)));
+        System.out.println(record.offset() + ": " + record.value());
+        consumer.commitSync(Collections.singletonMap(record.partition()， new OffsetAndMetadata(record.offset() + 1)));
       }
     } catch (CommitFailedException e) {
       // application specific failure handling
     }
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 ```
 
@@ -587,25 +585,25 @@ try {
 
 这个例子中的commitSync方法的参数是一个map，从topic partition到一个OffsetAndMetadata的实例。commit API允许你在每次提交时添加额外的元数据信息，比如记录提交的时间，发送请求的主机，或者应用程序需要的其他任何信息。
 
-替代提交每条接收到的消息的另外一种更理想的策略是当你完成处理每个partition的消息时才提交partition级别的offset。ConsumerRecords集合提供了访问其中的partitions集合的方法，以及访问每个partition的消息。下面代码模拟了这种策略。
+替代提交每条接收到的消息的另外一种更理想的策略是当你完成处理每个partition的消息时才提交partition级别的offset.ConsumerRecords集合提供了访问其中的partitions集合的方法，以及访问每个partition的消息。下面代码模拟了这种策略。
 
 > 译注:前面的代码是针对每一条ConsumerRecord，而下面是针对每个Partition。 ConsumerRecord一定是有Partition信息的。但是按照ConsumerRecord记录来循环时，无法保证相同的partition是被同时处理的。 而如果按照Partition级别来处理，因为每个Partition可能有多个ConsumerRecrod，所以下面使用了双层循环:首先是Partition，然后是Partition的每条记录。
 
 ```java
 try {
   while (running) {
-    ConsumerRecords<String， String> records = consumer。poll(Long。MAX_VALUE);
-    for (TopicPartition partition : records。partitions()) {
-      List<ConsumerRecord<String， String>> partitionRecords = records。records(partition);
+    ConsumerRecords<String， String> records = consumer.poll(Long.MAX_VALUE);
+    for (TopicPartition partition : records.partitions()) {
+      List<ConsumerRecord<String， String>> partitionRecords = records.records(partition);
       for (ConsumerRecord<String， String> record : partitionRecords)
-        System。out。println(record。offset() + ": " + record。value());
+        System.out.println(record.offset() + ": " + record.value());
 
-      long lastoffset = partitionRecords。get(partitionRecords。size() - 1)。offset();
-      consumer。commitSync(Collections。singletonMap(partition， new OffsetAndMetadata(lastoffset + 1)));
+      long lastoffset = partitionRecords.get(partitionRecords.size() - 1).offset();
+      consumer.commitSync(Collections.singletonMap(partition， new OffsetAndMetadata(lastoffset + 1)));
     }
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 ```
 
@@ -614,11 +612,11 @@ try {
 ```java
 try {
   while (running) {
-    ConsumerRecords<String， String> records = consumer。poll(1000);
+    ConsumerRecords<String， String> records = consumer.poll(1000);
     for (ConsumerRecord<String， String> record : records)
-      System。out。println(record。offset() + ": " + record。value());
+      System.out.println(record.offset() + ": " + record.value());
 
-    consumer。commitAsync(new OffsetCommitCallback() {
+    consumer.commitAsync(new OffsetCommitCallback() {
       @Override
       public void onComplete(Map<TopicPartition， OffsetAndMetadata> offsets，  Exception exception) {
         if (exception != null) {
@@ -628,7 +626,7 @@ try {
     });
   }
 } finally {
-  consumer。close();
+  consumer.close();
 }
 ```
 
@@ -636,19 +634,19 @@ try {
 
 ## 消费组检查
 
-当一个消费组是活动的状态时，你可以通过命令行consumer-groups。sh检查partition的分配情况，以及消费进度。
+当一个消费组是活动的状态时，你可以通过命令行consumer-groups.sh检查partition的分配情况，以及消费进度。
 
-```
-# bin/kafka-consumer-groups。sh --new-consumer --describe --group consumer-tutorial-group --bootstrap-server localhost:9092
+```shell
+# bin/kafka-consumer-groups.sh --new-consumer --describe --group consumer-tutorial-group --bootstrap-server localhost:9092
 ```
 
 输出结果是这样的:
 
-```
+```csv
 GROUP， TOPIC， PARTITION， CURRENT OFFSET， LOG END OFFSET， LAG， OWNER
-consumer-tutorial-group， consumer-tutorial， 0， 6667， 6667， 0， consumer-1_/127。0。0。1
-consumer-tutorial-group， consumer-tutorial， 1， 6667， 6667， 0， consumer-2_/127。0。0。1
-consumer-tutorial-group， consumer-tutorial， 2， 6666， 6666， 0， consumer-3_/127。0。0。1
+consumer-tutorial-group， consumer-tutorial， 0， 6667， 6667， 0， consumer-1_/127.0.0.1
+consumer-tutorial-group， consumer-tutorial， 1， 6667， 6667， 0， consumer-2_/127.0.0.1
+consumer-tutorial-group， consumer-tutorial， 2， 6666， 6666， 0， consumer-3_/127.0.0.1
 ```
 
 上面显示了分配给消费组的所有partitions，哪个consumer拥有了partition，partition最近提交的offset(current offset)。partition的lag指的是log end offset和last committed offset的差距。 管理人员可以监视这些来确保消费组能赶上生产者。(译注:生产者写入消息，LEO会增加，消费者提交offset，会增加LCO，两者差距小说明消费者的消费速度能赶上生产者的生产速度)
@@ -661,14 +659,14 @@ consumer-tutorial-group， consumer-tutorial， 2， 6666， 6666， 0， consum
 
 ```java
 List<TopicPartition> partitions = new ArrayList<>();
-for (PartitionInfo partition : consumer。partitionsFor(topic))
-  partitions。add(new TopicPartition(topic， partition。partition()));
-consumer。assign(partitions);
+for (PartitionInfo partition : consumer.partitionsFor(topic))
+  partitions.add(new TopicPartition(topic， partition.partition()));
+consumer.assign(partitions);
 ```
 
 和subscribe类似，调用assign的参数必须传递你要读取的所有partitions(订阅是指定你要读取的所有topics)。一旦partitions被分配了(subscribe是让消费组动态分配partitions)，poll循环和之前的方式是一模一样的。
 
-有一点要注意的是，所有offset提交请求都会经过group coordinator，不管是SimpleConsumer还是Consumer Group。所以如果你要提交offset，你还是必须要指定正确的group。id，防止和其他的消费者实例的group id发生冲突。如果一个simple consumer尝试提交offset，它的group id和一个活动的consumer group相同，协调者会拒绝这个提交。但是如果另外一个simple consumer实例和当前同样是simple consumer的实例有相同的group id，则是不会有问题的。
+有一点要注意的是，所有offset提交请求都会经过group coordinator，不管是SimpleConsumer还是Consumer Group。所以如果你要提交offset，你还是必须要指定正确的group.id，防止和其他的消费者实例的group id发生冲突。如果一个simple consumer尝试提交offset，它的group id和一个活动的consumer group相同，协调者会拒绝这个提交。但是如果另外一个simple consumer实例和当前同样是simple consumer的实例有相同的group id，则是不会有问题的。
 
 > 译注:消费组有group id，而simple consumer也会指定group id，但是simple consumer的group id不是指消费组。 消费组和simple consumer是消费者消费消息的两种不同的实现，一个是high-level，一个是low-level。
 
