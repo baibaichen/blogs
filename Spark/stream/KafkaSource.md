@@ -18,7 +18,16 @@ Zero data lost is not guaranteed when topics are deleted. If zero data lost is c
 There is a known issue caused by KAFKA-1894: the query using `KafkaSource` maybe cannot be stopped. To avoid this issue, you should make sure stopping the query before stopping the Kafka brokers and not use wrong broker addresses.
 
 # `KafkaOffsetReader`
-This class uses Kafka's own [`KafkaConsumer`]() API to read data offsets from Kafka. The [`ConsumerStrategy`]() class defines which Kafka topics and partitions should be read by this source. These strategies directly correspond to the different consumption options in. This class is designed to return a configured [`KafkaConsumer`]() that is used by the [`KafkaSource`]() to query for the offsets. See the docs on
-[`org.apache.spark.sql.kafka010.ConsumerStrategy`]() for more details.
+This class uses Kafka's own [`KafkaConsumer`]() API to read data offsets from Kafka. The [`ConsumerStrategy`]() class defines which Kafka topics and partitions should be read by this source. These strategies directly correspond to the different consumption options in. This class is designed to return a configured [`KafkaConsumer`]() that is used by the [`KafkaSource`]() to query for the offsets. See the docs on [`org.apache.spark.sql.kafka010.ConsumerStrategy`]() for more details.
 
 Note: This class is not Thread Safe
+
+## `ConsumerStrategy`
+`Subscribe` allows you to subscribe to a fixed collection of topics. `SubscribePattern` allows you to use a regex to specify topics of interest. Note that unlike the 0.8 integration, using `Subscribe` or `SubscribePattern` should respond to adding partitions during a running stream. Finally, Assign allows you to specify a fixed collection of partitions. All three strategies have overloaded constructors that allow you to specify the starting offset for a particular partition.
+
+```scala
+ConsumerStrategy
+  |-AssignStrategy (org.apache.spark.sql.kafka010)
+  |-SubscribePatternStrategy (org.apache.spark.sql.kafka010)
+  |-SubscribeStrategy (org.apache.spark.sql.kafka010)
+```
