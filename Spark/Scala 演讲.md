@@ -157,20 +157,94 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 当一个类被声名为case class的时候，scala会帮助我们做下面几件事情： 
 
 1. 构造器中的参数如果不被声明为var的话，它默认的话是val类型的，但一般不推荐将构造器中的参数声明为var 
-2. 自动创建伴生对象，同时在里面给我们实现子apply方法，使得我们在使用的时候可以不直接显示地new对象 
-3. 伴生对象中同样会帮我们实现unapply方法，从而可以将case class应用于模式匹配，关于unapply方法我们在后面的“提取器”那一节会重点讲解 
-4. 实现自己的`toString`、`hashCode`、`copy`、`equals`方法 
-5. 编译器对case类混入了`Product`特质
-6. 编译器对case类增加了`copy`方法
-7. 伴生对象继承了`AbstractFunction`
-8. 伴生对象中`apply`方法则为创建对象提供方便，相当于工厂方法。
-9. 伴生对象中最重要的方法是 **unapply** 这个方法是在进行构造器模式匹配时的关键。
+2. 实现自己的`toString`、`hashCode`、`copy`、`equals`方法 
+3. 编译器对case类混入了`Product`特质
+4. 编译器对case类增加了`copy`方法
+5. **自动创建伴生对象**：
+   - 工厂方法：自动实现`apply`方法，使得我们在使用的时候可以不直接显示地`new`对象 
+   - 析构方法：实现`unapply`方法，从而可以将`case class`应用于模式匹配，该方法是进行==构造器模式匹配==时的关键
+   - 伴生对象继承了`AbstractFunction`[这意味着什么？]()
 
 除此之此，case class与其它普通的scala类没有区别。
 
+#### Generating auxiliary constructors for case classes
+
+A *case class* is a special type of class that generates a *lot* of boilerplate code for you. Because of the way they work, adding what appears to be an auxiliary constructor to a `case class` is different than adding an auxiliary constructor to a **regular** class. ==This is because they are not really constructors: they are `apply` methods in the companion object of the class.==
+
+To demonstrate this, assume that you start with this case class in a file named *Person.scala*:
+
+```Scala
+// initial case class
+case class Person (var name: String, var age: Int)
+```
+
+This lets you create a new `Person` instance without using the `new` keyword, like this:
+
+```scala
+val p = Person("John Smith", 30)
+```
+
+**This appears to be a different form of a constructor, but in fact, it's a little syntactic sugar—a factory method, to be precise. When you write this line of code:**
+
+```Scala
+val p = Person("John Smith", 30)
+```
+
+behind the scenes, the Scala compiler converts it into this:
+
+```Scala
+val p = Person.apply("John Smith", 30)
+```
+
+This is a call to an `apply` method in the companion object of the `Person` class. You don't see this, you just see the line that you wrote, but this is how the compiler translates your code. As a result, if you want to add new “constructors” to your case class, you write new `apply` methods. (To be clear, the word “constructor” is used loosely here.)****
+
+**For instance,** if you decide that you want to add auxiliary constructors to let you create new `Person` instances (a) without specifying any parameters, and (b) by only specifying their `name`, the solution is to add `apply` methods to the companion object of the `Person` case class in the *Person.scala* file:
+
+```scala
+// the case class
+case class Person (var name: String, var age: Int)
+
+// the companion object
+object Person {
+
+  def apply() = new Person("<no name>", 0)
+  def apply(name: String) = new Person(name, 0)
+
+}
+```
+
+The following test code demonstrates that this works as desired:
+
+```scala
+object CaseClassTest extends App {
+
+  val a = Person()         // corresponds to apply()
+  val b = Person("Pam")    // corresponds to apply(name: String)
+  val c = Person("William Shatner", 82)
+
+  println(a)
+  println(b)
+  println(c)
+
+  // verify the setter methods work
+  a.name = "Leonard Nimoy"
+  a.age = 82
+  println(a)
+}
+```
+
+This code results in the following output:
+
+```Scala
+Person(<no name>,0)
+Person(Pam,0)
+Person(William Shatner,82)
+Person(Leonard Nimoy,82)
+```
+
 > TODO：
 >
-> - [ ] 为样例类手写伴生对象会是什么情况？比如Spark的`LocalRealtion`。
+> - [x] ~~为`样例类`手写伴生对象会是什么情况？比如Spark的`LocalRelation`~~。[见上面](#Generating-auxiliary-constructors-for-case-classes)，简单的说就是为`case class`创建<u>多个构造器</u>
 
 ### 提取器
 
@@ -373,6 +447,17 @@ testData3.groupBy('a).agg(count('b))
 ## Scala的反射机制
 
 - [ ] [Scala的反射机制](https://github.com/slamke/blog/wiki/Scala%E7%9A%84%E5%8F%8D%E5%B0%84%E6%9C%BA%E5%88%B6)
+
+## 伴生对象
+
+[Scala 伴生对象的细节](https://ooon.me/2016/09/scala-object-static-forwarders/)
+
+伴生对象首先是一个`单例对象`，单例对象用关键字object定义。在Scala中，单例对象分为两种，一种是并未自动关联到特定类上的单例对象，称为独立对象（Standalone Object）；另一种是关联到一个类上的单例对象，该单例对象与该类共有相同名字，则这种单例对象称为伴生对象（**Companion Object**），对应类称为伴生类。
+
+1. **类**和它的**伴生对象**可以相互访问私有特性。
+2. 通常将`伴生对象`作为工厂使用
+   > Putting an `apply` method on a companion object is the conventional idiom for defining a factory method for the class.
+3. ​
 
 # 例子
 
