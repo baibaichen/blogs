@@ -244,7 +244,7 @@ Person(Leonard Nimoy,82)
 
 > TODO：
 >
-> - [x] ~~为`样例类`手写伴生对象会是什么情况？比如Spark的`LocalRelation`~~。[见上面](#Generating-auxiliary-constructors-for-case-classes)，简单的说就是为`case class`创建<u>多个构造器</u>
+> - [x] ~~为`样例类`手写伴生对象会是什么情况？比如Spark的`LocalRelation`~~。[见上面](#generating-auxiliary-constructors-for-case-classes)，简单的说就是为`case class`创建<u>多个构造器</u>
 
 ### 提取器
 
@@ -276,6 +276,7 @@ String d = localTuple21._2;
 # 其它
 
 ## 错误处理
+
 - [Error Handling in Scala](https://tersesystems.com/2012/12/27/error-handling-in-scala/)
 - [Option](https://windor.gitbooks.io/beginners-guide-to-scala/content/chp5-the-option-type.html)
 - [Try](https://windor.gitbooks.io/beginners-guide-to-scala/content/chp6-error-handling-with-try.html)
