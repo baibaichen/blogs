@@ -1,4 +1,5 @@
-https://databricks.com/blog/2016/02/01/faster-stateful-stream-processing-in-apache-spark-streaming.html
+# 和Java比较
+
 1. [很像Java](#1-很像Java)
 2. 统一的对象模型
 3. 函数也是**第一等级的值**
@@ -273,6 +274,13 @@ String d = localTuple21._2;
 >
 > - [ ] `unapplySeq`的情况要解释下
 
+## 7 隐式转换
+
+> TODO：
+>
+> - [ ] 隐式转换的作用域
+
+
 # 其它
 
 ## 错误处理
@@ -458,7 +466,7 @@ testData3.groupBy('a).agg(count('b))
 1. **类**和它的**伴生对象**可以相互访问私有特性。
 2. 通常将`伴生对象`作为工厂使用
    > Putting an `apply` method on a companion object is the conventional idiom for defining a factory method for the class.
-3. ​
+3. 把隐式转换放在伴生对象中。
 
 # 例子
 
