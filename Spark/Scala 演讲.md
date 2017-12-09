@@ -286,6 +286,7 @@ String d = localTuple21._2;
 ## 错误处理
 
 - [Error Handling in Scala](https://tersesystems.com/blog/2012/12/27/error-handling-in-scala/)
+  - [aother one](https://gist.github.com/davegurnell/8e7a4b671f21a7636152)
 - [Option](https://windor.gitbooks.io/beginners-guide-to-scala/content/chp5-the-option-type.html)
 - [Try](https://windor.gitbooks.io/beginners-guide-to-scala/content/chp6-error-handling-with-try.html)
 - [Either](https://windor.gitbooks.io/beginners-guide-to-scala/content/chp7-the-either-type.html)
