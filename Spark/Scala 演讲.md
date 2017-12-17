@@ -458,16 +458,31 @@ testData3.groupBy('a).agg(count('b))
 
 - [ ] [Scala的反射机制](https://github.com/slamke/blog/wiki/Scala%E7%9A%84%E5%8F%8D%E5%B0%84%E6%9C%BA%E5%88%B6)
 
-## 伴生对象
+##对象
+### 伴生对象
 
 [Scala 伴生对象的细节](https://ooon.me/2016/09/scala-object-static-forwarders/)
 
 伴生对象首先是一个`单例对象`，单例对象用关键字object定义。在Scala中，单例对象分为两种，一种是并未自动关联到特定类上的单例对象，称为独立对象（Standalone Object）；另一种是关联到一个类上的单例对象，该单例对象与该类共有相同名字，则这种单例对象称为伴生对象（**Companion Object**），对应类称为伴生类。
 
 1. **类**和它的**伴生对象**可以相互访问私有特性。
+
 2. 通常将`伴生对象`作为工厂使用
    > Putting an `apply` method on a companion object is the conventional idiom for defining a factory method for the class.
+
 3. 把隐式转换放在伴生对象中。
+
+### 单例对象
+
+1. 创建单例对象的时候，需要传参数[Best way to create singleton object with parameter](https://users.scala-lang.org/t/best-way-to-create-singleton-object-with-parameter/538)，重点：**Singletons are initialized lazily.
+
+   |                                          | Pros                                     | Cons                                     |
+   | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- |
+   | Make it a class, have the client construct it, give the value in the parameter | Preserves immutability                   | Having only a single instance might be hard to manage |
+   | Add a variable for the parameter to the object, add a setter. | You still have a singleton               | There is mutable state now               |
+   | Implement a [multiton](http://en.wikipedia.org/wiki/Multiton_pattern) | Gives you (apparent) immutability and singleton (per param) | More code to implement                   |
+
+   参考`SQLImplicits`的实现
 
 # 例子
 
