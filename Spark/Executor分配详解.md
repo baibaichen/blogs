@@ -122,9 +122,11 @@ AppClient是Application和Master交互的接口。它的包含一个类型为org
 [java] view plain copy
 def tryRegisterAllMasters() {  
   for (masterUrl <- masterUrls) {  
-    logInfo("Connecting to master " + masterUrl + "...")  
-    val actor = context.actorSelection(Master.toAkkaUrl(masterUrl))  
-    actor ! RegisterApplication(appDescription) // 向Master注册  
+```scala
+logInfo("Connecting to master " + masterUrl + "...")  
+val actor = context.actorSelection(Master.toAkkaUrl(masterUrl))  
+actor ! RegisterApplication(appDescription) // 向Master注册  
+```
   }  
 }  
 
@@ -133,18 +135,20 @@ def registerWithMaster() {
   import context.dispatcher  
   var retries = 0  
   registrationRetryTimer = Some { // 如果注册20s内未收到成功的消息，那么再次重复注册  
-    context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {  
-      Utils.tryOrExit {  
-        retries += 1  
-        if (registered) { // 注册成功，那么取消所有的重试  
-          registrationRetryTimer.foreach(_.cancel())  
-        } else if (retries >= REGISTRATION_RETRIES) { // 重试超过指定次数（3次），则认为当前Cluster不可用，退出  
-          markDead("All masters are unresponsive! Giving up.")  
-        } else { // 进行新一轮的重试  
-          tryRegisterAllMasters()  
-        }  
-      }  
+```scala
+context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {  
+  Utils.tryOrExit {  
+    retries += 1  
+    if (registered) { // 注册成功，那么取消所有的重试  
+      registrationRetryTimer.foreach(_.cancel())  
+    } else if (retries >= REGISTRATION_RETRIES) { // 重试超过指定次数（3次），则认为当前Cluster不可用，退出  
+      markDead("All masters are unresponsive! Giving up.")  
+    } else { // 进行新一轮的重试  
+      tryRegisterAllMasters()  
     }  
+  }  
+}  
+```
   }  
 }  
 
@@ -165,21 +169,23 @@ case RegisterApplication(description) => {
   if (state == RecoveryState.STANDBY) {  
     // ignore, don't send response //注：AppClient有超时机制（20s），超时会重试  
   } else {  
-    logInfo("Registering app " + description.name)  
-    val app = createApplication(description, sender)  
-    // app is ApplicationInfo(now, newApplicationId(date), desc, date, driver, defaultCores)， driver就是AppClient的actor  
-    //保存到master维护的成员变量中，比如  
-    /* apps += app; 
-       idToApp(app.id) = app 
-       actorToApp(app.driver) = app 
-       addressToApp(appAddress) = app 
-       waitingApps += app */  
-    registerApplication(app)  
-      
-    logInfo("Registered app " + description.name + " with ID " + app.id)  
-    persistenceEngine.addApplication(app) //持久化app的元数据信息，可以选择持久化到ZooKeeper，本地文件系统，或者不持久化  
-    sender ! RegisteredApplication(app.id, masterUrl)  
-    schedule() //为处于待分配资源的Application分配资源。在每次有新的Application加入或者新的资源加入时都会调用schedule进行调度  
+```scala
+logInfo("Registering app " + description.name)  
+val app = createApplication(description, sender)  
+// app is ApplicationInfo(now, newApplicationId(date), desc, date, driver, defaultCores)， driver就是AppClient的actor  
+//保存到master维护的成员变量中，比如  
+/* apps += app; 
+   idToApp(app.id) = app 
+   actorToApp(app.driver) = app 
+   addressToApp(appAddress) = app 
+   waitingApps += app */  
+registerApplication(app)  
+  
+logInfo("Registered app " + description.name + " with ID " + app.id)  
+persistenceEngine.addApplication(app) //持久化app的元数据信息，可以选择持久化到ZooKeeper，本地文件系统，或者不持久化  
+sender ! RegisteredApplication(app.id, masterUrl)  
+schedule() //为处于待分配资源的Application分配资源。在每次有新的Application加入或者新的资源加入时都会调用schedule进行调度  
+```
   }  
 }  
 
@@ -190,47 +196,49 @@ schedule() 为处于待分配资源的Application分配资源。在每次有新�
 其主要逻辑如下：
 [java] view plain copy
 if (spreadOutApps) { //尽量的打散负载，如有可能，每个executor分配一个core  
-      // Try to spread out each app among all the nodes, until it has all its cores  
-      for (app <- waitingApps if app.coresLeft > 0) { //使用FIFO的方式为等待的app分配资源  
-        // 可用的worker的标准：State是Alive，其上并没有该Application的executor，可用内存满足要求。  
-        // 在可用的worker中，优先选择可用core数多的。  
-        val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)  
-          .filter(canUse(app, _)).sortBy(_.coresFree).reverse  
-        val numUsable = usableWorkers.length  
-        val assigned = new Array[Int](numUsable) // Number of cores to give on each node 保存在该节点上预分配的core数  
-        var toAssign = math.min(app.coresLeft, usableWorkers.map(_.coresFree).sum)  
-        var pos = 0  
-        while (toAssign > 0) {  
-          if (usableWorkers(pos).coresFree - assigned(pos) > 0) {  
-            toAssign -= 1  
-            assigned(pos) += 1  
-          }  
-          pos = (pos + 1) % numUsable  
-        }  
-        // Now that we've decided how many cores to give on each node, let's actually give them  
-        for (pos <- 0 until numUsable) {  
-          if (assigned(pos) > 0) {  
-            val exec = app.addExecutor(usableWorkers(pos), assigned(pos))  
-            launchExecutor(usableWorkers(pos), exec)  
-            app.state = ApplicationState.RUNNING  
-          }  
-        }  
+```scala
+  // Try to spread out each app among all the nodes, until it has all its cores  
+  for (app <- waitingApps if app.coresLeft > 0) { //使用FIFO的方式为等待的app分配资源  
+    // 可用的worker的标准：State是Alive，其上并没有该Application的executor，可用内存满足要求。  
+    // 在可用的worker中，优先选择可用core数多的。  
+    val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)  
+      .filter(canUse(app, _)).sortBy(_.coresFree).reverse  
+    val numUsable = usableWorkers.length  
+    val assigned = new Array[Int](numUsable) // Number of cores to give on each node 保存在该节点上预分配的core数  
+    var toAssign = math.min(app.coresLeft, usableWorkers.map(_.coresFree).sum)  
+    var pos = 0  
+    while (toAssign > 0) {  
+      if (usableWorkers(pos).coresFree - assigned(pos) > 0) {  
+        toAssign -= 1  
+        assigned(pos) += 1  
       }  
-    } else {//尽可能多的利用worker的core  
-      // Pack each app into as few nodes as possible until we've assigned all its cores  
-      for (worker <- workers if worker.coresFree > 0 && worker.state == WorkerState.ALIVE) {  
-        for (app <- waitingApps if app.coresLeft > 0) {  
-          if (canUse(app, worker)) {  
-            val coresToUse = math.min(worker.coresFree, app.coresLeft)  
-            if (coresToUse > 0) {  
-              val exec = app.addExecutor(worker, coresToUse)  
-              launchExecutor(worker, exec)  
-              app.state = ApplicationState.RUNNING  
-            }  
-          }  
+      pos = (pos + 1) % numUsable  
+    }  
+    // Now that we've decided how many cores to give on each node, let's actually give them  
+    for (pos <- 0 until numUsable) {  
+      if (assigned(pos) > 0) {  
+        val exec = app.addExecutor(usableWorkers(pos), assigned(pos))  
+        launchExecutor(usableWorkers(pos), exec)  
+        app.state = ApplicationState.RUNNING  
+      }  
+    }  
+  }  
+} else {//尽可能多的利用worker的core  
+  // Pack each app into as few nodes as possible until we've assigned all its cores  
+  for (worker <- workers if worker.coresFree > 0 && worker.state == WorkerState.ALIVE) {  
+    for (app <- waitingApps if app.coresLeft > 0) {  
+      if (canUse(app, worker)) {  
+        val coresToUse = math.min(worker.coresFree, app.coresLeft)  
+        if (coresToUse > 0) {  
+          val exec = app.addExecutor(worker, coresToUse)  
+          launchExecutor(worker, exec)  
+          app.state = ApplicationState.RUNNING  
         }  
       }  
     }  
+  }  
+}  
+```
 
 
 在选择了worker和确定了worker上得executor需要的CPU core数后，Master会调用 launchExecutor(worker: WorkerInfo, exec: ExecutorInfo)向Worker发送请求，向AppClient发送executor已经添加的消息。同时会更新master保存的worker的信息，包括增加executor，减少可用的CPU core数和memory数。Master不会等到真正在worker上成功启动executor后再更新worker的信息。如果worker启动executor失败，那么它会发送FAILED的消息给Master，Master收到该消息时再次更新worker的信息即可。这样是简化了逻辑。

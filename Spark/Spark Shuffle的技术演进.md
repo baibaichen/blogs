@@ -324,20 +324,18 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 - 尽量减少shuffle次数
 
-```
+```Scala
 // 两次shuffle
 rdd.map(...).repartition(1000).reduceByKey(_ + _, 3000)
 
 // 一次shuffle
 rdd.map(...).repartition(3000).reduceByKey(_ + _)
-
 ```
 
 - 必要时主动shuffle，通常用于改变并行度，提高后续分布式运行速度
 
-```
+```Scala
 rdd.repartiton(largerNumPartition).map(...)...
-
 ```
 
 - 使用treeReduce & treeAggregate替换reduce & aggregate。数据量较大时，reduce & aggregate一次性聚合，shuffle量太大，而treeReduce & treeAggregate是分批聚合，更为保险。
