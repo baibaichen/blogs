@@ -168,7 +168,7 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 
 除此之此，case class与其它普通的scala类没有区别。
 
-#### Generating auxiliary constructors for case classes
+### Generating auxiliary constructors for case classes
 
 A *case class* is a special type of class that generates a *lot* of boilerplate code for you. Because of the way they work, adding what appears to be an auxiliary constructor to a `case class` is different than adding an auxiliary constructor to a **regular** class. ==This is because they are not really constructors: they are `apply` methods in the companion object of the class.==
 
@@ -279,7 +279,6 @@ String d = localTuple21._2;
 > TODO：
 >
 > - [ ] 隐式转换的作用域
-
 
 # 其它
 
@@ -398,7 +397,8 @@ ScalaRunTime.array_update(arr, i/2, xs.apply(2))
 
 > 参考
 >   1 . [Java为什么不支持泛型数组？](https://www.zhihu.com/question/20928981)
-> 2.   [Java泛型：类型擦除](https://segmentfault.com/a/1190000003831229)中的[代码片段七](https://segmentfault.com/a/1190000003831229#articleHeader9)。
+> 2. [Java泛型：类型擦除](https://segmentfault.com/a/1190000003831229)中的[代码片段七](https://segmentfault.com/a/1190000003831229#articleHeader9)。
+>
 >       > 本质方法还是通过显示地传递类型标签，通过`Array.newInstance(type, size)`来生成数组，同时也是最为推荐的在泛型内部生成数组的方法。
 
 ### 不变集合的数据结构
@@ -468,13 +468,14 @@ testData3.groupBy('a).agg(count('b))
 1. **类**和它的**伴生对象**可以相互访问私有特性。
 
 2. 通常将`伴生对象`作为工厂使用
+
    > Putting an `apply` method on a companion object is the conventional idiom for defining a factory method for the class.
 
 3. 把隐式转换放在伴生对象中。
 
 ### 单例对象
 
-1. 创建单例对象的时候，需要传参数[Best way to create singleton object with parameter](https://users.scala-lang.org/t/best-way-to-create-singleton-object-with-parameter/538)，重点：**Singletons are initialized lazily.
+1. 创建单例对象的时候，需要传参数[Best way to create singleton object with parameter](https://users.scala-lang.org/t/best-way-to-create-singleton-object-with-parameter/538)，重点：**Singletons are initialized lazily**.
 
    |                                          | Pros                                     | Cons                                     |
    | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- |
@@ -484,9 +485,98 @@ testData3.groupBy('a).agg(count('b))
 
    参考`SQLImplicits`的实现
 
-# 例子
+## 函数
 
-#### 变量可以 `override` 方法
+### 在Scala中,多个参数列表和每个列表的多个参数有什么区别？
+
+[What's the difference between multiple parameters lists and multiple parameters per list in Scala?](https://stackoverflow.com/questions/6803211/whats-the-difference-between-multiple-parameters-lists-and-multiple-parameters)
+
+在Scala中，可以这样定义函数：
+
+```scala
+def curriedFunc(arg1: Int) (arg2: String) = { ... }
+```
+
+上述curriedFunc函数定义与**两个参数列表**和**单个参数列表中具有多个参数**的函数之间的区别是什么？
+
+```scala
+def curriedFunc(arg1: Int, arg2: String) = { ... }
+```
+
+从数学的角度来看是`(curriedFunc(x))(y)`和`curriedFunc(x，y)`，但我可以定义成`def sum(x)(y)= x+y`，或是`def sum2(x，y) = x+y`，这两种定义一样。我知道只有一个区别 – 这是 **partially applied functions**，两种方式对我都是等效的，是否有其他差异？
+
+------
+
+严格地说，这不是一个curried函数，而是一个有多个参数列表的方法，虽然它看起来像一个函数。正如你所说，多个参数列表允许使用该方法代替**==部分应用的函数==**。
+
+```scala
+object NonCurr {
+  def tabulate[A](n: Int, fun: Int => A) = IndexedSeq.tabulate(n)(fun)
+}
+
+NonCurr.tabulate[Double](10, _)            // 不允许
+val x = IndexedSeq.tabulate[Double](10) _  // 允许. x 现在是Function1，即解释一个参数的函数
+x(math.exp(_))                             // 完整地调用
+```
+
+另一个好处是，如果第二个参数列表由单个函数或**thunk**组成，您可以使用**大括号**而不是**圆括号**。例如。
+
+```scala
+NonCurr.tabulate(10, { i => val j = util.Random.nextInt(i + 1); i - i % 2 })
+```
+
+与
+
+```scala
+IndexedSeq.tabulate(10) { i =>
+  val j = util.Random.nextInt(i + 1)
+  i - i % 2
+}
+```
+
+或者为thunk：
+
+```scala
+IndexedSeq.fill(10) {
+  println("debug: operating the random number generator")
+  util.Random.nextInt(99)
+}
+```
+
+另一个优点是，你可以引用**上一个参数列表的参数**来定义**默认参数值**（虽然你也可以说它是一个缺点，你不能在单个列表中这样做）
+
+```scala
+def doSomething(f: java.io.File)(modDate: Long = f.lastModified) = ???
+```
+
+最后，在这个相关的帖子[Why does Scala provide both multiple parameters lists and multiple parameters per list?](https://stackoverflow.com/questions/4684185/why-does-scala-provide-both-multiple-parameters-lists-and-multiple-parameters-per)里有三个回答。我把它们复制在这里：。
+
+**首先**：你可以有多个var args，这在单个参数列表中是不可能的：
+
+```scala
+def foo(as: Int*)(bs: Int*)(cs: Int*) = as.sum * bs.sum * cs.sum
+```
+
+**第二**，它有助于**类型推理**：
+
+```scala
+def foo[T](a: T, b: T)(op: (T,T) => T) = op(a, b)
+foo(1, 2){_ + _}   // compiler can infer the type of the op function
+
+def foo2[T](a: T, b: T, op: (T,T) => T) = op(a, b)
+foo2(1, 2, _ + _)  // compiler too stupid, unfortunately
+```
+
+**最后**，这是你可以有**隐式**和**非隐式**参数的唯一方法，因为`implicit`修饰符是针对整个参数列表的：
+
+```scala
+def gaga [A](x: A)(implicit mf: Manifest[A]) = ???   // 可以
+def gaga2[A](x: A, implicit mf: Manifest[A]) = ???   // 不行
+```
+
+## 例子
+
+### 变量可以 `override` 方法
 
     RuleExecutor/*...*/ {
        abstract class Strategy { def maxIterations: Int }
@@ -496,7 +586,7 @@ testData3.groupBy('a).agg(count('b))
 
 在超类中实际定义的是 `maxIterations` 方法，但是在 `FixedPoint` 子类中，我们定义的是一个**变量**！
 
-#### Loop没有`break`和`continue`
+### Loop没有`break`和`continue`
 
 首先，Scala的 `for` **和Java不一样，其次语言本身不推荐使用手写的循环，所以没有 `break` 和 `continue`， 目的是使之不好用。 但有时候需要 `break` 或者 `continue`，一般用 `while` 模拟实现，参见[`RuleExecutor.execute`]()，摘取的代码如下：
 
@@ -508,7 +598,7 @@ testData3.groupBy('a).agg(count('b))
       }
     }
 
-#### 语法糖，大括号里的case语句是[偏函数]()
+### 语法糖，大括号里的case语句是[偏函数]()
 
 注意，Scala集合中的`flodLeft`的声明是这样的：
 
@@ -551,8 +641,9 @@ testData3.groupBy('a).agg(count('b))
 > 物理优化阶段没有用这个类，原因是这里是 `LogicalPlan => LogicalPlan` 的转化，而那里是`LogicalPlan => SparkPlan`的转化
 
 
-#### 和JAVA的互操作
+### 和JAVA的互操作
 > TODO 
+>
 > - [ ] 解释 `val func: (T) => Iterator[U] = x => f.call(x).`**`asScala`**
 
 ```scala
@@ -588,21 +679,22 @@ testData3.groupBy('a).agg(count('b))
 - scala的版本需要一个隐式参数
 - java的版本则需要两个参数，注意是如何传隐式参数的 `flatMap(func)`*`(encoder)`*
 
-#### 如何实现一个集合
+### 如何实现一个集合
 
 
 > TODO 
+>
 > - [ ] 调研[`StreamProgress`](https://github.com/apache/spark/blob/master/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/StreamProgress.scala)是如何实现的
 
 
-#### 字面量
+### 字面量
 **字面量就是写在代码里的常量**
 
 > TODO 
 > - [ ] 函数字面量
 >
 
-#### 相等性
+### 相等性
 
 Scala的 `==` 与Java的有何差别? **Java里的 `==` 既可以比较原始类型也可以比较引用类型。**
 - 首先，Scala的 `==` **不是操作符！！！**，它是**定义在 `Any` 中的 `final` 方法（即不可重载）**。
@@ -640,7 +732,7 @@ case class Literal protected (value: Any, dataType: DataType)
 
 > TODO `Literal` 为什么要显式定义这些方法？
 
-#### 中置类型 `Predef.<:<`
+### 中置类型 `Predef.<:<`
 
 中置类型是指以**中置语法**表示『带有两个类型参数』的类型，此时，类型名称写在两个类型参数之间。比如：
 
@@ -653,7 +745,7 @@ Map[String,Int]
 ```scala
 String Map Int
 ```
-##### 类型证明（中置类型的应用）
+#### 类型证明（中置类型的应用）
 在 `Predef` 对象中，定义了这么如下两个抽象类，用于类型约束
 
 | 类型证明      | 含义                    |
@@ -732,8 +824,8 @@ trait Map[A, +B] extends ... {
 > TODO：隐式转换的规则
 > TODO：Spark 大量用到了 Scala 反射API中 `TypeApi.<:<` 这个方法
 
+### `Predef.identity`
 
-#### `Predef.identity`
 为什么需要一个预定义的 `identity` 函数？ 参见：
 1. [What does Predef.identity do in scala?](http://stackoverflow.com/questions/28407482/what-does-predef-identity-do-in-scala)
 2. [Is there a scala identity function?](http://stackoverflow.com/questions/1797502/is-there-a-scala-identity-function)
@@ -779,7 +871,7 @@ class StringKeyHashMap[T](normalizer: (String) => String) {
 ```
 这里 `StringKeyHashMap` 类需要一个**策略**函数 `normalizer: (String) => String`，而其伴生对象则根据 `caseSensitive` 使用不同的 `normalizer` 创建 `StringKeyHashMap` 实例。这样就既可以创建**键值大小写敏感**的哈希表，也可以创建**键值大小写不敏感**的哈希表。
 
-#### 惰性求值（即，惰值）
+### 惰性求值（即，惰值）
 
 [内容参见*快学 Scala* 的2.11节]()。当 `val` 被声明为 `lazy` 时，它的初始化将会延迟到『第一次使用它』时。我们来看下 Spark中的 `QueryExecution` 类，
 
@@ -829,15 +921,16 @@ abstract class SparkPlan {
 > 1. 有额外的开销，每次访问**惰值**，都会调用一个『线程安全的』方法来检查该值是否已被初始化。
 > 2. 可读性，初始化的地点，并非是你定义**惰值**的地方。
 
-#### Pass by Name
+### Pass by Name
 
 例子
 - *ExecutorClassLoader.scala* 中的 `getClassFileInputStreamFromSparkRPC`，看怎么实现 `toClassNotFound`。
 
 
-#### Scala的 `Product` 特质
+### Scala的 `Product` 特质
 
 > TODO
+>
 > - [ ] [Playing with Scala Products](http://erikengbrecht.blogspot.com/2010/12/playing-with-scala-products.html)
 
 例子， TreeNode.scala 的 `mapProductIterator`
@@ -856,11 +949,11 @@ abstract class TreeNode[...] extends Produce{
 }
 ```
 
-#### 链式 API
+### 链式 API
 
 参见 `DataFrameReader` 的设计
 
-#### 变长参数
+### 变长参数
 
 1. *快学 Scala* 第2.9节
 2. 参见 `DataFrameReader.text` 了解 `_*` 的用法
@@ -878,7 +971,7 @@ sumInt()
 //怎么表达至少一个参数？
 ```
 
-#### 在Scala中，JavaConverters和JavaConversions有什么区别？
+### 在Scala中，JavaConverters和JavaConversions有什么区别？
 
 1. [What is the difference between JavaConverters and JavaConversions in Scala?](https://stackoverflow.com/questions/8301947/what-is-the-difference-between-javaconverters-and-javaconversions-in-scala)
 2. [在Scala中，JavaConverters和JavaConversions有什么区别？](https://ask.helplib.com/others/post_290571)
