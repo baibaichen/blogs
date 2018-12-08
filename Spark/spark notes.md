@@ -1,7 +1,9 @@
 1. [[SPARK-6942] withScope 用来做DAG可视化](http://m.blog.csdn.net/article/details?id=51289351)
+
    - [Umbrella: UI Visualizations for Core and Dataframes](https://issues.apache.org/jira/browse/SPARK-6942)
 
 2. [[SPARK-13985] WAL for determistic batches with IDs](https://issues.apache.org/jira/browse/SPARK-13985)
+
    * [[SPARK-13791] Add MetadataLog and HDFSMetadataLog](https://issues.apache.org/jira/browse/SPARK-13791)
 
 3. [[SPARK-8360] Structured Streaming (aka Streaming DataFrames)](https://issues.apache.org/jira/browse/SPARK-8360) 
@@ -14,9 +16,11 @@
    * [[SPARK-14255] Streaming Aggregation](https://issues.apache.org/jira/browse/SPARK-14255)，在这个Commit中，引入了*IncrementalExecution.scala*
 
 4. [[SPARK-13485] (Dataset-oriented) API evolution in Spark 2.0](https://issues.apache.org/jira/browse/SPARK-13485)
+
    * [[SPARK-13244] Unify DataFrame and Dataset API](https://issues.apache.org/jira/browse/SPARK-13244) 这个jira提交之后，`DataFrame` 改成 `Dataset`，新的 `DataFrame` 是 `Dataset[Row]` 的**类型别名**。**注意**：文件名仍然是 **DataFrame.scala**
 
 5. [[SPARK-13822] Follow-ups of DataFrame/Dataset API unification](https://issues.apache.org/jira/browse/SPARK-13822)
+
    * [[SPARK-13880] Rename DataFrame.scala as Dataset.scala](https://issues.apache.org/jira/browse/SPARK-13880) 和 [[SPARK-13881] Remove LegacyFunctions](https://issues.apache.org/jira/browse/SPARK-13881) 这两个jira提交之后DataFrame.scala 改名成 Dataset.scala
 
 6. [[SPARK-12449] Pushing down arbitrary logical plans to data sources](https://issues.apache.org/jira/browse/SPARK-12449)，江烈report的稍微复杂的SQL，SPARK的JDBC 驱动不支持Push down，见下面的SQL：
@@ -30,7 +34,7 @@
       START_TIME <  cast('2017-01-03 15:00:00' as timestamp) 
     group by 
       app_code,app_host,service_name
-
+    
     ## 1. group by 不能push down
     ## 2. START_TIME >= cast('2017-01-03 14:00:00' as timestamp) 如果不加cast 也不能push down，这个不知道具体原因
     ```
@@ -193,7 +197,7 @@ QueryExecution
 
 > TODO：
 > -[x] `encoder` 声明的时候即没有指定 `val` 也没有指定 `var`，到底是**可变量**还是**常量**？
->      参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
+> ​     参见*快学 Scala* 的5.7节**主构造器**，取决于是否在类方法中使用
 > -[ ] `sqlContext` must be `val` because *a stable identifier is expected when you import implicits*
 ### 创建
 
@@ -409,7 +413,6 @@ In total, the rules for the analyzer are about [1000 lines of code](https://gith
 # 术语
 - CTE [Common Table Expression]
 
-
 ---
 <style type="text/css">
 .tg  {border-collapse:collapse;border-spacing:0;}
@@ -524,7 +527,6 @@ In total, the rules for the analyzer are about [1000 lines of code](https://gith
     <td class="tg-yw4l">Repartition the RDD according to the given partitioner and, within each resulting partition, sort records by their keys. This is more efficient than calling repartition and then sorting within each partition because it can push the sorting down into the shuffle machinery.</td>
   </tr>
 </table>
-
 
 
 ---
@@ -718,3 +720,19 @@ This is all what I wanted to say about Spark shuffles. It is a very interesting 
 
 因此将关键路径上的（主要是shuffle阶段）`FileInputStream`和`FileOutputStream`的替换为**NIO**的`Files.newInputStream`和`Files.newOutputStream`。
 
+# 窗口的实现
+**This class calculates and outputs (windowed) aggregates over the rows in a single (sorted) partition**. The aggregates are calculated for each row in the group. Special processing instructions, frames, are used to calculate these aggregates. Frames are processed in the order specified in the window specification (the ORDER BY ... clause). There are four different frame types:
+- **Entire partition**: The frame is the entire partition, i.e.  UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING. For this case, window function will take all rows as inputs and be evaluated once.
+- **Growing frame**: We only add new rows into the frame, i.e. UNBOUNDED PRECEDING AND ....  Every time we move to a new row to process, we add some rows to the frame. We do not remove rows from this frame.
+- **Shrinking frame**: We only remove rows from the frame, i.e. ... AND UNBOUNDED FOLLOWING. Every time we move to a new row to process, we remove some rows from the frame. We do not add rows to this frame.
+- **Moving frame**: Every time we move to a new row to process, we remove some rows from the frame  and we add some rows to the frame. Examples are:
+    1 PRECEDING AND CURRENT ROW and 1 FOLLOWING AND 2 FOLLOWING.
+- **Offset frame**: The frame consist of one row, which is an offset number of rows away from the  current row. Only `OffsetWindowFunction`s can be processed in an offset frame.
+
+Different frame boundaries can be used in Growing, Shrinking and Moving frames. A frame boundary can be either Row or Range based:
+- **Row Based**: A row based boundary is based on the position of the row within the partition. An offset indicates the number of rows above or below the current row, the frame for the current row starts or ends. For instance, given a row based sliding frame with a lower bound offset of -1 and a upper bound offset of +2. The frame for row with index 5 would range from index 4 to index 6.
+- **Range based**: A range based boundary is based on the actual value of the ORDER BY  expression(s). An offset is used to alter the value of the ORDER BY expression, for  instance if the current order by expression has a value of 10 and the lower bound offset is -3, the resulting lower bound for the current row will be 10 - 3 = 7. This however puts a number of constraints on the ORDER BY expressions: there can be only one expression and this expression must have a numerical data type. An exception can be made when the offset is 0, because no value modification is needed, in this case multiple and non-numeric ORDER BY  expression are allowed.
+
+This is quite an expensive operator because every row for a single group must be in the same partition and partitions must be sorted according to the grouping and sort order. The operator requires the planner to take care of the partitioning and sorting.
+
+The operator is semi-blocking. The window functions and aggregates are calculated one group at a time, the result will only be made available after the processing for the entire group has finished. The operator is able to process different frame configurations at the same time. This is done by delegating the actual frame processing (i.e. calculation of the window functions) to specialized classes, see `WindowFunctionFrame`, which take care of their own frame type: Entire Partition, Sliding, Growing & Shrinking. Boundary evaluation is also delegated to a pair of specialized classes: `RowBoundOrdering` & `RangeBoundOrdering`.

@@ -106,57 +106,72 @@ If you think “Hmm, this name sounds familiar”, you’re right, it’s almost
 
 Ok, enough with the comparisons, let’s get to business.
 
-### Analyzing the API
+### ~~==分析API==~~
 
-Let’s look at the method signature for `mapGroupsWithState`:
+> ### Analyzing the API
+>
+> Let’s look at the method signature for `mapGroupsWithState`:
+
+`mapGroupsWithState`方法的定义如下：
 
 ```scala
 def mapGroupsWithState[S: Encoder, U: Encoder](
       timeoutConf: GroupStateTimeout)(
       func: (K, Iterator[V], GroupState[S]) => U)
-
 ```
 
-Let’s break down each argument and see what we can do with it. The first argument contains a `timeoutConf` which is responsible for which timeout configuration we want to choose from. We have two options:
+> Let’s break down each argument and see what we can do with it. The first argument contains a `timeoutConf` which is responsible for which timeout configuration we want to choose from. We have two options:
+>
+> 1. **Processing Time Based** (`GroupStateTimeout.ProcessingTimeTimeout`) - Timeout based on a constant interval (similar to calling the `timeout` function on `StateSpec` in Spark Streaming)
+> 2. **Event Time Based** (`GroupStateTimeout.EventTimeTimeout`) - Timeout based on a user defined event time *and watermark* (read [this for more about handling late data using watermarks](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#handling-late-data-and-watermarking)).
+>
+> In the second argument list we have our state function. Let’s examine each argument and what it means:
 
-1. **Processing Time Based** (`GroupStateTimeout.ProcessingTimeTimeout`) - Timeout based on a constant interval (similar to calling the `timeout` function on `StateSpec` in Spark Streaming)
-2. **Event Time Based** (`GroupStateTimeout.EventTimeTimeout`) - Timeout based on a user defined even time *and watermark* (read [this for more about handling late data using watermarks](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#handling-late-data-and-watermarking)).
+我们看看每个参数有啥用。第一个参数是`timeoutConf`，用于设置超时配置，有两种选择：
 
-In the second argument list we have our state function. Let’s examine each argument and what it means:
+1. **处理时间**（`GroupStateTimeout.ProcessingTimeTimeout`）——基于恒定间隔的超时（类似于在Spark流中调用`StateSpec`上的`timeout`函数）
+2. **事件时间**（`GroupStateTimeout.EventTimeTimeout`）——基于用户定义的事件时间和水位（有关使用水位处理延迟数据的更多信息，请阅读[本文]((https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#handling-late-data-and-watermarking))）。
+
+第二个参数列表定义了**状态函数**。每一个参数和它的含义如下：
 
 ```scala
 func: (K, Iterator[V], GroupState[S] => U)
-
 ```
 
-There are three argument types, `K`, `Iterator[V]`, and `GroupState[S]` and a return type of type `U`. Lets map each of these arguments to our example and fill in the types.
+> There are three argument types, `K`, `Iterator[V]`, and `GroupState[S]` and a return type of type `U`. Lets map each of these arguments to our example and fill in the types.
+>
+> As we’ve seen, we have a stream of incoming messages of type `UserEvent`. This class has a field called `id` of type `Int` which we’ll use as our key to group user events together. This means we substitute `K` with `Int`:
 
-As we’ve seen, we have a stream of incoming messages of type `UserEvent`. This class has a field called `id` of type `Int` which we’ll use as our key to group user events together. This means we substitute `K` with `Int`:
+有三种参数类型，`K`、`Iterator[V]`和`GroupState[S]`以及返回类型`U`。现在把每个参数类型映射成示例中的类型。
 
-```
+正如我们所见，输入消息流的类型是`UserEvent`，这个类有一个名为`id`，类型为`Int`的字段，我们将使用它作为**Key**，把**用户事件**分组在一起，这意味着用`Int`代替`K`：
+
+```scala
 (Int, Iterator[V], GroupState[S]) => U
-
 ```
 
-Next up is `Iterator[V]`. `V` is the type of the values we’ll be aggregating. We’ll be receiving a stream of `UserEvent` and that means we need to substitute that with `V`:
+> Next up is `Iterator[V]`. `V` is the type of the values we’ll be aggregating. We’ll be receiving a stream of `UserEvent` and that means we need to substitute that with `V`:
 
-```
+接下来是`Iterator [V]`。 `V`是我们将**聚合的值的类型**。 输入消息流是`UserEvent`，这意味着我们需要用它代替`V`：
+
+```scala
 (Int, Iterator[UserEvent], GroupState[S]) => U
-
 ```
 
-Great! Which class describes our state? If you scroll up a bit, you’ll see we’ve defined a class called `UserSession` which portraits the entire session of the user, and that’s what we’ll use as our state type! Let’s substitute `S` with `UserSession`
+> Great! Which class describes our state? If you scroll up a bit, you’ll see we’ve defined a class called `UserSession` which portraits the entire session of the user, and that’s what we’ll use as our state type! Let’s substitute `S` with `UserSession`
 
-```
+那个类描述了我们的状态？ 如果向上滚动一下，你会看到我们已经定义了一个名为`UserSession`的类，它描绘了用户的整个会话，这就是我们的状态类型！ 让我们用`UserSession`代替`S`.
+
+```scala
 (Int, Iterator[UserEvent], GroupState[UserSession]) => U
-
 ```
 
-Awesome, we’ve managed to fill in the types of the arguments. The return type, `U`is what we have left. We only want to return a `UserSession` once it’s complete, either by the user session timing out or receiving the `isLast` flag set to `true`. We’ll set the return type to be an `Option[UserSession]` which will be filled iff we’ve completed the session. This means substituting `U` with `Option[UserSession]`:
+> Awesome, we’ve managed to fill in the types of the arguments. The return type, `U`is what we have left. We only want to return a `UserSession` once it’s complete, either by the user session timing out or receiving the `isLast` flag set to `true`. We’ll set the return type to be an `Option[UserSession]` which will be filled iff we’ve completed the session. This means substituting `U` with `Option[UserSession]`:
 
-```
+太棒了，我们设法填写了三个参数的类型。 现在就剩下返回类型`U`了。我们只想在用户会话完成后返回`UserSession`，这要么通过用户会话超时，要么通过接收到`isLast`为`true`的用户事件来表示。 用`Option [UserSession]`表示返回类型，这意味着如果用户会话已经完成，才会填充它，因此用`Option[UserSession]`代替`U`
+
+```scala
 (Int, Iterator[UserEvent], GroupState[UserSession]) => Option[UserSession]
-
 ```
 
 Hooray!
@@ -179,24 +194,29 @@ In addition, there are several restrictions to calling `setTimeoutDuration`. If 
 
 I’ve summarized API documentation here but if you want the full details [see the Scala Docs](https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.sql.streaming.GroupState).
 
-### Creating custom encoders
+### 创建定制的编码器
 
-For the perceptive amongst the readers, you’ve probably noticed the following constraint on the type parameters of `mapGroupsWithState`:
+> ### Creating custom encoders
+>
+> For the perceptive amongst the readers, you’ve probably noticed the following constraint on the type parameters of `mapGroupsWithState`:
 
-```
+对于读者来说，您可能已经注意到`mapGroupsWithState`的类型参数受到以下约束：
+
+```scala
 def mapGroupsWithState[S: Encoder, U: Encoder]
-
 ```
 
-What is this `Encoder` class required via [context bound](https://stackoverflow.com/questions/2982276/what-is-a-context-bound-in-scala) on the elements `S` and `U`? The class documentation says:
+> What is this `Encoder` class required via [context bound](https://stackoverflow.com/questions/2982276/what-is-a-context-bound-in-scala) on the elements `S` and `U`? The class documentation says:
+>
+> > Used to convert a JVM object of type `T` to and from the internal Spark SQL representation.
+>
+> Spark SQL is layered on top an optimizer called the Catalyst Optimizer, which was created as part of the [Project Tungsten](https://databricks.com/blog/2015/04/28/project-tungsten-bringing-spark-closer-to-bare-metal.html). Spark SQL (and Structured Streaming) deals, under the covers, with raw bytes instead of JVM objects, in order to optimize for space and efficient data access. For that, we have to tell Spark how to convert our JVM object structure into binary and that is exactly what these encoders do.
+>
+> Without going to lengths about encoders, here is the method signature for the trait:
 
-> Used to convert a JVM object of type `T` to and from the internal Spark SQL representation.
 
-Spark SQL is layered on top an optimizer called the Catalyst Optimizer, which was created as part of the [Project Tungsten](https://databricks.com/blog/2015/04/28/project-tungsten-bringing-spark-closer-to-bare-metal.html). Spark SQL (and Structured Streaming) deals, under the covers, with raw bytes instead of JVM objects, in order to optimize for space and efficient data access. For that, we have to tell Spark how to convert our JVM object structure into binary and that is exactly what these encoders do.
 
-Without going to lengths about encoders, here is the method signature for the trait:
-
-```
+```scala
 trait Encoder[T] extends Serializable {
 
   /** Returns the schema of encoding this type of object as a Row. */
@@ -207,7 +227,6 @@ trait Encoder[T] extends Serializable {
    */
   def clsTag: ClassTag[T]
 }
-
 ```
 
 Any encoder has to provide two things, a schema of the class described via a `StructType`, which is a recursive data structure laying out the schema of each field in the object we’re describing, and the `ClassTag[T]` for converting collections with type `T`.
@@ -219,7 +238,6 @@ object StatefulStructuredSessionization {
   implicit val userEventEncoder: Encoder[UserEvent] = Encoders.kryo[UserEvent]
   implicit val userSessionEncoder: Encoder[UserSession] = Encoders.kryo[UserSession]
 }
-
 ```
 
 For more on custom encoders, see this [StackOverflow answer](https://stackoverflow.com/a/39442829/1870803).

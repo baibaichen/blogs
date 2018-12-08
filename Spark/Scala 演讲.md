@@ -145,11 +145,45 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 > TODO：整理下面的内容
 > - [ ] [An Introduction to Pattern Matching in Scala](https://newcircle.com/s/post/1696/an_Introduction_to_pattern_matching_in_scala_brian_clapper_tutorial)
 > - [ ] [Case Classes and Pattern Matching](http://www.artima.com/pins1ed/case-classes-and-pattern-matching.html)（*Scala 编程*的第15章）
-> - [ ] Case语句的中置表式法（参见*快学 Scala *的**14.11**节）
-> - [ ] [[PDF] Matching Objects with patterns](https://infoscience.epfl.ch/record/98468/files/MatchingObjectsWithPatterns-TR.pdf)
-> - [x] [探索Scala（4）-- Case Classes](http://blog.csdn.net/zxhoo/article/details/40454075)
+> - [ ] Case语句的中置表式法（参见**快学 Scala**的**14.11**节）
+> - [ ] [[PDF] Matching Objects with patterns](https://infoscience.epfl.ch/record/98468/files/MatchingObjectsWithPatterns-TR.pdf)，特别是这篇PDF需要认真整理
+> - [ ] [探索Scala（4）-- Case Classes](http://blog.csdn.net/zxhoo/article/details/40454075)
 >
-> 特别是这篇PDF需要认真整理
+
+### PDF 里的内容
+
+> Here, we take a very general view of patterns. **A pattern is simply some way of characterizing a group of objects and binding local names to objects that match some property in the classification.**
+>
+> The reason why patterns have so far played a lesser role in object-oriented languages might have to do with the object-oriented principle which states that behavior should be bundled with data and that the only form of differentiation should be through virtual method calls. This principle works well as long as (1) one can plan from the start for all patterns that will arise in an application, and (2) one only needs to decompose one object at a time.
+>
+> However, these two assumptions do not always hold. The extensive literature on the expression problem [5–8] has explored many situations where access patterns are constructed a-posteriori, after the interface of the base class is fixed. Furthermore, there are access patterns where the result depends on the kinds of several objects.
+
+**模式**只是描述一组对象特点的某种方式，并将==本地名称绑定到与分类中某些属性匹配的对象==。
+
+### 模式的种类
+
+1. 通配模式
+2. 常量模式
+3. 变量模式
+4. 构造器模式，scala 支持深度匹配（deep match）
+5. 序列模式
+6. 元组模式
+7. 类型模式
+8. 变量绑定
+
+其它特性：
+
+1. 模式守卫
+2. 模式重叠
+3. 中缀法
+
+#### 无处不在的模式
+
+在scala中，模式可以出现在很多地方，而不是单单出现在`match`表达式里。下面几个场景也是使用模式的地方：
+
+1. 变量定义中的模式
+2. 大括号里的case语句是偏函数，注意这里没有`match`关键字了。
+3. `for`表达式里的模式
 
 ### 样例类
 
@@ -168,7 +202,7 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 
 除此之此，case class与其它普通的scala类没有区别。
 
-### Generating auxiliary constructors for case classes
+#### Generating auxiliary constructors for case classes
 
 A *case class* is a special type of class that generates a *lot* of boilerplate code for you. Because of the way they work, adding what appears to be an auxiliary constructor to a `case class` is different than adding an auxiliary constructor to a **regular** class. ==This is because they are not really constructors: they are `apply` methods in the companion object of the class.==
 
@@ -982,3 +1016,4 @@ Spark中的例子:
 // MapOutputTrackerMaster
 val shuffleStatuses = new ConcurrentHashMap[Int, ShuffleStatus]().asScala
 ```
+
