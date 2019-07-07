@@ -1,0 +1,769 @@
+# Matching Objects With Patterns
+
+**Abstract**. Data in object-oriented programming is organized in a hierarchy of classes. The problem of object-oriented pattern matching is how to explore this hierarchy from the outside. This usually involves classifying objects by their run-time type, accessing their members, or determining some other characteristic of a group of objects. In this paper we compare six different pattern matching techniques: object-oriented decomposition, visitors, type-tests/type-casts, typecase, case classes, and extractors. The techniques are compared on nine criteria related to conciseness, maintainability and performance. The paper introduces case classes and extractors as two newpattern-matching methods and shows that their combination works well for all of the established criteria.
+
+## 1 引言
+
+Data in object-oriented programming is organized in a hierarchy of classes. The problem of object-oriented pattern matching is how to explore this hierarchy from the outside. This usually involves classifying objects by their run-time type, accessing their members, or determining some other characteristic of a group of objects. Here, we take a very general view of patterns. A pattern is simply some way of characterizing a group of objects and binding local names to objects that match some property in the classification.
+
+> **面向对象编程中，==需要==按类的层次结构来组织数据**。面向对象的模式匹配要解决的是**如何从外部探索这种层次结构**。这通常涉及到按对象的运行时类型对其进行分类、访问其成员或确定一组对象的某些其他特征。这里，我们对模式有一个非常一般的看法。==模式==**不过是描述一组对象的某种方式，并将==与分类中某些属性匹配的对象绑定到本地名称==**。
+
+A number of functional languages are built on patterns as an essential syntactic construct. Examples are SML, OCaml or Haskell. In object-oriented languages, patterns are much less common, even though some research exists [1–4]. Mainstream object-oriented languages propose to do pattern matching through encodings, such as virtual classification methods, visitors, or type-tests and type-casts.
+
+> 许多函数式语言都将模式匹配作为一种基本的句法结构。 例如SML，OCaml或Haskell。 即使存在一些研究[1-4]，面向对象语言中的模式==匹配==也不太常见。 主流的面向对象语言建议通过编码进行模式匹配，例如虚拟分类方法，**访问者**或类型测试和类型转换。
+
+The reason why patterns have so far played a lesser role in object-oriented languages might have to do with the object-oriented principle which states that behavior should be bundled with data and that the only form of differentiation should be through virtual method calls. This principle works well as long as (1) one can plan from the start for all **patterns** that will arise in an application, and (2) one only needs to **decompose** one object at a time.
+
+> 迄今为止，模式在面向对象语言中所起的作用较小的原因可能与面向对象原则有关，该原则规定行为应与数据捆绑在一起，通过虚拟方法调用是<u>区分不同数据的唯一形式</u>。这个原则可以很好地工作，只要（1）一开始就可以为应用程序中出现的所有模式进行计划，（2）每次只需要分解一个对象。
+
+However, these two assumptions do not always hold. The extensive literature on the expression problem [5–8] has explored many situations where access patterns are constructed a-posteriori, after the interface of the base class is fixed. Furthermore, there are access patterns where the result depends on the kinds of several objects.
+
+> 然而，这两个假设并不总是成立。关于表达式问题[5–8]的大量文献探讨了许多情况，即，访问模式是在基类接口固定之后构建的。此外，还有一些访问模式，其结果取决于几个对象的类型。
+
+-----
+
+^2^
+
+Consider for instance symbolic manipulation of expressions. We assume a hierarchy of classes, rooted in a base class Expr and containing classes for specific forms of expressions, such as Mul for multiplication operations, Var for variables, and Num for numeric literals. Different forms of expressions have different members: Mul has two members left and right denoting its left and right operand, whereas Num has a member value denoting an integer. A class hiercharchy like this is expressed as follows (we use Scala as programming notation throughout the paper).
+
+> 例如，考虑表达式的符号操作。 假设类的层次结构是以`Expr`为基类，用不同的子类表示特定的表达式，例如用于乘法运算的`Mul`，用于变量的`Var`和用于数字字面量的`Num`。 不同的表达式有不同的成员：`Mul`有`left` 和`right`两个成员，表示其左右操作数；而`Num`有一个`value`成员表示整数值。 像这样的类等级表示如下（在整篇论文中，我们使用Scala作为编程语言）。
+
+```scala
+class Expr
+class Num(val value : int) extends Expr
+class Var(val name : String) extends Expr
+class Mul(val left : Expr, val right : Expr) extends Expr
+```
+
+A particular expression would then be constructed as follows
+
+> 按下面的方式构造一个具体的表达式:
+
+```scala
+new Mul(new Num(21), new Num(2))
+```
+
+Let’s say we want to write a simplifier for arithmetic expressions. This program should try to apply a set of simplification rules, until no more rewrites are possible. An example simplification rule would make use of the right-neutrality of the number one. That is,
+
+> 假设我们想为算术表达式编写一个简化器，简化器将**<u>尝试应用</u>**一组简化规则，直到不能再重写为止。 比如某个简化规则利用数字1的==<u>中立性</u>==，也就是：
+
+```java
+new Mul(x, new Num(1)) is replaced with x .
+```
+
+The question is how simplification rules like the one above can be expressed. This is an instance of the object-oriented pattern matching problem, where objects of several variant types connected in possibly recursive data structures need to be classified and decomposed from the outside. We will review in this paper the six techniques for this task: (1) classical object-oriented decomposition, (2) visitors, (3) type-tests/type-casts, (4) typecase, (5) case classes, and (6) extractors. Of these, the first three are well known in object-oriented languages. The fourth technique, typecase, is well known in the types community, but its extensions to type patterns in Scala is new. The fifth technique, case classes, is specific to Scala. The sixth technique,extractors, is new. It has been proposed independently by JohnWilliams for Scala [9] and by Don Syme under the name “active patterns” for F# [10]. The basic F# design is in many ways similar to the Scala design, but Scala’s treatment of parametricity is different. Every technique will be evaluated along nine criteria. The first three criteria are concerned with conciseness of expression:
+
+> 如何表达<span style='color:red'>像上面这样的</span>简化规则？这是**面向对象语言中模式匹配**的一个==**难题**==，此时，需要从外部提取**数据结构中相互连接的、不同类型的**多个对象，并且这个数据结构有可能是递归的。我们将在本文中回顾这项任务的六种技术：（1）经典的面向对象分解，（2）访问者，（3）类型测试/类型转换，（4）typecase，（5）样例类，以及（6）提取器。其中，前三个在面向对象语言中众所周知。第四种技术**typecase**在类型社区中众所周知，但在Scala中，它对类型模式的扩展是**新方法**。第五种技术是Scala特有的**样例类**。第六种是新技术**提取器**，由 John Williams和Don Syme各自在Scala [9]和F＃[10]独立提出，但在F#中被称之为“活动模式”，F#的基本设计在许多方面和Scala类似，但Scala对参数化的处理不同。每项技术都将根据九项标准进行评估。前三个是表达简洁性的标准：
+
+1. Conciseness/framework: How much “boilerplate” code needs to be written to enable classifications?
+
+2. Conciseness/shallow matches: How easy is it to express a simple classification on the object’s type?
+
+3. Conciseness/deep matches: How easy is it to express a deep classification involving several objects?
+
+>1. 简洁/框架：需要编写多少“样板”代码才能实现分类？
+>2. 简洁/浅层匹配：如何表达按对象类型进行简单分类？有多容易？
+>3. 简洁/深度匹配：如何表达涉及多个对象的深层分类？有多容易？
+
+The next three criteria assess program maintainability and evolution. In big projects, their importance often ranks highest.
+
+4. Representation independence: How much of an object’s representation needs to be revealed by a pattern match?
+
+>接下来的三个标准评估可维护性和演化。大型项目中，它们的重要性通常排在首位。
+>
+>4. 表示独立性：在模式匹配中，对象的内部数据需要被暴露多少？
+>
+
+~2~
+
+-------
+
+^3^
+
+5. Extensibility/variants: How easy is it to add new data variants after a class hierarchy is fixed?
+
+6. Extensibility/patterns: How easy is it to add new patterns after a class hierarchy is fixed? Can new patterns be expressed with the same syntax as existing ones?
+
+>5. 扩展性/变量：在类层次结构固定后，添加新的数据变量有多容易？
+>6. 扩展性/模式：在类层次结构固定后，添加新模式有多容易？新模式是否可以用与现有模式相同的语法来表示？
+
+Note that all presented schemes allow extensions of a system by new processors that perform pattern matching (one of the two dimensions noted in the expression problem). After all, this is what pattern matching is all about! The last three considered criteria have to do with performance and scalability:
+
+7. Base performance: How efficient is a simple classification?
+
+8. Scalability/breadth: How does the technique scale if there are many different cases?
+
+9. Scalability/depth: How does the technique scale for larger patterns that reach several levels into the object graph? Here it is important that overlaps between several patterns in a classification can be factored out so that they need to be tested only once.
+
+> 请注意，上述所有方案都允许通过==**新处理器执行模式匹配**==来扩展系统（表达式问题中指出的两个维度之一）。毕竟，这就是模式匹配的全部意义！最后三个考虑的标准与性能和可扩展性有关：
+>
+> 7. 基本性能：简单分类的效率如何？
+> 8. 可扩展性/广度：技术上，如何针对各种不同的情况扩展？
+> 9. 可伸缩性/深度：技术上，如何扩展到对象图中到达多层的较大模式？这里重要的是，要提取出<u>==分类的几个模式之间的==</u>重叠部分，以便它们仅需要测试一次。
+
+Our evaluation will show that a combination of case classes and extractors can do well in all of the nine criteria.
+
+>我们将表明，**样例类**和**提取器**的组合在所有九个标准的评测中都表现良好。
+
+A difficult aspect of decomposition is its interaction with static typing, in particular type-parametricity. A subclass in a class hierarchy might have either fewer or more type parameters than its base class. This poses challenges for the precise typing of decomposing expressions which have been studied under the label of ”generalized algebraic data-types”, or GADT’s [11, 12]. The paper develops a new algorithm for recovering static type information from patterns in these situations.
+
+> 分解的一个困难方面是与静态类型的交互，特别是类型参数。 类层次结构中的子类可能具有比其基类更少或更多的类型参数。 这对于<u>==在“泛型代数数据类型”或GADT [11,12]的标签下研究的分解表达式的精确分类==</u>提出了挑战。 本文开发了一种新的算法，用于模式匹配在这些情况下恢复静态类型信息。
+
+### 相关的工作
+
+Pattern matching in the context of object-oriented programming has been applied to message exchange in distributed systems [13], semistructured data [14] and UI event handling [15].
+
+Moreau, Ringeissen and Vittek [1] translate pattern matching code into existing languages,without requiring extensions. Liu and Myers [4] add a pattern matching construct to Java by means of a backward mode of execution.
+
+Multi-methods [16–19] are an alternative technique which unifies pattern matching with method dispatch. Multi-methods are particularly suitable for matching on several arguments at the same time. An extension of multi-methods to predicate-dispatch [20, 21] can also access embedded fields of arguments; however it cannot bind such fields to variables, so support for deep patterns is limited.
+
+Views in functional programming languages [22, 23] are conversions from one data type to another that are implicitly applied in pattern matching. They play a role similar to extractors in Scala, in that they permit to abstract from the concrete data-type of the matched objects. However, unlike extractors, views are anonymous and are tied to a particular target data type. Erwig’s active patterns [24] provide views for non-linear patterns with more refined computation rules. Gostanza et al.’s active destructors [25] are closest to extractors; an active destructor corresponds almost exactly to an unapply method in an extractor. However, they do not provide data type injection, which is handled by the corresponding apply method in our design. Also, being tied to traditional algebraic data types, active destructors cannot express inheritance with varying type parameters in the way it is found in GADT’s.
+
+> 面向对象编程环境下的模式匹配，已经应用于分布式系统中的消息交换[13]、半结构化数据[14]和UI事件处理[15]。
+>
+> Moreau，Ringeissen和Vittek[1]将模式匹配代码翻译成现有语言，无需扩展。 Liu和Myers[4]通过反向执行的方法，向Java添加模式匹配构造。
+>
+> **多方法**[16–19]是一种将模式匹配与方法分派相结合的替代技术。多方法特别适合同时匹配多个参数。对谓词分派[20，21]的**多方法**扩展可以访问参数的嵌入字段；但是它不能将这些字段绑定到变量，因此对深层模式的支持是有限的。
+>
+> 函数式编程语言[22，23]中的视图是从一种数据类型到另一种数据类型的转换，这些类型转换在模式匹配中隐式应用。它们在Scala中扮演类似于**提取器**的角色，因为它们允许<u>==从匹配对象的具体数据类型中==</u>抽象出来。但与提取器不同，视图是匿名的，并且绑定到特定的目标数据类型。Erwig的活动模式[24]为有更精确计算规则的非线性模式提供了视图。Gostanza等人的主动析构函数[25]最接近提取器; 主动析构函数几乎完全对应于提取器中的`unapply`方法；但是，它们不提供数据类型注入，在我们的设计中由相应的`apply`方法处理。此外，由于与传统的代数数据类型相关联，主动析构函数不能用在GADT中找到的方式，来表示具有不同类型参数的继承。
+
+> [Chang] Scala语言中的语法构造：
+>
+> | 英文       | 翻译   | scala中的语法                                             |
+> | ---------- | ------ | --------------------------------------------------------- |
+> | Views      | 视图   | 视图边界，参见Praogramming Scala(Scala 程序设计) 第14.4节 |
+> | Extractor. | 提取器 | 提取器，参见Praogramming in Scala(Scala 编程) 第26章      |
+
+~3~
+
+------
+
+```scala
+// Class hierarchy:
+trait Expr {
+  def isVar : boolean = false
+  def isNum : boolean= false
+  def isMul : boolean = false
+  def value : int = throw new NoSuchMemberError
+  def name : String = throw new NoSuchMemberError
+  def left : Expr = throw new NoSuchMemberError
+  def right : Expr = throw new NoSuchMemberError
+}
+
+class Num(override val value : int) extends Expr {
+  override def isNum = true }
+
+class Var(override val name : String) extends Expr {
+  override def isVar = true }
+
+class Mul(override val left : Expr, override val right : Expr) extends Expr {
+override def isMul = true }
+
+// Simplification rule:
+  if (e.isMul) {
+    val r = e.right
+    if (r.isNum && r.value == 1) e.left else e
+  } else e
+```
+
+Fig. 1. 表达式简化，使用面向对象分解
+
+## 2 标准技术
+
+In this section, we review four standard techniques for object-oriented pattern matching. These are, first, object-oriented decomposition using tests and accessors, second, visitors, third, type-tests and type-casts, and fourth, typecase. We explain each technique in terms of the arithmetic simplification example that was outlined in the introduction. Each technique is evaluated using the six criteria for conciseness and maintainability that were developed in the introduction. Performance evaluations are deferred to Section 5.
+
+> 在本节中，我们将介绍面向对象模式匹配的四种标准技术。 首先，使用测试和访问器进行面向对象的分解，其次是访问者，第三种，类型测试和类型转换，第四种是typecase。 我们根据引言中概述的算术简化示例解释每种技术。 每种技术都使用引言中开发的六个简洁性和可维护性标准进行评估。 性能评估推迟到第5节。
+
+### 2.1 面向对象分解
+
+In classical OO decomposition, the base class of a class hierarchy contains test methods which determine the dynamic class of an object and accessor methods which let one refer to members of specific subclasses. Some of these methods are overridden in each subclass. Figure 1 demonstrates this technique with the numeric simplification example.
+
+> 在经典的OO分解中，基类包含**测试方法**，用于确定对象的运行时类型；及**访问器方法**，用于引用特定的子类成员。部分方法会在每个子类中被重载。图1用数字简化的示例来演示这种技术。
+
+~4~
+
+------
+^5^
+
+The base class Expr contains test methods isVar, isNum and isMul, which correspond to the three subclasses of Expr (a trait is roughly a Java interface with methods optionally having default implementations). All test methods return false by default. Each subclass re-implements “its” test method to return true. The base class also contains one accessor method for every publicly visible field that is defined in some subclass. The default implementation of every access method in the base class throws a NoSuchMemberError exception.Each subclass re-implements the accessors for its own members. Scala makes these re-implementations particularly easy because it allows one to unify a class constructor and an overriding accessor method in one syntactic construct, using the syntax **override val …** in a class parameter.
+
+> 基类`Expr`包含测试方法`isVar`，`isNum`和`isMul`，它们对应于`Expr`的三个子类（**trait**大致是Java的接口，但是其方法可以有默认实现）。默认情况下，所有测试方法都返回*false*。每个子类重载“其”测试方法以返回true。子类中定义的每个公开可见字段，基类都包含一个**访问器**方法。基类中每个访问方法的默认实现都抛出`NoSuchMemberError`异常。每个子类都为其自己的成员重新实现访问器。在Scala中重载访问器方法特别容易，因为它允许在类参数中使用`override val …`这样的语法，同时定义了类的构造函数和重载的访问器方法。
+
+Note that in a dynamically typed language like Smalltalk, the base class needs to define only tests, not accessors, because missing accessors are already caught at run-time and are turned into NoSuchMethod messages. So the OO-decomposition pattern becomes considerably more lightweight. That might be the reason why this form of decomposition is more prevalent in dynamically typed languages than in statically typed ones. But even then the technique can be heavy. For instance, Squeak’s Object class contains 35 test methods that each inquire whether the receiver is of some (often quite specific) subclass.
+
+> 请注意，像Smalltalk这样的动态类型语言，基类只需定义测试方法，而不用定义访问器，因为运行时会捕获缺少的访问器，并将其转换为`NoSuchMethod`消息。因此，OO分解模式变得更加轻量级。这可能是为什么这种形式的分解在动态类型语言中比在静态类型语言中更普遍的原因。但即便如此，这项技术也可能很重。例如，Squeak的`Object`类包含35个测试方法，每个方法都询问接收器是否属于某些（通常非常具体）子类。
+
+Besides its bulk, the object-oriented decomposition technique also suffers from its lack of extensibility. If one adds another subclass of Expr, the base class has to be augmented with new test and accessor methods. Again, dynamically typed languages such as Smalltalk alleviate this problem to some degree using meta-programming facilities where classes can be augmented and extended at run-time.
+
+The second half of Figure 1 shows the code of the simplification rule. The rule inspects the given term stepwise, using the test functions and accessors given in class Expr.
+
+> 除了体积庞大之外，面向对象分解技术还缺乏可扩展性。如果添加了另一个`Expr`子类，则必须使用新的测试和访问器方法来扩充基类。同样，动态类型语言（如Smalltalk）使用元编程工具，在某种程度上缓解了这个问题，这时可以在运行时进行扩充和扩展类。
+>
+> 图1的后半部分显示了简化规则的代码。该规则使用Expr类中给出的测试函数和访问器逐步检查给定的元素。
+
+*Evaluation*: In a statically typed language, the OO decomposition technique demands a high notational overhead for framework construction, because the class-hierarchy has to be augmented by a large number of tests and accessor methods. The matching itself relies on the interplay of many small functions and is therefore often somewhat ad-hoc and verbose. This holds especially for deep patterns. Object-oriented decomposition maintains complete representation independence. Its extensibility characteristics are mixed. It is easy to add new forms of matches using existing tests and accessors. If the underlying language has a concept of open classes or mixin composition, these matches can sometimes even be written using the same method call syntax as primitive matches. On the other hand, adding new subclasses requires a global rewrite of the class-hierarchy.
+
+> **评估**：在静态类型语言中，OO分解技术需要为框架构造太多的符号，因为类层次结构必须由大量的测试和访问方法进行扩充，因此开销很高。匹配本身依赖于许多小函数的相互作用，因此通常有点特殊和冗长。<u>==深层模式中这点特别明显==</u>。面向对象的分解完整地保持了表示独立性。 它的可扩展性特征是混合的。 使用现有的测试方法和访问器很容易添加新的匹配形式。如果底层语言具有开放类或者**mixin组合**的概念，则有时甚至可以使用与原始匹配相同的调用方法来编写这些匹配。 另一方面，添加新子类需要全局重写类层次结构。
+
+### 2.2 Visitors
+
+Visitors [26] are a well-known design pattern to simulate pattern matching using double dispatch. Figure 2 shows the pattern in the context of arithmetic simplification. Because we want to cater for non-exhaustive matches, we use visitors with defaults [3] in the example. The Visitor trait contains for each subclass X of Expr one case-method named caseX. Every caseX method takes an argument of type X and yields a result of type T, the generic type parameter of the Visitor class. In class Visitor every case-method has a default implementation which calls the otherwise method.
+
+The Expr class declares a generic abstract method matchWith, which takes a visitor as argument. Instances of subclasses X implement the method by invoking the corresponding caseX method in the visitor object on themselves.
+
+~5~
+
+------
+^6^
+
+```scala
+// Class hierarchy:
+trait Visitor[T] {
+  def caseMul(t : Mul): T = otherwise(t)
+  def caseNum(t : Num): T = otherwise(t)
+  def caseVar(t : Var): T = otherwise(t)
+  def otherwise(t : Expr): T = throw new MatchError(t)
+}
+
+trait Expr {
+  def matchWith[T](v : Visitor[T]): T }
+
+class Num(val value : int) extends Expr {
+  def matchWith[T](v : Visitor[T]): T = v.caseNum(this) }
+
+class Var(val name : String) extends Expr {
+  def matchWith[T](v : Visitor[T]): T = v.caseVar(this) }
+
+class Mul(val left : Expr, val right : Expr) extends Expr {
+  def matchWith[T](v : Visitor[T]): T = v.caseMul(this) }
+
+// Simplification rule:
+  e.matchWith {
+    new Visitor[Expr] {
+      override def caseMul(m: Mul) =
+        m.right.matchWith {
+          new Visitor[Expr] {
+            override def caseNum(n : Num) =
+              if (n.value == 1) m.left else e
+             override def otherwise(e : Expr) = e
+          }
+        }
+      override def otherwise(e : Expr) = e
+    }
+  }
+```
+Fig. 2. 表达式简化，使用访问者
+
+The second half of Figure 2 shows how visitors are used in the simplification rule. The pattern match involves one visitor object for each of the two levels of matching. (The third level match, testing whether the right-hand operand’s value is 1, uses a direct comparison). Each visitor object defines two methods: the caseX method corresponding to the matched class, and the otherwise method corresponding to the case where the match fails.
+
+*Evaluation*: The visitor design pattern causes a relatively high notational overhead for framework construction, because a visitor class has to be defined and matchWith methods have to be provided in all data variants. The pattern matching itself is disciplined but very verbose, especially for deep patterns. Visitors in their standard setting do not maintain representation independence, because case methods correspond one-to-one to data alternatives. However, one could hide data representations using some ad-hoc visitor dispatch implementation in the matchWith methods. Visitors are not extensible, at least not in their standard form presented here. Neither new patterns nor new alternatives can be created without an extensive global change of the visitor framework. Extensible visitors [6] address the prob lem of adding new alternatives (but not the problem of adding new patterns) at the price of a more complicated framework.
+
+~6~
+
+----
+
+^7^
+### 2.3 Type-Test/Type-Cast
+
+```scala
+// Class hierarchy:
+trait Expr
+class Num(val value : int) extends Expr
+class Var(val name : String) extends Expr
+class Mul(val left : Expr, val right : Expr) extends Expr
+
+// Simplification rule:
+  if (e.isInstanceOf[Mul]) {
+    val m = e.asInstanceOf[Mul]
+    val r = m.right
+    if (r.isInstanceOf[Num]) {
+       val n = r.asInstanceOf[Num]
+       if (n.value == 1) m.left else e
+    } else e
+  } else e
+```
+Fig. 3. Expression simplification using type-test/type-cast
+
+The most direct (some would say: crudest) form of decomposition uses the type-test and type-cast instructions available in Java and many other languages. Figure 3 shows arithmetic simplification using this method. In Scala, the test whether a value x is a non-null instance of some type T is expressed using the pseudo method invocation x.isInstanceOf[T], with T as a type parameter. Analogously, the cast of x to T is expressed as x.asInstanceOf[T]. The long-winded names are chosen intentionally in order to discourage indiscriminate use of these constructs.
+
+*Evaluation*: Type-tests and type-casts require zero overhead for the class hierarchy. The pattern matching itself is very verbose, for both shallow and deep patterns. In particular, every match appears as both a type-test and a subsequent type-cast. The scheme raises also the issue that type-casts are potentially unsafe because they can raise ClassCastExceptions. Type-tests and type-casts completely expose representation. They have mixed characteristics with respect to extensibility. On the one hand, one can add new variants without changing the framework (because there is nothing to be done in the framework itself). On the other hand, one cannot invent new patterns over existing variants that use the same syntax as the type-tests and type-casts.
+
+~7~
+
+----
+
+^8^
+
+### 2.4 Typecase
+```scala
+// Class hierarchy:
+trait Expr
+class Num(val value : int) extends Expr
+class Var(val name : String) extends Expr
+class Mul(val left : Expr, val right : Expr) extends Expr
+
+// Simplification rule:
+  e match {
+    case m : Mul =>
+      m.right match {
+        case n : Num =>
+          if (n.value == 1) m.left else e
+       case _ => e
+    }
+    case _ => e
+  }
+```
+Fig. 4. Expression simplification using typecase
+
+The typecase construct accesses run-time type information in much the same way as typetests and type-casts. It is however more concise and secure. Figure 4 shows the arithmetic simplification example using typecase. In Scala, typecase is an instance of a more general pattern matching expression of the form `expr match { cases }.` Each case is of the form `case p => b`; it consists of a pattern p and an expression or list of statements b. There are several kinds of patterns in Scala. The typecase construct uses patterns of the form `x : T` where `x` is a variable and `T` is a type. This pattern matches all non-null values whose runtime type is (a subtype of) `T`. The pattern binds the variable `x` to the matched object. The other pattern in Figure 4 is the wildcard pattern `_`, which matches any value.
+
+*Evaluation*: Pattern matching with typecase requires zero overhead for the class hierarchy. The pattern matching itself is concise for shallow patterns but becomes more verbose as patterns grow deeper, because in that case one needs to use nested match-expressions. Typecase completely exposes object representation. It has the same characteristics as type-test/typecast with respect to extensibility: adding new variants poses no problems but new patterns require a different syntax.
+
+## 3 Case Classes
+
+Case classes in Scala provide convenient shorthands for constructing and analyzing data. Figure 5 presents them in the context of arithmetic simplification.
+
+A case class is written like a normal class with a case modifier in front. This modifier has several effects. On the one hand, it provides a convenient notation for constructing data without having to write new. For instance, assuming the class hierarchy of Fig. 5, the expression Mul(Num(42), Var(x)) would be a shorthand for new Mul(new Num(42), new Var(x)). On the other hand, case classes allow pattern matching on their constructor. Such patterns are written exactly like constructor expressions, but are interpreted “in reverse”. For instance, the pattern Mul(x, Num(1)) matches all values which are of class Mul, with a right operand of class Num which has a value field equal to 1. If the pattern matches, the variable x is bound the left operand of the given value.
+
+~8~
+
+----
+^9^
+
+```scala
+// Class hierarchy:
+trait Expr
+case class Num(value : int) extends Expr
+case class Var(name : String) extends Expr
+case class Mul(left : Expr, right : Expr) extends Expr
+
+// Simplification rule:
+  e match {
+    case Mul(x, Num(1)) => x
+    case _ =>  e
+ }
+```
+
+Fig. 5. Expression simplification using case classes
+
+### Patterns
+
+A pattern in Scala is constructed from the following elements:
+
+- Variables such as x or right. These match any value, and bind the variable name to the value. The wildcard character is used as a shorthand if the value need not be named.
+- Type patterns such as x : int or : String. These match all values of the given type, and bind the variable name to the value. Type patterns were already introduced in Section 2.4.
+- Constant literals such as 1 or ”abc”. A literal matches only itself.
+
+- Named constants such as None or Nil, which refer to immutable values. A named constant matches only the value it refers to.
+- Constructor patterns of the form C(p1, . . . , pn), where C is a case class and p1, . . . , pn are patterns. Such a pattern matches all instances of class C which were built from values v1, . . . , vn matching the patterns p1, . . . , pn. It is not required that the class instance is constructed directly by an invocation C(v1, . . . , vn). It is also possible that the value is an instance of a subclass of C, from where a super-call constructor invoked C’s constructor with the given arguments. Another possibility is that the value was constructed through a secondary constructor, which in turn called the primary constructor with arguments v1, . . . , vn. Thus, there isconsiderable flexibility for hiding constructor arguments from pattern matching.
+- Variable binding patterns of the form x@p where x is a variable and p is a pattern. Such a pattern matches the same values as p, and in addition binds the variable x to the matched value.
+
+To distinguish variable patterns from named constants, we require that variables start with a lower-case letter whereas constants should start with an upper-case letter or special symbol.
+
+~9~
+
+----
+^10^
+
+There exist ways to circumvent these restrictions: To treat a name starting with a lower-case letter as a constant, one can enclose it in back-quotes, as in `case ‘x‘ => ...`. To treat a name starting with an upper-case letter as a variable, one can use it in a variable binding pattern,as in `case X@_ => ....`
+
+![image-20190707173129531](Matching Objects With Patterns/fig-6.png)Fig. 6. Optimizing nested patterns
+
+### Optimizing Matching Expressions
+
+A pattern match has usually several branches which each associate a pattern with a computation. For instance, a slightly more complete realistic simplification of arithmetic expressions might involve the following match:
+
+```scala
+t match {
+  case Mul(Num(1), x) => simplify(x)
+  case Mul(x, Num(1)) => simplify(x)
+  case Mul(Num(0), x) => Num(0)
+  case Mul(x, Num(0)) => Num(0)
+  case _ => t }
+```
+
+A possible implementation for this match would be to try patterns one by one. However, this strategy would not be very efficient, because the same type tests would be performed multiple times. Evidently, one needs to test not more than once whether t matches Mul, whether the left operand is a Num, and whether the right operand is a Num. The literature on pattern matching algebraic data types discusses identification and removal of superfluous tests [27]. We adapt these results to an object-oriented setting by replacing constructor-tests with subtyping [28].
+
+The principle is shown in Fig. 6 for a match on a pair (tuple types are explained in  detail below). After preprocessing, a group of nested patterns is expressed as a decision tree. During execution of the generated code, a successful test leads to the right branch, where as a failing one proceeds downwards. If there is no down path, backtracking becomes necessary until we can move down again. If backtracking does not yield a down branch either, the whole match expression fails with a MatchError exception. Note that for this match, match failure is excluded by the pattern in the last case.
+
+A vertically connected line in the decision tree marks type tests on the same value (the selector). This can be implemented using type-test and type-case. However, a linear sequence of type tests could be inefficient: in matches with n cases, on average n/2 cases might fail. For this reason, we attach integer tags to case class and translates tests on the same selector to a lookup-switch. After having switched on a tag, only a constant number of type tests (typically one) is performed on the selector. We review this decision in the performance evaluation. 
+
+~10~
+
+----
+^11^
+### Examples of Case Classes
+
+Case classes are ubiquitous in Scala’s libraries. They express lists, streams, messages, symbols, documents, and XML data, to name just a few examples. Two groups of case classes are referred to in the following section. First, there are classes representing optional values:
+
+```scala
+trait Option[+T]
+case class Some[T](value : T) extends Option[T]
+case object None extends Option[Nothing]
+```
+
+Trait Option[T] represents optional values of type T. The subclass Some[T] represents a value which is present whereas the sub-object None represents absence of a value. The ‘+’ in the type parameter of Option indicates that optional values are covariant: if S is a subtype of T, then Option[S] is a subtype of Option[T]. The type of None is Option[Nothing], where Nothing is the bottom in Scala’s type hierarchy. Because of covariance, None thus conforms to every option type.
+
+For the purpose of pattern matching, None is treated as a named constant, just as any other singleton object. The case modifier of the object definition only changes some standard method implementations for None, as explained in Section 4. A typical pattern match on an optional value would be written as follows.
+
+```scala
+v match {
+  case Some(x) => “do something with x”
+  case None => “handle missing value”
+}
+```
+
+Option types are recommended in Scala as a safer alternative to null. Unlike with null, it is not possible to accidentally assume that a value is present since an optional type must be matched to access its contents. 
+
+Tuples are another group of standard case classes in Scala. All tuple classes are of the form:
+
+```scala
+case class Tuplei[T1, ..., Ti]( _1 : T1, ..., _i : Ti)
+```
+
+There’s also an abbreviated syntax: (T1, ..., Ti) means the same as the tuple type Tuplei[T1,..., Ti] and analogous abbreviations exist for expressions and patterns.
+
+*Evaluation*: Pattern matching with case classes requires no notational overhead for the class hierarchy. As in functional programming languages, the matching code is concise for shallow as well as for nested patterns. However, also as in functional programmin, case classes expose object representation. They have mixed characteristics with respect to extensibility. Adding new variants is straightforward. However, it is not possible to define new kinds of patterns, since patterns are in a one to one correspondence with (the types of) case classes. This shortcoming is eliminated when case classes are paired with extractors.
+
+~11~
+
+----
+^12^
+
+## 4 Extractors
+
+An extractor provides a way for defining a pattern without a case class. A simple example
+
+is the following object Twice which enables patterns of even numbers:
+
+object Twice {
+
+def apply(x :Int) = x2
+
+def unapply(z :Int) = if(z%2==0) Some(z/2) else None
+
+}
+
+This object defines an apply function, which provides a new way to write integers: Twice(x)
+
+is now an alias for x  2. Scala uniformly treats objects with apply methods as functions,
+
+inserting the call to apply implicitly. Thus, Twice(x) is really a shorthand for Twice.apply(x).
+
+The unapply method in Twice reverses the construction in a pattern match. It tests its
+
+integer argument z. If z is even, it returns Some(z/2). If it is odd, it returns None. The
+
+unapply method is implicitly applied in a pattern match, as in the following example, which
+
+prints “42 is two times 21”:
+
+val x = Twice(21)
+
+x match {
+
+case Twice(y) ) Console.println(x+” is two times ”+y)
+
+case ) Console.println(”x is odd”) }
+
+In this example, apply is called an injection, because it takes an argument and yields an
+
+element of a given type. unapply is called an extraction, because it extracts parts of the
+
+given type. Injections and extractions are often grouped together in one object, because then
+
+one can use the object’s name for both a constructor and a pattern, which simulates the
+
+convention for pattern matching with case classes. However, it is also possible to define an
+
+extraction in an object without a corresponding injection. The object itself is often called an
+
+extractor, independently of the fact whether it has an apply method or not.
+
+It may be desirable to write injections and extractions that satisfy the equality
+
+F.unapply(F.apply(x)) == Some(x), but we do not require any such condition on userdefined
+
+methods. One is free to write extractions that have no associated injection or that
+
+can handle a wider range of data types.
+
+Patterns referring to extractors look just like patterns referring to case classes, but they
+
+are implemented differently. Matching against an extractor pattern like Twice(x) involves a
+
+call to Twice.unapply(x), followed by a test of the resulting optional value. The code in the
+
+preceding example would thus be expanded as follows:
+
+val x = Twice.apply(21) // x = 42
+
+Twice.unapply(x) match {
+
+case Some(y) ) Console.println(x+” is two times ”+y)
+
+case None ) Console.println(”x is odd”)
+
+}
+
+Extractor patterns can also be defined with numbers of arguments different from one. A
+
+nullary pattern corresponds to an unapply method returning a boolean. A pattern with more
+
+than one element corresponds to an unapply method returning an optional tuple. The result
+
+of an extraction plays the role of a ”representation-object”, whose constituents (if any) can
+
+be bound or matched further with nested pattern matches.
+
+~12~
+
+----
+^13^
+
+Pattern matching in Scala is loosely typed, in the sense that the type of a pattern does not
+
+restrict the set of legal types of the corresponding selector value. The same principle applies
+
+to extractor patterns. For instance, it would be possible to match a value of Scala’s root type
+
+Any with the pattern Twice(y). In that case, the call to Twice.unapply(x) is preceded by a
+
+type test whether the argument x has type int. If x is not an int, the pattern match would fail
+
+without executing the unapply method of Twice. This choice is convenient, because it avoids
+
+many type tests in unapply methods which would otherwise be necessary. It is also crucial
+
+for a good treatment of parameterized class hierarchies, as will be explained in Section 6.
+
+### Representation Independence
+
+Unlike case-classes, extractors can be used to hide data representations. As an example
+
+consider the following trait of complex numbers, implemented by case class Cart, which
+
+represents numbers by Cartesian coordinates.
+
+trait Complex
+
+case class Cart(re : double, im : double) extends Complex
+
+Complex numbers can be constructed and decomposed using the syntax Cart(r, i). The following
+
+injector/extractor object provides an alternative access with polar coordinates:
+
+object Polar {
+
+def apply(mod : double, arg : double): Complex =
+
+new Cart(mod  Math.cos(arg), mod  Math.sin(arg))
+
+def unapply(z : Complex): Option[(double, double)] = z match {
+
+case Cart(re, im) )
+
+val at = atan(im / re)
+
+Some(sqrt(re  re + im  im),
+
+if (re < 0) at + Pi else if (im < 0) at + Pi  2 else at)
+
+}
+
+}
+
+With this definition, a client can now alternatively use polar coordinates such as Polar(m, e)
+
+in value construction and pattern matching.
+
+### Arithmetic Simplification Revisited
+
+Figure 7 shows the arithmetic simplification example using extractors. The simplification
+
+rule is exactly the same as in Figure 5. But instead of case classes, we now define normal
+
+classes with one injector/extractor object per each class. The injections are not strictly necessary
+
+for this example; their purpose is to let one write constructors in the same way as for
+
+case classes.
+
+Even though the class hierarchy is the same for extractors and case classes, there is an
+
+important difference regarding program evolution. A library interface might expose only the
+
+objects Num, Var, and Mul, but not the corresponding classes. That way, one can replace or
+
+modify any or all of the classes representing arithmetic expressions without affecting client
+
+code.
+
+~13~
+
+----
+^14^
+
+// Class hierarchy:
+
+trait Expr
+
+class Num(val value : int) extends Expr
+
+class Var(val name : String) extends Expr
+
+class Mul(val left : Expr, val right : Expr) extends Expr
+
+object Num {
+
+def apply(value : int) = new Num(value)
+
+def unapply(n : Num) = Some(n.value)
+
+}
+
+object Var {
+
+def apply(name : String) = new Var(name)
+
+def unapply(v : Var) = Some(v.name)
+
+}
+
+object Mul {
+
+def apply(left : Expr, right : Expr) = new Mul(left, right)
+
+def unapply(m: Mul) = Some (m.left, m.right)
+
+}
+
+// Simplification rule:
+
+e match {
+
+case Mul(x, Num(1)) ) x
+
+case ) e
+
+}
+
+Fig. 7. Expression simplification using extractors
+
+Note that every X.unapply extraction method takes an argument of the alternative type
+
+X, not the common type Expr. This is possible because an implicit type test gets added when
+
+matching on a term. However, a programmer may choose to provide a type test himself:
+
+def unapply(x : Expr) = x match {
+
+case m:Mul ) Some (m.left, m.right)
+
+case ) None
+
+}
+
+This removes the target type from the interface, more effectively hiding the underlying
+
+representation.
+
+Evaluation: Extractors require a relatively high notational overhead for framework construction,
+
+because extractor objects have to be defined alongside classes. The pattern matching
+
+itself is as concise as for case-classes, for both shallow and deep patterns. Extractors can
+
+maintain complete representation independence. They allow easy extensions by both new
+
+variants and new patterns, since patterns are resolved to user-defined methods.
+
+~14~
+
+----
+^15^
+
+class Mul( left : Expr, right : Expr) extends Expr {
+
+// Accessors for constructor arguments
+
+def left = left
+
+def right = right
+
+// Standard methods
+
+override def equals(other : Any) = other match {
+
+case m: Mul ) left.equals(m.left) && right.equals(m.right)
+
+case ) false
+
+}
+
+override def hashCode = hash(this.getClass, left.hashCode, right.hashCode)
+
+override def toString = ”Mul(”+left+”, ”+right+”)”
+
+}
+
+object Mul {
+
+def apply(left : Expr, right : Expr) = new Mul(left, right)
+
+def unapply(m: Mul) = Some(m.left, m.right)
+
+}
+
+Fig. 8. Expansion of case class Mul
+
+### Case Classes and Extractors
+
+For the purposes of type-checking, a case class can be seen as syntactic sugar for a normal
+
+class together with an injector/extractor object. This is exemplified in Figure 8, where a
+
+syntactic desugaring of the following case class is shown:
+
+case class Mul(left : Expr, right : Expr) extends Expr
+
+Given a class C, the expansion adds accessor methods for all constructor parameters to C.
+
+It also provides specialized implementations of the methods equals, hashCode and toString
+
+inherited from class Object. Furthermore, the expansion defines an object with the same
+
+name as the class (Scala defines different name spaces for types and terms; so it is legal
+
+to use the same name for an object and a class). The object contains an injection method
+
+apply and an extraction method unapply. The injection method serves as a factory; it makes
+
+it possible to create objects of class C writing simply C(. . .) without a preceding new.
+
+The extraction method reverses the construction process. Given an argument of class C, it
+
+returns a tuple of all constructor parameters, wrapped in a Some.
+
+However, in the current Scala implementation case classes are left unexpanded, so the
+
+above description is only conceptual. The current Scala implementation also compiles pattern
+
+matching over case classes into more efficient code than pattern matching using extractors.
+
+One reason for this is that different case classes are known not to overlap, i.e. given
+
+two patterns C(. . .) and D(. . .) where C and D are different case classes, we know that
+
+at most one of the patterns can match. The same cannot be assured for different extractors.
+
+Hence, case classes allow better factoring of multiple deep patterns.
+
+~15~
+
+----
+^16^
+
+~16~
+
+----

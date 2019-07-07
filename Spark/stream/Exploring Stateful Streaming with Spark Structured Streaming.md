@@ -325,7 +325,7 @@ Importing `spark.implicits._` is for the encoders defined for primitives (we use
 
 After we have the data set at hand, we can `map` over it to deserialize our JSON into a `UserEvent` and apply our state method to it:
 
-```
+```scala
 val finishedUserSessionsStream: Dataset[UserSession] =
   userEventsStream
     .map(deserializeUserEvent)
@@ -339,7 +339,7 @@ After mapping over the data set and deserializing all events, we use `groupByKey
 
 We’re left to define the output of our stream. For this example I chose the “console” format which just prints out values to the console, but you may use any of the existing [output sinks](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#output-sinks). Additionally, we have to specify which type of [output mode](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#output-modes)we choose (we can only use `OutputMode.Update` with `mapGroupsWithState`) and the checkpoint directory location:
 
-```
+```scala
 finishedUserSessionsStream.writeStream
   .outputMode(OutputMode.Update())
   .format("console")

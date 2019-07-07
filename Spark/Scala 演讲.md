@@ -50,7 +50,7 @@
 
 ## 2 统一的对象模型
 
-![image](https://raw.githubusercontent.com/mbonaci/scala/master/resources/Scala-class-hierarchy.gif)
+![Scala-class-hierarchy](Scala 演讲/Scala-class-hierarchy.gif)
 
     AnyRef
       ==
@@ -61,6 +61,7 @@
 ## 3 函数也是**第一等级的值**
 
 ## 4 统一的抽象模型【Scala has uniform and powerful abstraction concepts for both types and values】
+
 1. 参数化类型，即，泛型
 2. 抽象类型
 
@@ -124,6 +125,7 @@ case final class Some(val value : ???) {
 > - [ ] 虚构类（**synthetic class**）是对象名加上一个美元符号 **$**
 
 ### Cake Pattern(DI)
+
 > TODO:
 > - [ ] [Dependency Injection in Scala](http://blog.yunglinho.com/blog/2012/04/22/dependency-injection-in-scala/)
 > - [ ] [Cake Pattern Resources](http://scabl.blogspot.com/p/cbdi.html)
@@ -158,7 +160,11 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 >
 > However, these two assumptions do not always hold. The extensive literature on the expression problem [5–8] has explored many situations where access patterns are constructed a-posteriori, after the interface of the base class is fixed. Furthermore, there are access patterns where the result depends on the kinds of several objects.
 
-**模式**只是描述一组对象特点的某种方式，并将==本地名称绑定到与分类中某些属性匹配的对象==。
+这里，我们对模式有一个非常一般的看法。模式**不过是描述一组对象的某种方式，并将==与分类中某些属性匹配的对象绑定到本地名称==**。
+
+迄今为止，模式在面向对象语言中所起的作用较小的原因可能与面向对象原则有关，该原则规定行为应与数据捆绑在一起，<u>唯一的区分形式应该是通过虚拟方法调用</u>。这个原则可以很好地工作，只要（1）一开始就可以为应用程序中出现的所有模式进行计划，（2）每次只需要分解一个对象。
+
+然而，这两个假设并不总是成立。关于表达式问题[5–8]的大量文献探讨了许多情况，即，访问模式是在基类接口固定之后构建的。此外，还有一些访问模式，其结果取决于几个对象的类型。
 
 ### 模式的种类
 
@@ -473,19 +479,53 @@ testData3.groupBy('a).agg(count('b))
 
 >  注意：这里还涉及到**隐式转换**。
 
-## 下划线( `_` ) 的使用场景 参见[知乎](https://www.zhihu.com/question/21622725)
+## 下划线( `_` ) 的使用场景
 
-1. 导入类型和成员时，取代（`*`）作为 `import` 的通配符，`*` 在 `scala` 中被允许用作**函数名**。（这特么就是脑子有毛病）。
-2. 用于消除歧义：
-   - 定义部分应用函数（**Partially Applied Functions**）时。参见*Scala程序设计（Programming Scala）*的**6.5**节。
-   - 使用函数的“meta 方法”，比如调用 `Function.curried`，参见*Scala程序设计（Programming Scala）*的**6.6**节。
-3. 对变量进行默认初始化，比如 Spark 中
+### 参考
+1. [浅谈 Scala 中下划线的用途](https://my.oschina.net/leejun2005/blog/405305)
+2. [Scala基础 - 下划线使用指南](https://my.oschina.net/joymufeng/blog/863823)
+3. [知乎](https://www.zhihu.com/question/21622725)
+4. 导入类型和成员时，取代（`*`）作为 `import` 的通配符，`*` 在 `scala` 中被允许用作**函数名**。（这特么脑子有毛病）。
+5. 用于消除歧义：
+   - 定义部分应用函数（**Partially Applied Functions**）时。参见*Scala程序设计（Programming Scala）***6.5**节。
+   - 使用函数的“meta 方法”，如调用 `Function.curried`，参见*Scala程序设计（Programming Scala）***6.6**节。
+
+### Spark中的例子
+1. 对变量进行默认初始化，比如：
 
     ```scala
          private[parquet] class ParquetReadSupport extends ReadSupport[UnsafeRow] with Logging {
            private var catalystRequestedSchema: StructType = _
            //...
          }
+    ```
+2. 占位符语法：
+
+    ```scala
+    /*
+      testNumericDataTypes 的参数testFunc是一个没有返回值（Unit）的函数。  
+      testFunc 的参数是一个 Int => Any 的函数，即，将整数转换为另一种数据类型的转换函数。
+    */
+    class ArithmeticExpressionSuite {
+      private def testNumericDataTypes(testFunc: (Int => Any) => Unit): Unit = {
+        testFunc(_.toByte)  // 这个等价于 testFunc((x:int) => x.toByte)
+        testFunc(_.toShort)
+        testFunc(identity)
+        testFunc(_.toLong)
+        testFunc(_.toFloat)
+        testFunc(_.toDouble)
+        testFunc(Decimal(_))
+      }
+      test("+ (Add)") {
+        testNumericDataTypes { convert =>
+          val left = Literal(convert(1))
+          val right = Literal(convert(2))
+          checkEvaluation(Add(left, right), convert(3))
+          checkEvaluation(Add(Literal.create(null, left.dataType), right), null)
+          checkEvaluation(Add(left, Literal.create(null, right.dataType)), null)
+        }  
+      }
+    }
     ```
 
 ## Scala的反射机制
@@ -521,9 +561,7 @@ testData3.groupBy('a).agg(count('b))
 
 ## 函数
 
-### 在Scala中,多个参数列表和每个列表的多个参数有什么区别？
-
-[What's the difference between multiple parameters lists and multiple parameters per list in Scala?](https://stackoverflow.com/questions/6803211/whats-the-difference-between-multiple-parameters-lists-and-multiple-parameters)
+### [在Scala中，多个参数列表和每个列表的多个参数有什么区别](https://stackoverflow.com/questions/6803211/whats-the-difference-between-multiple-parameters-lists-and-multiple-parameters)？
 
 在Scala中，可以这样定义函数：
 
@@ -541,7 +579,10 @@ def curriedFunc(arg1: Int, arg2: String) = { ... }
 
 ------
 
-严格地说，这不是一个curried函数，而是一个有多个参数列表的方法，虽然它看起来像一个函数。正如你所说，多个参数列表允许使用该方法代替**==部分应用的函数==**。
+<u>严格地说，这不是一个curried函数</u>，而是一个有多个参数列表的方法，虽然它看起来像一个函数。正如你所说，多个参数列表允许使用该方法代替**==部分应用的函数==**。
+
+> 我不理解<u>严格地说，这不是一个curried函数</u>这句话，`def curriedFunc(arg1: Int) (arg2: String) = { ... }`这个在scala里就是柯里化，参见[多参数列表（柯里化）](https://docs.scala-lang.org/zh-cn/tour/multiple-parameter-lists.html)：方法可以定义多个参数列表，当使用较少的参数列表调用多参数列表的方法时，会产生一个新的函数，该函数接收剩余的参数列表作为其参数，这被称为**柯里化**。换言之，**柯里化**是支持多个参数列表的一种函数编写方式。
+>
 
 ```scala
 object NonCurr {
@@ -549,11 +590,11 @@ object NonCurr {
 }
 
 NonCurr.tabulate[Double](10, _)            // 不允许
-val x = IndexedSeq.tabulate[Double](10) _  // 允许. x 现在是Function1，即解释一个参数的函数
-x(math.exp(_))                             // 完整地调用
+val x = IndexedSeq.tabulate[Double](10) _  // 允许. x 现在是Function1
+x(math.exp(_))                             // 完整应用
 ```
 
-另一个好处是，如果第二个参数列表由单个函数或**thunk**组成，您可以使用**大括号**而不是**圆括号**。例如。
+另一个好处是，如果第二个参数列表由单个函数或**thunk**组成，您可以使用**大括号**而不是**圆括号**，例如：
 
 ```scala
 NonCurr.tabulate(10, { i => val j = util.Random.nextInt(i + 1); i - i % 2 })
@@ -568,7 +609,7 @@ IndexedSeq.tabulate(10) { i =>
 }
 ```
 
-或者为thunk：
+或者代码块：
 
 ```scala
 IndexedSeq.fill(10) {
@@ -601,13 +642,110 @@ def foo2[T](a: T, b: T, op: (T,T) => T) = op(a, b)
 foo2(1, 2, _ + _)  // compiler too stupid, unfortunately
 ```
 
-**最后**，这是你可以有**隐式**和**非隐式**参数的唯一方法，因为`implicit`修饰符是针对整个参数列表的：
+**最后**，这是你可以同时拥有有**隐式**和**非隐式**参数的唯一方法，因为`implicit`修饰符是针对整个参数列表的：
 
 ```scala
 def gaga [A](x: A)(implicit mf: Manifest[A]) = ???   // 可以
 def gaga2[A](x: A, implicit mf: Manifest[A]) = ???   // 不行
 ```
+### [Scala之小括号和花括号](https://blog.csdn.net/bluishglc/article/details/52946575)
 
+（Parentheses & Crurly Braces）
+
+尽管这是一个非常基础的问题，但是如果不仔细梳理一下，还是会导致在某些场景下误读代码。原因是Scala对这两兄弟的使用实在是太灵活了，甚至可以说有些“随便”，本文将况逐一讨论下两者在不同场景的使用方法和区别
+
+#### 在调用函数时
+人们会笼统地说在函数调用时，小括号和花括号是通用的，但实际上，情况会复杂的多。
+
+##### 如果你要调用的函数有两个或两个以上的参数，那么你只能使用“小括号”
+
+请看下面的示例：
+```scala
+scala> var add = (x: Int,y: Int) => x + y
+add: (Int, Int) => Int = <function2>
+
+scala> add(1,2)
+res0: Int = 3
+
+scala> add{1,2}
+<console>:1: error: ';' expected but ',' found.
+add{1,2}
+     ^
+```
+
+##### 如果你要调用的函数只有单一参数，那么“通常”情况下小括号和花括号是可以互换的
+
+请看下面的示例：
+``` scala
+scala> var increase = (x: Int) => x + 1
+increase: Int => Int = <function1>
+
+scala> increase(10)
+res0: Int = 11
+
+scala> increase{10}
+res1: Int = 11
+```
+
+##### 在调用单一参数函数时，小括号和花括号虽然等效，但还是有差异的
+如果使用==小括号==，意味着你告诉编译器：它只接受单一的一行，因此，如果你意外地输入2行或更多，编译器就会报错。但对==花括号==来说则不然，如果你在花括号里忘记了一个操作符，代码是可以编译的，但是会得到出乎意料的结果，进而导致难以追踪的Bug. 看如下的例子：
+```scala
+scala> def method(x: Int) = {
+     |     x + 1
+     | }
+method: (x: Int)Int
+
+scala> method {
+     |   1 +
+     |   2
+     |   3
+     | }
+<console>:14: warning: a pure expression does nothing in statement position; you may be omitting necessary parentheses
+         1 +
+           ^
+res14: Int = 4
+
+scala> method(
+     |   1 +
+     |   2
+     |   3
+<console>:4: error: ')' expected but integer literal found.
+  3
+  ^
+```
+花括号的调用虽然有warning，但是可以编译通过，小括号的调用会编译报错，但是花括号版本的返回值4是一个超出预期的结果。注意，1+2是一行，它们合在一起才是一个完整的表达式，3是独立的表达式，算第二行。
+> 注：难道这里想表达的是 `1+2+3`?
+
+所以，在调用单一参数函数时，特别是高阶函数， 如果函数参数用一行可以表达，通常我们推荐还是使用小括号，这样我们可以借助编译器获得更好的错误检查。
+
+##### 在调用一个单一参数函数时，如果参数本身是一个通过case语句实现的 “偏函数”，你只能使用“花括号”
+究其原因，我觉得scala对小括号和花括号的使用还是有一种“习惯上”的定位的：**通常人们还是会认为小括号是面向单行的，花括号面向多行的**。在使用case实现偏函数时，通常都会是多个case语句，小括号不能满足这种场合，只是说在只有一个case语句时，会让人产生误解，认为只有一行，为什么不使用case语句。
+```scala
+scala> val tupleList = List[(String, String)]()
+tupleList: List[(String, String)] = List()
+
+scala> val filtered = tupleList.takeWhile( case (s1, s2) => s1 == s2 )
+<console>:1: error: illegal start of simple expression
+val filtered = tupleList.takeWhile( case (s1, s2) => s1 == s2 )
+                                    ^
+// List[(String, String)] 中的(String, String)是个二元组。
+scala> val filtered = tupleList.takeWhile{ case (s1, s2) => s1 == s2 }
+filtered: List[(String, String)] = List()
+```
+
+#### 作为表达式（expression）和语句块（code blocks）时
+
+如果需要声明、多个语句、导入或类似的内容，则需要大括号。由于表达式是一个语句，括号可能出现在大括号内。但有趣的是，代码块也是表达式，因此可以在表达式内的任何位置使用它们。
+
+在非函数调用时，小括号可以用于界定表达式，花括号可以用于界定代码块。代码块由多条语句(statement)组成，每一条语句可以是一个”import”语句，一个变量或函数的声明，或者是一个表达式（expression），而一个表达式必定也是一条语句（statement），所以小括号可能出现在花括号里面，同时，语句块里可以出现表达式，所以花括号也可能出现在小括号里。看看下面的例子：
+```scala
+1       // literal - 字面量
+(1)     // expression - 表达式
+{1}     // block of code - 代码块
+({1})   // expression with a block of code - 表达式里是一个语句块
+{(1)}   // block of code with an expression - 语句块里是一个表达式
+({(1)}) // you get the drift... - 你懂的。。。。
+```
 ## 例子
 
 ### 变量可以 `override` 方法
