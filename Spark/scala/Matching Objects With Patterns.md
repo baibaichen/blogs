@@ -2,6 +2,8 @@
 
 **Abstract**. Data in object-oriented programming is organized in a hierarchy of classes. The problem of object-oriented pattern matching is how to explore this hierarchy from the outside. This usually involves classifying objects by their run-time type, accessing their members, or determining some other characteristic of a group of objects. In this paper we compare six different pattern matching techniques: object-oriented decomposition, visitors, type-tests/type-casts, typecase, case classes, and extractors. The techniques are compared on nine criteria related to conciseness, maintainability and performance. The paper introduces case classes and extractors as two newpattern-matching methods and shows that their combination works well for all of the established criteria.
 
+> **摘要**。面向对象编程中的数据按类的层次结构组织。面向对象模式匹配的问题是如何从外部探索这种层次结构。这通常涉及到按对象的运行时类型对其进行分类、访问其成员或确定一组对象的某些其他特征。本文比较了六种不同的模式匹配技术：面向对象的分解、访问者、类型测试/类型转换、typecase、 样例类和提取器。在简洁性、可维护性和性能的九个标准上对这些技术进行了比较。本文介绍了模式匹配的两种新方法：**样例类**和**提取器**，并表明它们的组合适用于所有既定标准。
+
 ## 1 引言
 
 Data in object-oriented programming is organized in a hierarchy of classes. The problem of object-oriented pattern matching is how to explore this hierarchy from the outside. This usually involves classifying objects by their run-time type, accessing their members, or determining some other characteristic of a group of objects. Here, we take a very general view of patterns. A pattern is simply some way of characterizing a group of objects and binding local names to objects that match some property in the classification.
@@ -432,10 +434,9 @@ There’s also an abbreviated syntax: (T1, ..., Ti) means the same as the tuple 
 
 ## 4 Extractors
 
-An extractor provides a way for defining a pattern without a case class. A simple example
+An extractor provides a way for defining a pattern without a case class. A simple example is the following object Twice which enables patterns of even numbers:
 
-is the following object Twice which enables patterns of even numbers:
-
+```
 object Twice {
 
 def apply(x :Int) = x2
@@ -443,6 +444,7 @@ def apply(x :Int) = x2
 def unapply(z :Int) = if(z%2==0) Some(z/2) else None
 
 }
+```
 
 This object defines an apply function, which provides a new way to write integers: Twice(x)
 
@@ -458,6 +460,7 @@ unapply method is implicitly applied in a pattern match, as in the following exa
 
 prints “42 is two times 21”:
 
+```
 val x = Twice(21)
 
 x match {
@@ -465,6 +468,7 @@ x match {
 case Twice(y) ) Console.println(x+” is two times ”+y)
 
 case ) Console.println(”x is odd”) }
+```
 
 In this example, apply is called an injection, because it takes an argument and yields an
 
@@ -496,6 +500,7 @@ call to Twice.unapply(x), followed by a test of the resulting optional value. Th
 
 preceding example would thus be expanded as follows:
 
+```
 val x = Twice.apply(21) // x = 42
 
 Twice.unapply(x) match {
@@ -505,6 +510,7 @@ case Some(y) ) Console.println(x+” is two times ”+y)
 case None ) Console.println(”x is odd”)
 
 }
+```
 
 Extractor patterns can also be defined with numbers of arguments different from one. A
 
