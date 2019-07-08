@@ -321,7 +321,7 @@ The typecase construct accesses run-time type information in much the same way a
 
 *Evaluation*: Pattern matching with typecase requires zero overhead for the class hierarchy. The pattern matching itself is concise for shallow patterns but becomes more verbose as patterns grow deeper, because in that case one needs to use nested match-expressions. Typecase completely exposes object representation. It has the same characteristics as type-test/typecast with respect to extensibility: adding new variants poses no problems but new patterns require a different syntax.
 
-## 3 Case Classes
+## 3 样例类（Case Classes）
 
 Case classes in Scala provide convenient shorthands for constructing and analyzing data. Figure 5 presents them in the context of arithmetic simplification.
 
@@ -394,7 +394,8 @@ t match {
   case Mul(x, Num(1)) => simplify(x)
   case Mul(Num(0), x) => Num(0)
   case Mul(x, Num(0)) => Num(0)
-  case _ => t }
+  case _ => t 
+}
 ```
 
 A possible implementation for this match would be to try patterns one by one. However, this strategy would not be very efficient, because the same type tests would be performed multiple times. Evidently, one needs to test not more than once whether t matches Mul, whether the left operand is a Num, and whether the right operand is a Num. The literature on pattern matching algebraic data types discusses identification and removal of superfluous tests [27]. We adapt these results to an object-oriented setting by replacing constructor-tests with subtyping [28].
@@ -445,20 +446,26 @@ There’s also an abbreviated syntax: (T1, ..., Ti) means the same as the tuple 
 ----
 ^12^
 
-## 4 Extractors
+## 4 提取器
 
 An extractor provides a way for defining a pattern without a case class. A simple example is the following object Twice which enables patterns of even numbers:
 
+>  提取器提供了一种==在没有样例类的情况下==定义模式的方法。一个简单的例子是如下的`Twice`对象，匹配偶数：
+
 ```scala
 object Twice {
-  def apply(x :Int) = x2
+  def apply(x :Int) = x*2
   def unapply(z :Int) = if(z%2==0) Some(z/2) else None
 }
 ```
 
-This object defines an apply function, which provides a new way to write integers: Twice(x) is now an alias for x  2. Scala uniformly treats objects with apply methods as functions, inserting the call to apply implicitly. Thus, Twice(x) is really a shorthand for Twice.apply(x). 
+This object defines an `apply` function, which provides a new way to write integers: `Twice(x)` is now an alias for `x*2`. Scala uniformly treats objects with apply methods as functions, inserting the call to apply implicitly. Thus, `Twice(x)` is really a shorthand for `Twice.apply(x)`. 
 
-The unapply method in Twice reverses the construction in a pattern match. It tests its integer argument z. If z is even, it returns Some(z/2). If it is odd, it returns None. The unapply method is implicitly applied in a pattern match, as in the following example, which prints “42 is two times 21”:
+The `unapply` method in `Twice` reverses the construction in a pattern match. It tests its integer argument `z`. If z is even, it returns `Some(z/2)`. If it is odd, it returns None. The unapply method is implicitly applied in a pattern match, as in the following example, which prints “42 is two times 21”:
+
+> 这个对象定义了一个`apply`函数，它提供了一种写整数的新方法：`Twice(x)`现在是`x*2`的别名。Scala将带有`apply`方法的对象统一视为函数，==**插入代码以**==隐式调用之。 所以，`Twice(x)`实际上是 `Twice.apply(x)`的简写。
+>
+> `Twice`中的`unapply`方法在模式匹配中==<u>反转</u>==构造。 它测试整数参数`z`，`z`是偶数返回`Some(z/2)`。 是奇数返回`None`。 `unapply`方法在模式匹配中隐式应用，如下例所示，它打印`"42 is two times 21"`：
 
 ```scala
 val x = Twice(21)
@@ -523,6 +530,12 @@ Figure 7 shows the arithmetic simplification example using extractors. The simpl
 
 Even though the class hierarchy is the same for extractors and case classes, there is an important difference regarding program evolution. A library interface might expose only the objects Num, Var, and Mul, but not the corresponding classes. That way, one can replace or modify any or all of the classes representing arithmetic expressions without affecting client code.
 
+> 图7显示了使用提取器的算术简化规则示例。与图5中的简化规则完全相同。但是，我们现在定义的是普通类，而非样例类，每个类都有一个==**注入器**==/==**提取器**==对象。对于这个例子，注入不是严格必需的；它们的目的是让构造对象的方式和样例类相同。
+>
+> 尽管提取器和样例类的类层次结构相同，但程序演进存在重要差异。库接口可能只公开`Num`，`Var`和`Mul`的==**伴生**==对象，但不公开相应的类。这样，就可以替换或修改表示算术表达式的任何类，而不会影响客户端代码。
+>
+> - [ ] 不理解这段话，怎么可能只公开伴生对象，不公开类？
+
 ~13~
 
 ----
@@ -555,7 +568,7 @@ object Mul {
   }
 ```
 
-Fig. 7. Expression simplification using extractors
+Fig. 7. 表达式简化，使用提取器
 
 Note that every X.unapply extraction method takes an argument of the alternative type X, not the common type Expr. This is possible because an implicit type test gets added when matching on a term. However, a programmer may choose to provide a type test himself:
 
@@ -599,17 +612,23 @@ object Mul {
 
 Fig. 8. Expansion of case class Mul
 
-### Case Classes and Extractors
+### 样例类和提取器（Case Classes and Extractors）
 
 For the purposes of type-checking, a case class can be seen as syntactic sugar for a normal class together with an injector/extractor object. This is exemplified in Figure 8, where a syntactic desugaring of the following case class is shown:
+
+> <u>出于类型检查的目的</u>，样例类可以看作普通类的语法糖，==**自动生成伴生对象，加入**==注入器/提取器。如图8显示的是下面这个样例类“去糖化”后的定义：
 
 ```scala
 case class Mul(left : Expr, right : Expr) extends Expr
 ```
 
-Given a class C, the expansion adds accessor methods for all constructor parameters to C. It also provides specialized implementations of the methods equals, hashCode and toString inherited from class Object. Furthermore, the expansion defines an object with the same name as the class (Scala defines different name spaces for types and terms; so it is legal to use the same name for an object and a class). The object contains an injection method apply and an extraction method unapply. The injection method serves as a factory; it makes it possible to create objects of class C writing simply C(. . .) without a preceding new. The extraction method reverses the construction process. Given an argument of class C, it returns a tuple of all constructor parameters, wrapped in a Some.
+Given a class `C`, the expansion adds accessor methods for all constructor parameters to `C`. It also provides specialized implementations of the methods `equals`, `hashCode` and `toString` inherited from class `Object`. Furthermore, the expansion defines an object with the same name as the class (Scala defines different name spaces for types and terms; so it is legal to use the same name for an object and a class). The object contains an injection method apply and an extraction method unapply. The injection method serves as a factory; it makes it possible to create objects of class `C` writing simply `C(. . .)` without a preceding `new`. The extraction method reverses the construction process. Given an argument of class `C`, it returns a tuple of all constructor parameters, wrapped in a `Some`.
 
-However, in the current Scala implementation case classes are left unexpanded, so the above description is only conceptual. The current Scala implementation also compiles pattern matching over case classes into more efficient code than pattern matching using extractors. One reason for this is that different case classes are known not to overlap, i.e. given two patterns C(. . .) and D(. . .) where C and D are different case classes, we know that at most one of the patterns can match. The same cannot be assured for different extractors. Hence, case classes allow better factoring of multiple deep patterns.
+However, in the current Scala implementation case classes are left unexpanded, so the above description is only conceptual. The current Scala implementation also compiles pattern matching over case classes into more efficient code than pattern matching using extractors. One reason for this is that different case classes are known not to overlap, i.e. given two patterns `C(. . .)` and `D(. . .)` where `C` and `D` are different case classes, we know that at most one of the patterns can match. The same cannot be assured for different extractors. Hence, case classes allow better factoring of multiple deep patterns.
+
+> 展开样例类`C`，为`C`的构造函数的每一个参数都增加了一个访问器方法，还提供了从类`Object`继承的方法`equals`，`hashCode`和`toString`的专用实现。此外，展开定义了一个与类同名的==**伴生**==对象（Scala为类型和==**元素**==定义了不同的名称空间；因此对于对象和类使用相同的名称是合法的）。该对象包含注入方法`apply`和提取方法`unapply`。 ==**注入方法**==作为一个工厂，使得创建`C`的对象时， 用`C(. . .)`即可 ，而不用在其前面加`new`。提取方法“**逆转**”构造过程，给定类`C`的实例，返回该实例构造函数的参数元组，用`Some`包装。
+>
+> 但是当前，在实现时，Scala并未展开样例类，因此上述描述仅是概念性的。此外，在当前的实现中，样例类上的模式匹配比使用提取器的模式匹配更高效。其中一个原因是，已知不同的样例类不会重叠，即给定两个模式`C(. . .)`和`D(. . .)`， 如果`C`和`D`是不同的样例类，我们知道最多有一个模式可以匹配。对于不同的提取器，这样的假设不成立。因此，样例类允许更好地分解多个深度模式。
 
 ~15~
 
