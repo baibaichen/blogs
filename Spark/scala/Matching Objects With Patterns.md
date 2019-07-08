@@ -499,14 +499,18 @@ Pattern matching in Scala is loosely typed, in the sense that the type of a patt
 
 ### Representation Independence
 
-Unlike case-classes, extractors can be used to hide data representations. As an example consider the following trait of complex numbers, implemented by case class Cart, which represents numbers by Cartesian coordinates.
+Unlike case-classes, extractors can be used to hide data representations. As an example consider the following `trait` of complex numbers, implemented by case class `Cart`, which represents numbers by Cartesian coordinates.
+
+> 与样例类不同，提取器可用于隐藏数据表示。 作为一个例子，考虑下面复数的`trait`，由样例类`Cart`实现，采用笛卡尔坐标系表示数字。
 
 ```scala
 trait Complex
 case class Cart(re : double, im : double) extends Complex
 ```
 
-Complex numbers can be constructed and decomposed using the syntax Cart(r, i). The following injector/extractor object provides an alternative access with polar coordinates:
+Complex numbers can be constructed and decomposed using the syntax `Cart(r, i)`. The following injector/extractor object provides an alternative access with polar coordinates:
+
+> 可以使用语法`Cart(r, i)`构造和分解复数。 下面的==**注入器**==/==**提取器**==对象使用极坐标，提供了另一种方法：
 
 ```scala
 object Polar {
@@ -523,6 +527,8 @@ object Polar {
 ```
 
 With this definition, a client can now alternatively use polar coordinates such as `Polar(m, e)` in value construction and pattern matching.
+
+> 有了这个定义，用户现在可以使用极坐标，例如`Polar(m, e)`，来构造复数和模式匹配。
 
 ### Arithmetic Simplification Revisited
 
@@ -570,23 +576,30 @@ object Mul {
 
 Fig. 7. 表达式简化，使用提取器
 
-Note that every X.unapply extraction method takes an argument of the alternative type X, not the common type Expr. This is possible because an implicit type test gets added when matching on a term. However, a programmer may choose to provide a type test himself:
+Note that every `X.unapply` extraction method takes an argument of the alternative type X, not the common type Expr. This is possible because an implicit type test gets added when matching on a term. However, a programmer may choose to provide a type test himself:
+
+> 请注意，每个`X.unapply`方法的入参是替代类型`X`，而不是通用类型`Expr`。 这是可以的，因为在匹配==**元素**==时会添加隐式地类型测试。 但是，程序员可以选择自己提供类型测试：
 
 ```scala
 def unapply(x : Expr) = x match {
-  case m:Mul => Some (m.left, m.right)
+  case m:Mul => Some (m.left, m.right)  // 这里手写类型测试代码
   case _ => None
 }
 ```
 
 This removes the target type from the interface, more effectively hiding the underlying representation.
 
+> 这就从接口中删除了目标类型，从而更有效地隐藏了内部数据。
+
 *Evaluation*: Extractors require a relatively high notational overhead for framework construction, because extractor objects have to be defined alongside classes. The pattern matching itself is as concise as for case-classes, for both shallow and deep patterns. Extractors can maintain complete representation independence. They allow easy extensions by both new variants and new patterns, since patterns are resolved to user-defined methods.
+
+> **评估**：提取器需要相对较高的符号开销用于框架构造，因为提取器对象必须与类一起定义。对于浅层和深度模式匹配，匹配本身和样例类一样简洁。提取器可以保持完全的**表示独立性**。因为模式被解析为用户定义的方法，允许通过增加新的变体和模式轻松扩展。
 
 ~14~
 
 ----
 ^15^
+### 样例类和提取器（Case Classes and Extractors）
 
 ```scala
 class Mul( _left : Expr, _right : Expr) extends Expr {
@@ -609,14 +622,11 @@ object Mul {
   def unapply(m: Mul) = Some(m.left, m.right)
 }
 ```
-
-Fig. 8. Expansion of case class Mul
-
-### 样例类和提取器（Case Classes and Extractors）
+Fig. 8. 展开样例类`Mul`
 
 For the purposes of type-checking, a case class can be seen as syntactic sugar for a normal class together with an injector/extractor object. This is exemplified in Figure 8, where a syntactic desugaring of the following case class is shown:
 
-> <u>出于类型检查的目的</u>，样例类可以看作普通类的语法糖，==**自动生成伴生对象，加入**==注入器/提取器。如图8显示的是下面这个样例类“去糖化”后的定义：
+> <u>出于类型检查的目的</u>，样例类可以看作普通类的语法糖，==**自动生成伴生对象，加入**==注入器/提取器。图8显示的是下面这个样例类“去糖化”后的定义：
 
 ```scala
 case class Mul(left : Expr, right : Expr) extends Expr
@@ -626,9 +636,9 @@ Given a class `C`, the expansion adds accessor methods for all constructor param
 
 However, in the current Scala implementation case classes are left unexpanded, so the above description is only conceptual. The current Scala implementation also compiles pattern matching over case classes into more efficient code than pattern matching using extractors. One reason for this is that different case classes are known not to overlap, i.e. given two patterns `C(. . .)` and `D(. . .)` where `C` and `D` are different case classes, we know that at most one of the patterns can match. The same cannot be assured for different extractors. Hence, case classes allow better factoring of multiple deep patterns.
 
-> 展开样例类`C`，为`C`的构造函数的每一个参数都增加了一个访问器方法，还提供了从类`Object`继承的方法`equals`，`hashCode`和`toString`的专用实现。此外，展开定义了一个与类同名的==**伴生**==对象（Scala为类型和==**元素**==定义了不同的名称空间；因此对于对象和类使用相同的名称是合法的）。该对象包含注入方法`apply`和提取方法`unapply`。 ==**注入方法**==作为一个工厂，使得创建`C`的对象时， 用`C(. . .)`即可 ，而不用在其前面加`new`。提取方法“**逆转**”构造过程，给定类`C`的实例，返回该实例构造函数的参数元组，用`Some`包装。
+> 展开样例类`C`，会为`C`的构造函数的每个参数都增加一个访问器方法，还提供从类`Object`继承的`equals`，`hashCode`和`toString`的专用实现。此外，展开定义了一个与类同名的==**伴生**==对象（Scala为类型和==**元素**==定义了不同的名称空间；因此对于对象和类使用相同的名称是合法的）。该对象包含注入方法`apply`和提取方法`unapply`。 ==**注入方法**==作为一个工厂，使得创建`C`的对象时， 用`C(. . .)`即可 ，而不用在其前面加`new`。提取方法“**逆转**”构造过程，给定类`C`的实例，返回该实例构造函数的参数元组，用`Some`包装。
 >
-> 但是当前，在实现时，Scala并未展开样例类，因此上述描述仅是概念性的。此外，在当前的实现中，样例类上的模式匹配比使用提取器的模式匹配更高效。其中一个原因是，已知不同的样例类不会重叠，即给定两个模式`C(. . .)`和`D(. . .)`， 如果`C`和`D`是不同的样例类，我们知道最多有一个模式可以匹配。对于不同的提取器，这样的假设不成立。因此，样例类允许更好地分解多个深度模式。
+> 但是当前的实现，Scala并未展开样例类，因此上述描述仅是概念性的。此外，在当前的实现中，样例类上的模式匹配比提取器的模式匹配更高效。其中一个原因是，已知不同的样例类不会重叠，即给定两个模式`C(. . .)`和`D(. . .)`， 如果`C`和`D`是不同的样例类，我们知道最多有一个模式可以匹配。对于不同的提取器，这样的假设不成立。因此，样例类允许更好地分解多个深度模式。
 
 ~15~
 
