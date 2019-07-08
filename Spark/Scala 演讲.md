@@ -204,7 +204,7 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 5. **自动创建伴生对象**：
    - 工厂方法：自动实现`apply`方法，使得我们在使用的时候可以不直接显示地`new`对象 
    - 析构方法：实现`unapply`方法，从而可以将`case class`应用于模式匹配，该方法是进行==构造器模式匹配==时的关键
-   - 伴生对象继承了`AbstractFunction`[这意味着什么？]()
+   - 伴生对象继承了`AbstractFunction`[这意味着什么]()？
 
 除此之此，case class与其它普通的scala类没有区别。
 
