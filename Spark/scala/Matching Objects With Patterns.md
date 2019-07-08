@@ -325,7 +325,13 @@ The typecase construct accesses run-time type information in much the same way a
 
 Case classes in Scala provide convenient shorthands for constructing and analyzing data. Figure 5 presents them in the context of arithmetic simplification.
 
-A case class is written like a normal class with a case modifier in front. This modifier has several effects. On the one hand, it provides a convenient notation for constructing data without having to write new. For instance, assuming the class hierarchy of Fig. 5, the expression Mul(Num(42), Var(x)) would be a shorthand for new Mul(new Num(42), new Var(x)). On the other hand, case classes allow pattern matching on their constructor. Such patterns are written exactly like constructor expressions, but are interpreted “in reverse”. For instance, the pattern Mul(x, Num(1)) matches all values which are of class Mul, with a right operand of class Num which has a value field equal to 1. If the pattern matches, the variable x is bound the left operand of the given value.
+A case class is written like a normal class with a case modifier in front. This modifier has several effects. On the one hand, it provides a convenient notation for constructing data without having to write new. For instance, assuming the class hierarchy of Fig. 5, the expression `Mul(Num(42), Var(x))` would be a shorthand for `new Mul(new Num(42), new Var(x))`. On the other hand, case classes allow pattern matching on their constructor. Such patterns are written exactly like constructor expressions, but are interpreted “in reverse”. For instance, the pattern `Mul(x, Num(1))` matches all values which are of class Mul, with a right operand of class Num which has a value field equal to 1. If the pattern matches, the variable x is bound the left operand of the given value.
+
+> Scala的样例类为构建和分析**==数据==**提供了方便的快捷方式。图5展示了如何使用样例类来简化算术表达式。
+>
+> 样例类就像普通类一样，只不过前面有一个`case`修饰符。此修饰符有几个效果，一方面，它提供了方便的表示法，无需用`new`就可以创建对象。 例如按图5的类层次结构，表达式`Mul(Num(42), Var(x))`是`new Mul(new Num(42), new Var(x))`的简写。另一方面，样例类允许在其构造函数上进行模式匹配。 这些模式的编写方式与构造函数表达式完全相同，但“反向”解释。 例如，模式`Mul(x, Num(1))`将匹配这样的`Mul`类，其右操作数的类型是`Num`，并且其`value`字段的值是1，如果模式匹配成功，变量`x`将绑定到匹配对象的左操作数。
+>
+> - [ ] 貌似本文的data表达的意思是对象。
 
 ~8~
 
@@ -352,8 +358,8 @@ Fig. 5. Expression simplification using case classes
 
 A pattern in Scala is constructed from the following elements:
 
-- Variables such as x or right. These match any value, and bind the variable name to the value. The wildcard character is used as a shorthand if the value need not be named.
-- Type patterns such as x : int or : String. These match all values of the given type, and bind the variable name to the value. Type patterns were already introduced in Section 2.4.
+- Variables such as `x` or `right`. These match any value, and bind the variable name to the value. The wildcard character is used as a shorthand if the value need not be named.
+- Type patterns such as `x : int` or `: String.` These match all values of the given type, and bind the variable name to the value. Type patterns were already introduced in Section 2.4.
 - Constant literals such as 1 or ”abc”. A literal matches only itself.
 
 - Named constants such as None or Nil, which refer to immutable values. A named constant matches only the value it refers to.
@@ -362,7 +368,14 @@ A pattern in Scala is constructed from the following elements:
 
 To distinguish variable patterns from named constants, we require that variables start with a lower-case letter whereas constants should start with an upper-case letter or special symbol.
 
-~9~
+Scala中的模式由以下元素构成：
+
+- **变量模式**，如`x`或`right`，它们匹配任何值，并将变量名绑定到该值。 如果不需要命名值，则使用通配符作为简写。
+- **类型模式**，例如`x:int`或`:String`。 它们匹配给定类型的所有值，并将变量名称绑定到值。 第2.4节已经介绍了类型模式。
+- **常量模式**，如`1`或`"abc"`。字面量只匹配自身。
+- **命名常量**，如`None`或`Nil`，它们引用不可变值。 命名常量仅匹配它引用的值。
+
+~9~ 
 
 ----
 ^10^
@@ -436,334 +449,167 @@ There’s also an abbreviated syntax: (T1, ..., Ti) means the same as the tuple 
 
 An extractor provides a way for defining a pattern without a case class. A simple example is the following object Twice which enables patterns of even numbers:
 
-```
+```scala
 object Twice {
-
-def apply(x :Int) = x2
-
-def unapply(z :Int) = if(z%2==0) Some(z/2) else None
-
+  def apply(x :Int) = x2
+  def unapply(z :Int) = if(z%2==0) Some(z/2) else None
 }
 ```
 
-This object defines an apply function, which provides a new way to write integers: Twice(x)
+This object defines an apply function, which provides a new way to write integers: Twice(x) is now an alias for x  2. Scala uniformly treats objects with apply methods as functions, inserting the call to apply implicitly. Thus, Twice(x) is really a shorthand for Twice.apply(x). 
 
-is now an alias for x  2. Scala uniformly treats objects with apply methods as functions,
+The unapply method in Twice reverses the construction in a pattern match. It tests its integer argument z. If z is even, it returns Some(z/2). If it is odd, it returns None. The unapply method is implicitly applied in a pattern match, as in the following example, which prints “42 is two times 21”:
 
-inserting the call to apply implicitly. Thus, Twice(x) is really a shorthand for Twice.apply(x).
-
-The unapply method in Twice reverses the construction in a pattern match. It tests its
-
-integer argument z. If z is even, it returns Some(z/2). If it is odd, it returns None. The
-
-unapply method is implicitly applied in a pattern match, as in the following example, which
-
-prints “42 is two times 21”:
-
-```
+```scala
 val x = Twice(21)
-
 x match {
-
-case Twice(y) ) Console.println(x+” is two times ”+y)
-
-case ) Console.println(”x is odd”) }
+  case Twice(y) => Console.println(x+” is two times ”+y)
+  case _ => Console.println(”x is odd”) }
 ```
 
-In this example, apply is called an injection, because it takes an argument and yields an
+In this example, apply is called an injection, because it takes an argument and yields an element of a given type. unapply is called an extraction, because it extracts parts of the given type. Injections and extractions are often grouped together in one object, because then one can use the object’s name for both a constructor and a pattern, which simulates the convention for pattern matching with case classes. However, it is also possible to define an extraction in an object without a corresponding injection. The object itself is often called an extractor, independently of the fact whether it has an apply method or not.
 
-element of a given type. unapply is called an extraction, because it extracts parts of the
+It may be desirable to write injections and extractions that satisfy the equality F.unapply(F.apply(x)) == Some(x), but we do not require any such condition on userdefined methods. One is free to write extractions that have no associated injection or that can handle a wider range of data types. 
 
-given type. Injections and extractions are often grouped together in one object, because then
+Patterns referring to extractors look just like patterns referring to case classes, but they are implemented differently. Matching against an extractor pattern like Twice(x) involves a call to Twice.unapply(x), followed by a test of the resulting optional value. The code in the preceding example would thus be expanded as follows:
 
-one can use the object’s name for both a constructor and a pattern, which simulates the
-
-convention for pattern matching with case classes. However, it is also possible to define an
-
-extraction in an object without a corresponding injection. The object itself is often called an
-
-extractor, independently of the fact whether it has an apply method or not.
-
-It may be desirable to write injections and extractions that satisfy the equality
-
-F.unapply(F.apply(x)) == Some(x), but we do not require any such condition on userdefined
-
-methods. One is free to write extractions that have no associated injection or that
-
-can handle a wider range of data types.
-
-Patterns referring to extractors look just like patterns referring to case classes, but they
-
-are implemented differently. Matching against an extractor pattern like Twice(x) involves a
-
-call to Twice.unapply(x), followed by a test of the resulting optional value. The code in the
-
-preceding example would thus be expanded as follows:
-
-```
+```scala
 val x = Twice.apply(21) // x = 42
-
 Twice.unapply(x) match {
-
-case Some(y) ) Console.println(x+” is two times ”+y)
-
-case None ) Console.println(”x is odd”)
-
+  case Some(y) => Console.println(x+” is two times ”+y)
+  case None => Console.println(”x is odd”)
 }
 ```
 
-Extractor patterns can also be defined with numbers of arguments different from one. A
-
-nullary pattern corresponds to an unapply method returning a boolean. A pattern with more
-
-than one element corresponds to an unapply method returning an optional tuple. The result
-
-of an extraction plays the role of a ”representation-object”, whose constituents (if any) can
-
-be bound or matched further with nested pattern matches.
+Extractor patterns can also be defined with numbers of arguments different from one. A nullary pattern corresponds to an unapply method returning a boolean. A pattern with more than one element corresponds to an unapply method returning an optional tuple. The result of an extraction plays the role of a ”representation-object”, whose constituents (if any) can be bound or matched further with nested pattern matches.
 
 ~12~
 
 ----
 ^13^
 
-Pattern matching in Scala is loosely typed, in the sense that the type of a pattern does not
-
-restrict the set of legal types of the corresponding selector value. The same principle applies
-
-to extractor patterns. For instance, it would be possible to match a value of Scala’s root type
-
-Any with the pattern Twice(y). In that case, the call to Twice.unapply(x) is preceded by a
-
-type test whether the argument x has type int. If x is not an int, the pattern match would fail
-
-without executing the unapply method of Twice. This choice is convenient, because it avoids
-
-many type tests in unapply methods which would otherwise be necessary. It is also crucial
-
-for a good treatment of parameterized class hierarchies, as will be explained in Section 6.
+Pattern matching in Scala is loosely typed, in the sense that the type of a pattern does not restrict the set of legal types of the corresponding selector value. The same principle applies to extractor patterns. For instance, it would be possible to match a value of Scala’s root type Any with the pattern Twice(y). In that case, the call to Twice.unapply(x) is preceded by a type test whether the argument x has type int. If x is not an int, the pattern match would fail without executing the unapply method of Twice. This choice is convenient, because it avoids many type tests in unapply methods which would otherwise be necessary. It is also crucial for a good treatment of parameterized class hierarchies, as will be explained in Section 6.
 
 ### Representation Independence
 
-Unlike case-classes, extractors can be used to hide data representations. As an example
+Unlike case-classes, extractors can be used to hide data representations. As an example consider the following trait of complex numbers, implemented by case class Cart, which represents numbers by Cartesian coordinates.
 
-consider the following trait of complex numbers, implemented by case class Cart, which
-
-represents numbers by Cartesian coordinates.
-
+```scala
 trait Complex
-
 case class Cart(re : double, im : double) extends Complex
+```
 
-Complex numbers can be constructed and decomposed using the syntax Cart(r, i). The following
+Complex numbers can be constructed and decomposed using the syntax Cart(r, i). The following injector/extractor object provides an alternative access with polar coordinates:
 
-injector/extractor object provides an alternative access with polar coordinates:
-
+```scala
 object Polar {
-
-def apply(mod : double, arg : double): Complex =
-
-new Cart(mod  Math.cos(arg), mod  Math.sin(arg))
-
-def unapply(z : Complex): Option[(double, double)] = z match {
-
-case Cart(re, im) )
-
-val at = atan(im / re)
-
-Some(sqrt(re  re + im  im),
-
-if (re < 0) at + Pi else if (im < 0) at + Pi  2 else at)
-
+  def apply(mod : double, arg : double): Complex =
+    new Cart(mod * Math.cos(arg), mod * Math.sin(arg))
+  
+  def unapply(z : Complex): Option[(double, double)] = z match {
+    case Cart(re, im) =>
+      val at = atan(im / re)
+      Some(sqrt(re * re + im * im), 
+        if (re < 0) at + Pi else if (im < 0) at + Pi * 2 else at)
+  }
 }
+```
 
-}
-
-With this definition, a client can now alternatively use polar coordinates such as Polar(m, e)
-
-in value construction and pattern matching.
+With this definition, a client can now alternatively use polar coordinates such as `Polar(m, e)` in value construction and pattern matching.
 
 ### Arithmetic Simplification Revisited
 
-Figure 7 shows the arithmetic simplification example using extractors. The simplification
+Figure 7 shows the arithmetic simplification example using extractors. The simplification rule is exactly the same as in Figure 5. But instead of case classes, we now define normal classes with one injector/extractor object per each class. The injections are not strictly necessary for this example; their purpose is to let one write constructors in the same way as for case classes.
 
-rule is exactly the same as in Figure 5. But instead of case classes, we now define normal
-
-classes with one injector/extractor object per each class. The injections are not strictly necessary
-
-for this example; their purpose is to let one write constructors in the same way as for
-
-case classes.
-
-Even though the class hierarchy is the same for extractors and case classes, there is an
-
-important difference regarding program evolution. A library interface might expose only the
-
-objects Num, Var, and Mul, but not the corresponding classes. That way, one can replace or
-
-modify any or all of the classes representing arithmetic expressions without affecting client
-
-code.
+Even though the class hierarchy is the same for extractors and case classes, there is an important difference regarding program evolution. A library interface might expose only the objects Num, Var, and Mul, but not the corresponding classes. That way, one can replace or modify any or all of the classes representing arithmetic expressions without affecting client code.
 
 ~13~
 
 ----
 ^14^
 
+```scala
 // Class hierarchy:
-
 trait Expr
-
 class Num(val value : int) extends Expr
-
 class Var(val name : String) extends Expr
-
 class Mul(val left : Expr, val right : Expr) extends Expr
 
 object Num {
-
-def apply(value : int) = new Num(value)
-
-def unapply(n : Num) = Some(n.value)
-
+  def apply(value : int) = new Num(value)
+  def unapply(n : Num) = Some(n.value)
 }
-
 object Var {
-
-def apply(name : String) = new Var(name)
-
-def unapply(v : Var) = Some(v.name)
-
+  def apply(name : String) = new Var(name)
+  def unapply(v : Var) = Some(v.name)
 }
-
 object Mul {
-
-def apply(left : Expr, right : Expr) = new Mul(left, right)
-
-def unapply(m: Mul) = Some (m.left, m.right)
-
+  def apply(left : Expr, right : Expr) = new Mul(left, right)
+  def unapply(m: Mul) = Some (m.left, m.right)
 }
 
 // Simplification rule:
-
-e match {
-
-case Mul(x, Num(1)) ) x
-
-case ) e
-
-}
+  e match {
+    case Mul(x, Num(1)) => x
+    case _ => e
+  }
+```
 
 Fig. 7. Expression simplification using extractors
 
-Note that every X.unapply extraction method takes an argument of the alternative type
+Note that every X.unapply extraction method takes an argument of the alternative type X, not the common type Expr. This is possible because an implicit type test gets added when matching on a term. However, a programmer may choose to provide a type test himself:
 
-X, not the common type Expr. This is possible because an implicit type test gets added when
-
-matching on a term. However, a programmer may choose to provide a type test himself:
-
+```scala
 def unapply(x : Expr) = x match {
-
-case m:Mul ) Some (m.left, m.right)
-
-case ) None
-
+  case m:Mul => Some (m.left, m.right)
+  case _ => None
 }
+```
 
-This removes the target type from the interface, more effectively hiding the underlying
+This removes the target type from the interface, more effectively hiding the underlying representation.
 
-representation.
-
-Evaluation: Extractors require a relatively high notational overhead for framework construction,
-
-because extractor objects have to be defined alongside classes. The pattern matching
-
-itself is as concise as for case-classes, for both shallow and deep patterns. Extractors can
-
-maintain complete representation independence. They allow easy extensions by both new
-
-variants and new patterns, since patterns are resolved to user-defined methods.
+*Evaluation*: Extractors require a relatively high notational overhead for framework construction, because extractor objects have to be defined alongside classes. The pattern matching itself is as concise as for case-classes, for both shallow and deep patterns. Extractors can maintain complete representation independence. They allow easy extensions by both new variants and new patterns, since patterns are resolved to user-defined methods.
 
 ~14~
 
 ----
 ^15^
 
-class Mul( left : Expr, right : Expr) extends Expr {
-
-// Accessors for constructor arguments
-
-def left = left
-
-def right = right
-
-// Standard methods
-
-override def equals(other : Any) = other match {
-
-case m: Mul ) left.equals(m.left) && right.equals(m.right)
-
-case ) false
-
-}
-
-override def hashCode = hash(this.getClass, left.hashCode, right.hashCode)
-
-override def toString = ”Mul(”+left+”, ”+right+”)”
-
+```scala
+class Mul( _left : Expr, _right : Expr) extends Expr {
+  // Accessors for constructor arguments
+  def left = _left
+  def right = _right
+  
+  // Standard methods
+  override def equals(other : Any) = other match {
+    case m: Mul => left.equals(m.left) && right.equals(m.right)
+    case _ => false
+  }
+  
+  override def hashCode = hash(this.getClass, left.hashCode, right.hashCode)
+  override def toString = ”Mul(” + left + ”, ” + right + ”)”
 }
 
 object Mul {
-
-def apply(left : Expr, right : Expr) = new Mul(left, right)
-
-def unapply(m: Mul) = Some(m.left, m.right)
-
+  def apply(left : Expr, right : Expr) = new Mul(left, right)
+  def unapply(m: Mul) = Some(m.left, m.right)
 }
+```
 
 Fig. 8. Expansion of case class Mul
 
 ### Case Classes and Extractors
 
-For the purposes of type-checking, a case class can be seen as syntactic sugar for a normal
+For the purposes of type-checking, a case class can be seen as syntactic sugar for a normal class together with an injector/extractor object. This is exemplified in Figure 8, where a syntactic desugaring of the following case class is shown:
 
-class together with an injector/extractor object. This is exemplified in Figure 8, where a
-
-syntactic desugaring of the following case class is shown:
-
+```scala
 case class Mul(left : Expr, right : Expr) extends Expr
+```
 
-Given a class C, the expansion adds accessor methods for all constructor parameters to C.
+Given a class C, the expansion adds accessor methods for all constructor parameters to C. It also provides specialized implementations of the methods equals, hashCode and toString inherited from class Object. Furthermore, the expansion defines an object with the same name as the class (Scala defines different name spaces for types and terms; so it is legal to use the same name for an object and a class). The object contains an injection method apply and an extraction method unapply. The injection method serves as a factory; it makes it possible to create objects of class C writing simply C(. . .) without a preceding new. The extraction method reverses the construction process. Given an argument of class C, it returns a tuple of all constructor parameters, wrapped in a Some.
 
-It also provides specialized implementations of the methods equals, hashCode and toString
-
-inherited from class Object. Furthermore, the expansion defines an object with the same
-
-name as the class (Scala defines different name spaces for types and terms; so it is legal
-
-to use the same name for an object and a class). The object contains an injection method
-
-apply and an extraction method unapply. The injection method serves as a factory; it makes
-
-it possible to create objects of class C writing simply C(. . .) without a preceding new.
-
-The extraction method reverses the construction process. Given an argument of class C, it
-
-returns a tuple of all constructor parameters, wrapped in a Some.
-
-However, in the current Scala implementation case classes are left unexpanded, so the
-
-above description is only conceptual. The current Scala implementation also compiles pattern
-
-matching over case classes into more efficient code than pattern matching using extractors.
-
-One reason for this is that different case classes are known not to overlap, i.e. given
-
-two patterns C(. . .) and D(. . .) where C and D are different case classes, we know that
-
-at most one of the patterns can match. The same cannot be assured for different extractors.
-
-Hence, case classes allow better factoring of multiple deep patterns.
+However, in the current Scala implementation case classes are left unexpanded, so the above description is only conceptual. The current Scala implementation also compiles pattern matching over case classes into more efficient code than pattern matching using extractors. One reason for this is that different case classes are known not to overlap, i.e. given two patterns C(. . .) and D(. . .) where C and D are different case classes, we know that at most one of the patterns can match. The same cannot be assured for different extractors. Hence, case classes allow better factoring of multiple deep patterns.
 
 ~15~
 
@@ -771,5 +617,247 @@ Hence, case classes allow better factoring of multiple deep patterns.
 ^16^
 
 ~16~
+
+----
+^17^
+
+~17~
+
+----
+^18^
+
+## 6 Parametricity
+
+Up to now, we have studied only hierarchies of monomorphic classes. The problem becomes more interesting once we consider classes with type parameters. An example is the typed evaluator for lambda expressions given in Figure 11.
+
+There is an abstract base trait Term with subclasses Var for variables, Num for numbers, Lam for lambda abstractions, App for function applications, and Suc for a predefined successorfunction. The abstract base trait is now parameterized with the type of the term in question. The parameters of subclasses vary. For instance Var is itself generic with the same type parameter as Term, whereas Num is a Term of int, and Lam is a Term of b ) c where both b and c are type parameters of Lam.
+
+The challenge is now how to write – in a statically type-safe way – an evaluation function that maps a term of type Term[a] and an environment to a value of type a. Similar questions have been explored in the context of “generalized algebraic data types” (GADT’s) in functional languages such as Haskell [29] and Omega [30]. Kennedy and Russo [12] have introduced techniques to simulate GADT’s in an extension of C# using visitors and equational constraints on parameters. We show here how GADT’s can be simulated using typecase as the decomposition technique. This provides a new perspective on the essence of GADTs by characterizing them as a framework for exploiting type-overlaps. It goes beyond previous
+
+~18~
+
+----
+^19^
+
+```scala
+//Class hierarchy
+
+trait Term[a]
+
+class Var[a] (val name : String) extends Term[a]
+
+class Num (val value : int) extends Term[int]
+
+class Lam[b, c] (val x : Var[b], val e : Term[c]) extends Term[b ) c]
+
+class App[b, c] (val f : Term[b ) c], val e : Term[b])extends Term[c]
+
+class Suc () extends Term[int ) int]
+
+// Environments:
+
+abstract class Env {
+
+def apply[a](v : Var[a]): a
+
+def extend[a](v : Var[a], x : a) = new Env {
+
+def apply[b](w: Var[b]): b = w match {
+
+case : v.type ) x // v eq w, hence a = b
+
+case ) Env.this.apply(w)
+
+}}}
+
+object empty extends Env {
+
+def apply[a](x : Var[a]): a = throw new Error(”not found : ”+x.name) }
+
+// Evaluation:
+
+def eval[a](t : Term[a], env : Env): a = t match {
+
+case v : Var[b] ) env(v) // a = b
+
+case n : Num ) n.value // a = int
+
+case i : Suc ) { y : int ) y + 1 } // a = int)int
+
+case f : Lam[b, c]) { y : b ) eval(f.e, env.extend(f.x, y)) } // a = b)c
+
+case a : App[b, c]) eval(a.f, env)(eval(a.e, env)) // a = c
+
+}
+```
+
+Fig. 11. Typed evaluation of simply-typed lambda calculus
+
+work by also providing a way to write updateable polymorphic functions. Such functions are used in several forms in denotational and operational semantics, for instance they can implement stores or environments.
+
+Figure 11 shows an evaluation function eval which uses typecase for pattern matching its term argument t. The first observation from studying this function is that we need to generalize our previous concept of a typed pattern. Given a term of type Term[a] and pattern of form f : App[...], what type arguments should be provided? In fact, looking at a term’s static type we can determine only the second type argument of App (which must be equal to a), but not the first one. The first type argument needs to be a fresh, completely undeterminedtype constant. We express this by extending the syntax in a type pattern:
+
+A type pattern can now consist of types and type variables. As for normal patterns, we have the convention that type variables start with a lower-case letter whereas references to existing types should start with an upper-case letter. (The primitive types int, char, boolean, etc are excepted from this rule; they are treated as type references, not variables).
+
+~19~
+
+----
+^20^
+
+However, Scala currently does not keep run-time type information beyond the top-level class, i.e. it uses the same erasure module for generics as Java 1.5. Therefore, all type arguments in a pattern must be type variables. Normally, a type variable represents a fresh, unknown type, much like the type variable of an opened existential type. We enforce that the scope of such type variables does not escape a pattern matching clause. For instance, the following would be illegal:
+
+```scala
+def headOfAny(x : Any) = x match {
+
+case xs : List[a] ) xs.head // error: type variable ‘a’ escapes its scope as
+
+} // part of the type of ‘xs.head’
+```
+
+The problem above can be cured by ascribing to the right-hand side of the case clause a weaker type, which does not mention the type variable. Example:
+
+```scala
+def headOfAny(x : Any): Any = x match {
+
+case xs : List[a] ) xs.head // OK, xs.head is inferred to have type ‘Any’, the
+
+} // explicitly given return type of ‘headOfAny’
+```
+
+In the examples above, type variables in patterns were treated as fresh type constants. However, there are cases where the Scala type system is able to infer that a pattern-bound type variable is an alias for an existing type. An example is the first case in the eval function in Figure 11.
+
+```scala
+def eval[a](t : Term[a], env : Env): a = t match {
+  case v : Var[b] => env(v) ...
+```
+
+Here, the term t of type Term[a] is matched against the pattern v :Var[b]. From the class hierarchy, we know that Var extends Term with the same type argument, so we can deduce that b must be a type alias for a. It is essential to do so, because the right-hand side of the pattern has type b, whereas the expected result type of the eval function is a. Aliased type variables are also not subject to the scoping rules of fresh type variables, because they can always be replaced by their alias.
+
+A symmetric situation is found in the next case of the eval function:
+
+``` scala
+case n : Num => n
+```
+
+Here, the type system deduces that the type parameter a of eval is an alias of int. It must be, because class Num extends Term[int], so if a was any other type but int, the Num pattern could not have matched the value t, which is of type Term[a]. Because a is now considered to be an alias of int, the right-hand side of the case can be shown to conform to eval’s result type.
+
+Why is such a reasoning sound? Here is the crucial point: the fact that a pattern matched  a value tells us something about the type variables in the types of both. Specifically, it tells us that there is a non-null value which has both the static type of the selector and the static type of the pattern. In other words, the two types must overlap. Of course, in a concrete program run, the pattern might not match the selector value, so any deductions we can draw from type overlaps must be restricted to the pattern-matching case in question.
+
+We now formalize this reasoning in the following algorithm overlap-aliases. Given two types t1, t2 which are known to overlap, the algorithm yields a set E of equations of the form a = t where a is a type variable in t1 or t2 and t is a type.
+
+~20~
+
+----
+^21^
+
+### Algorithm: overlap-aliases
+
+The algorithm consists of two phases. In the first phase, a set of type equalities is computed. In the second phase, these equalities are rewritten to solved form, with only type variables on the left-hand side. We consider the following subset of Scala types:
+
+1. Type variables or parameters, a.
+
+2. Class types of form p.C[t]. Here, p is a path, i.e. an immutable reference to some object, C names a class which is a member of the object denoted by p, and t is a (possibly empty) list of type arguments for C.
+
+3. Singleton types of form p.type where p is a path. This type denotes the set of values consisting just of the object denoted by p.
+
+
+Every type t has a set of basetypes denoted basetypes(t). This is the smallest set of types which includes t itself, and which satisfies the following closure conditions:
+
+- if t is a type variable with upper bound u, basetypes(t)  basetypes(u),
+- if t is a singleton type p.type, where p has type u, basetypes(t)  basetypes(u),
+- if t is a class type p.C[u], basetypes(t) includes all types in the transitive supertype relation of t [31].
+
+The class extension rules of Scala ensure that the set of basetypes of a type is always finite. Furthermore, it is guaranteed that if p.C[t] and q.C[u] are both in the basetypes of some type t0, then the two prefix paths are the same and corresponding type arguments are also the same, i.e. p = q and t = u.
+
+This property underlies the first phase of the algorithm, which computes an initial set of type equalities E:
+
+```
+for − all t of form p.C[t] 2 basetypes(t1)
+  for − all u of form q.D[u] 2 basetypes(t2)
+    if C = D
+      E := E [ {t = u}
+```
+
+The second phase repeatedly rewrites equalities in E with the following rules, until no more rules can be applied.
+
+```
+p.C[t] = q.C[u] −! {p = q} [ {t = u}
+p = q −! t = u if p : t, q : u
+t = a −! a = t if t is not a type variable
+```
+
+Note that intermediate results of the rewriting can be path equalities as well as type equalities. A path equality p = q is subsequently eliminated by rewriting it to a type equality between the types of the two paths p and q. 2
+
+Returning to the type-safe evaluation example, consider the first clause in function eval. The type of the selector is Term[a], the type of the pattern is Var[b]. The basetypes of these two types have both an element with Term as the class; for Var[b] the basetype is Term[b], whereas for Term[a] it is Term[a] itself. Hence, the algorithm yields the equation Term[b] = Term[a] and by propagation b = a.
+
+~21~
+
+----
+^22^
+
+Now consider the second clause in function eval, where the type of the pattern is Num. A basetype of Num is Term[int], hence overlap-aliases(Num, Term[a]) yields the equation Term[int] = Term[a], and by propagation a = int.
+
+As a third example, consider the final clause of eval, where the type of the pattern is App[b, c]. This type has Term[c] as a basetype, hence the invocation  overlap-aliases(App[b, c], Term[a]) yields the equation Term[c] = Term[a], and by propagation  c = a. By contrast, the variable b in the pattern rests unbound; that is, it constitutes a fresh type constant.
+
+In each case, the overlap of the selector type and the pattern type gives us the correct constraints to be able to type-check the corresponding case clause. Hence, the type-safe evaluation function needs no type-cast other than the ones implied by the decomposing pattern matches.
+
+### Polymorphic updateable functions
+
+The evaluator in question uses environments as functions which map lambda-bound variables to their types. In fact we believe it is the first type-safe evaluator to do so. Previous type-safe evaluators written in Haskell [29], Omega [30] and extended C# [12] used lambda expressions with DeBrujn numbers and represented environments as tuples rather than functions. 
+
+In Figure 11, environments are modeled by a class Env with an abstract polymorphic apply method. Since functions are represented in Scala as objects with apply methods, instances of this class are equivalent to polymorphic functions of type 8a.Var[a] ) a. Environments are built from an object empty representing an empty environment and a method extend which extends an environment by a new variable/value pair. Every environment has the form
+
+```
+empty.extend(v1, x1). ... .extend(vn, xn)
+```
+
+for n  0, where each vi is a variable of type Var[Ti] and each xi is a value of type Ti.
+
+The empty object is easy to define; its apply method throws an exception every time it is called. The implementation of the extend method is more difficult, because it has to maintain the universal polymorphism of environments. Consider an extension env.extend(v, x), where v has type Var[a] and x has type a. What should the apply method of this extension be? The type of this method is 8b.Var[b] ) b. The idea is that apply compares its argument w (of type Var[b]) to the variable v. If the two are the same, the value to return is x. Otherwise the method delegates its task by calling the apply method of the outer environment env with the same argument. The first case is represented by the following case clause:
+
+```scala
+case _ : v.type => x 
+```
+
+This clause matches a selector of type Var[b] against the singleton type v.type. The latter has Var[a] as a basetype, where a is the type parameter of the enclosing extend method. Hence, overlap-aliases(v.type, Var[b]) yields Var[a] = Var[b] and by propagation a = b. Therefore, the case clause’s right hand side x of type a is compatible with the apply method’s declared result type b. In other words, type-overlap together with singleton types lets us express the idea that if two references are the same, their types must be the same as well.
+
+~22~
+
+----
+^23^
+
+A pattern match with a singleton type p.type is implemented by comparing the selector value with the path p. The pattern matches if the two are equal. The comparison operation to be used for this test is reference equality (expressed in Scala as eq). If we had used userdefinable equality instead (which is expressed in Scala as == and which corresponds to Java’s equals), the type system would become unsound. To see this, consider a definition of equals in some class which equates members of different classes. In that case, a succeeding pattern match does no longer imply that the selector type must overlap with the pattern type.
+
+### Parametric case-classes and extractors
+
+Type overlaps also apply to the other two pattern matching constructs of Scala, caseclasses and extractors. The techniques are essentially the same. A class constructor pattern C(p1, ..., pm) for a class C with type parameters a1, . . . , an is first treated as if it was a type pattern : C[a1, . . . an]. Once that pattern is typed and aliases for the type variables a1, . . . , an are computed using algorithm overlap-aliases, the types of the component patterns (p1, ..., pm) are computed recursively. Similarly, if the pattern C(p1, ..., pn) refers to a extractor of form
+
+```scala
+object C {
+  def unapply[a1, . . . , an](x : T) ...
+  ...
+} ,
+```
+
+it is treated as if it was the type pattern : T. Note that T would normally contain type variables a1, . . . , an.
+
+As an example, here is another version of the evaluation function of simply-typed lambda calculus, which assumes either a hierarchy of case-classes or extractors for every alternative (the formulation of eval is the same in each case). 
+
+```scala
+def eval[a](t : Term[a], env : Env): a = t match {
+  case v @ Var(name)      => env(v)
+  case Num(value)         => value
+  case Suc                => { y : int => y + 1 }
+  case Lam(x : Var[b], e) => { y : b => eval(e, env.extend(x, y)) }
+  case App(f, e)          => eval(f, env)(eval(e, env))
+}
+```
+
+~23~
+
+----
+^24^
+
+~24~
 
 ----
