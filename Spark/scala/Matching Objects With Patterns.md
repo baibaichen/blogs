@@ -329,7 +329,7 @@ A case class is written like a normal class with a case modifier in front. This 
 
 > Scala的样例类为构建和分析**==数据==**提供了方便的快捷方式。图5展示了如何使用样例类来简化算术表达式。
 >
-> 样例类就像普通类一样，只不过前面有一个`case`修饰符。此修饰符有几个效果，一方面，它提供了方便的表示法，无需用`new`就可以创建对象。 例如按图5的类层次结构，表达式`Mul(Num(42), Var(x))`是`new Mul(new Num(42), new Var(x))`的简写。另一方面，样例类允许在其构造函数上进行模式匹配。 这些模式的编写方式与构造函数表达式完全相同，但“反向”解释。 例如，模式`Mul(x, Num(1))`将匹配这样的`Mul`类，其右操作数的类型是`Num`，并且其`value`字段的值是1，如果模式匹配成功，变量`x`将绑定到匹配对象的左操作数。
+> 样例类就像普通类一样，只不过前面有一个`case`修饰符。此修饰符有几个效果，一方面，它提供了方便的表示法，无需用`new`就可以创建对象。 例如按图5的类层次结构，表达式`Mul(Num(42), Var(x))`是`new Mul(new Num(42), new Var(x))`的简写。另一方面，样例类允许在其构造函数上进行模式匹配。 这些模式的编写方式与**构造函数表达式**完全相同，但“反向”解释。 例如，模式`Mul(x, Num(1))`将匹配这样的`Mul`类，其右操作数的类型是`Num`，并且其`value`字段的值是1，如果模式匹配成功，变量`x`将绑定到匹配对象的左操作数。
 >
 > - [ ] 貌似本文的data表达的意思是对象。
 
@@ -354,7 +354,7 @@ case class Mul(left : Expr, right : Expr) extends Expr
 
 Fig. 5. Expression simplification using case classes
 
-### Patterns
+### 模式（Patterns）
 
 A pattern in Scala is constructed from the following elements:
 
@@ -363,30 +363,34 @@ A pattern in Scala is constructed from the following elements:
 - Constant literals such as 1 or ”abc”. A literal matches only itself.
 
 - Named constants such as None or Nil, which refer to immutable values. A named constant matches only the value it refers to.
-- Constructor patterns of the form C(p1, . . . , pn), where C is a case class and p1, . . . , pn are patterns. Such a pattern matches all instances of class C which were built from values v1, . . . , vn matching the patterns p1, . . . , pn. It is not required that the class instance is constructed directly by an invocation C(v1, . . . , vn). It is also possible that the value is an instance of a subclass of C, from where a super-call constructor invoked C’s constructor with the given arguments. Another possibility is that the value was constructed through a secondary constructor, which in turn called the primary constructor with arguments v1, . . . , vn. Thus, there isconsiderable flexibility for hiding constructor arguments from pattern matching.
-- Variable binding patterns of the form x@p where x is a variable and p is a pattern. Such a pattern matches the same values as p, and in addition binds the variable x to the matched value.
+- Constructor patterns of the form `C(p1, . . . , pn)`, where `C` is a case class and `p1, . . . , pn` are patterns. Such a pattern matches all instances of class `C` which were built from values `v1, . . . , vn` matching the patterns `p1, . . . , pn`. It is not required that the class instance is constructed directly by an invocation `C(v1, . . . , vn)`. It is also possible that the value is an instance of a subclass of `C`, from where a super-call constructor invoked `C`’s constructor with the given arguments. Another possibility is that the value was constructed through a secondary constructor, which in turn called the primary constructor with arguments `v1, . . . , vn`. Thus, there is considerable flexibility for hiding constructor arguments from pattern matching.
+- Variable binding patterns of the form `x@p` where `x` is a variable and `p` is a pattern. Such a pattern matches the same values as p, and in addition binds the variable x to the matched value.
 
-To distinguish variable patterns from named constants, we require that variables start with a lower-case letter whereas constants should start with an upper-case letter or special symbol.
-
-Scala中的模式由以下元素构成：
-
-- **变量模式**，如`x`或`right`，它们匹配任何值，并将变量名绑定到该值。 如果不需要命名值，则使用通配符作为简写。
-- **类型模式**，例如`x:int`或`:String`。 它们匹配给定类型的所有值，并将变量名称绑定到值。 第2.4节已经介绍了类型模式。
-- **常量模式**，如`1`或`"abc"`。字面量只匹配自身。
-- **命名常量**，如`None`或`Nil`，它们引用不可变值。 命名常量仅匹配它引用的值。
+> Scala中的模式由以下元素构成：
+>
+> - **变量模式**，如`x`或`right`，它们匹配任何值，并将变量名绑定到该值。 如果不需要命名值，则使用通配符作为简写。
+> - **类型模式**，例如`x:int`或`:String`。 它们匹配给定类型的所有值，并将变量名称绑定到值。 第2.4节已经介绍了类型模式。
+> - **常量模式**，如`1`或`"abc"`。字面量只匹配自身。
+> - **命名常量**，如`None`或`Nil`，它们引用不可变值。 命名常量仅匹配它引用的值。
+> - **构造函数模式**，形式为 `C(p1, . . . , pn)`，其中`C`是样例类，`p1, . . . , pn`是模式。 这样的模式匹配从值`v1, . . . , vn`构建而来，匹配模式`p1, . . . , pn`的所有C类实例。请注意，类实例不需要通过调用`C(v1, . . . , vn)`直接构造。 该值也可能是`C`子类的实例，使用给定参数调用超类的构造函数；另一种可能性是通过辅助构造函数构造该值，辅助构造函数又使用参数`v1, . . . , vn`调用主构造函数。因此，从模式匹配中隐藏构造函数参数具有相当大的灵活性。
+> - **变量绑定模式**，形式为`x@p` ，其中`x`是变量，`p`是模式。这样的模式匹配与`p`相同的值，并且另外将变量x绑定到匹配的值。
+>
 
 ~9~ 
 
 ----
 ^10^
 
-There exist ways to circumvent these restrictions: To treat a name starting with a lower-case letter as a constant, one can enclose it in back-quotes, as in `case ‘x‘ => ...`. To treat a name starting with an upper-case letter as a variable, one can use it in a variable binding pattern,as in `case X@_ => ....`
+To distinguish variable patterns from named constants, we require that variables start with a lower-case letter whereas constants should start with an upper-case letter or special symbol. There exist ways to circumvent these restrictions: To treat a name starting with a lower-case letter as a constant, one can enclose it in back-quotes, as in `case ‘x‘ => ...`. To treat a name starting with an upper-case letter as a variable, one can use it in a variable binding pattern,as in `case X@_ => ....`
 
-![image-20190707173129531](Matching Objects With Patterns/fig-6.png)Fig. 6. Optimizing nested patterns
+>  为了区分**变量模式**和**命名常量**，我们要求变量以小写字母开头，而常量应以大写字母或特殊符号开头。存在绕过这些限制的方法：把==**小写字母开头的名称**==括在反引号中，例如 `case ‘x‘ => …`，将被视为==**命名**==常量。可以在变量绑定模式中使用==**以大写字母开头的名称**==，如， `case X@_ => ....`，此时，`X`被视为变量。
 
-### Optimizing Matching Expressions
+### 优化匹配表达式（Optimizing Matching Expressions）
+![image-20190707173129531](Matching Objects With Patterns/fig-6.png)Fig. 6. 优化嵌套模式
 
 A pattern match has usually several branches which each associate a pattern with a computation. For instance, a slightly more complete realistic simplification of arithmetic expressions might involve the following match:
+
+> 模式匹配通常有几个分支，每个分支将一个模式与一个计算相关联。例如实际中，稍微更完整的算术表达式的简化规则可能涉及以下匹配：
 
 ```scala
 t match {
@@ -872,3 +876,15 @@ def eval[a](t : Term[a], env : Env): a = t match {
 ~24~
 
 ----
+
+
+
+# 参考
+
+1. injector：注入。参见 Programming in Scala 第三版，翻译版，==**第26.2节，593页**==。
+2. [What is the advantage of using scala pattern matching instead of java switch case?](https://stackoverflow.com/questions/21355060/what-is-the-advantage-of-using-scala-pattern-matching-instead-of-java-switch-cas) 
+> [**pattern matching** is not somehow an alternative of **switch statement**, I consider it to be another way of doing **dynamic dispatch** in oop. They try to do the same thing: calling a different version of the function based on the dynamic type of the arguments](https://stackoverflow.com/questions/21355060/what-is-the-advantage-of-using-scala-pattern-matching-instead-of-java-switch-cas/21358937#21358937).
+>
+> 模式匹配不是以某种方式替换`switch`语句，我认为它是**在oop中进行动态分派的另一种方式**。 他们尝试做同样的事情：根据参数的动态类型调用函数的不同版本。
+3. 
+4. 

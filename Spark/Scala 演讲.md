@@ -150,6 +150,7 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
 > - [ ] Case语句的中置表式法（参见**快学 Scala**的**14.11**节）
 > - [ ] [[PDF] Matching Objects with patterns](https://infoscience.epfl.ch/record/98468/files/MatchingObjectsWithPatterns-TR.pdf)，特别是这篇PDF需要认真整理
 > - [ ] [探索Scala（4）-- Case Classes](http://blog.csdn.net/zxhoo/article/details/40454075)
+> - [ ] [如何在Scala中使用正则表达式进行模式匹配？](https://cloud.tencent.com/developer/ask/93649)
 >
 
 ### PDF 里的内容
