@@ -516,7 +516,7 @@ It may be desirable to write injections and extractions that satisfy the equalit
 
 Patterns referring to extractors look just like patterns referring to case classes, but they are implemented differently. Matching against an extractor pattern like `Twice(x)` involves a call to `Twice.unapply(x)`, followed by a test of the resulting optional value. The code in the preceding example would thus be expanded as follows:
 
-> 在本例中，`apply`称为**注入**，因为它接受一个参数并生成给定类型的元素；`unapply`称为**提取**，因为它从给定类型中提取部分内容。注入和提取通常在一个`object`中组合在一起，就可以同时为构造函数和模式使用`object`的名称，这模拟了使用样例类进行模式匹配的方式。但是，还可以在没有对应注入方法的情况下，在`object`中定义提取方法。对象本身通常称为**提取器**，与是否定义了`apply`方法无关。
+> 在本例中，`apply`称为**注入**，因为它接受一个参数并生成给定类型的元素；`unapply`称为**提取**，因为它从给定类型中提取部分内容。注入和提取通常组合在一个`object`中，就可以同时为构造和模式使用该`object`的名称，这模拟了使用样例类进行模式匹配的方式。但是，还可以在没有对应注入方法的情况下，在`object`中定义提取方法。对象本身通常称为**提取器**，与是否定义了`apply`方法无关。
 >
 > 可能需要编写满足等式`F.unapply(F.apply(x)) == Some(x)`的注入和提取方法，但在用户定义的方法上，这不是必须的条件。可以自由编写提取器，无论是否有对应的注入方法，或处理更广泛数据类型。
 >
