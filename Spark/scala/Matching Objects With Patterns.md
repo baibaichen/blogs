@@ -512,9 +512,15 @@ x match {
 
 In this example, apply is called an injection, because it takes an argument and yields an element of a given type. unapply is called an extraction, because it extracts parts of the given type. Injections and extractions are often grouped together in one object, because then one can use the object’s name for both a constructor and a pattern, which simulates the convention for pattern matching with case classes. However, it is also possible to define an extraction in an object without a corresponding injection. The object itself is often called an extractor, independently of the fact whether it has an apply method or not.
 
-It may be desirable to write injections and extractions that satisfy the equality F.unapply(F.apply(x)) == Some(x), but we do not require any such condition on userdefined methods. One is free to write extractions that have no associated injection or that can handle a wider range of data types. 
+It may be desirable to write injections and extractions that satisfy the equality `F.unapply(F.apply(x)) == Some(x)`, but we do not require any such condition on user defined methods. One is free to write extractions that have no associated injection or that can handle a wider range of data types. 
 
-Patterns referring to extractors look just like patterns referring to case classes, but they are implemented differently. Matching against an extractor pattern like Twice(x) involves a call to Twice.unapply(x), followed by a test of the resulting optional value. The code in the preceding example would thus be expanded as follows:
+Patterns referring to extractors look just like patterns referring to case classes, but they are implemented differently. Matching against an extractor pattern like `Twice(x)` involves a call to `Twice.unapply(x)`, followed by a test of the resulting optional value. The code in the preceding example would thus be expanded as follows:
+
+> 在本例中，`apply`称为**注入**，因为它接受一个参数并生成给定类型的元素；`unapply`称为**提取**，因为它从给定类型中提取部分内容。注入和提取通常在一个`object`中组合在一起，就可以同时为构造函数和模式使用`object`的名称，这模拟了使用样例类进行模式匹配的方式。但是，还可以在没有对应注入方法的情况下，在`object`中定义提取方法。对象本身通常称为**提取器**，与是否定义了`apply`方法无关。
+>
+> 可能需要编写满足等式`F.unapply(F.apply(x)) == Some(x)`的注入和提取方法，但在用户定义的方法上，这不是必须的条件。可以自由编写提取器，无论是否有对应的注入方法，或处理更广泛数据类型。
+>
+> 提取器模式用起来就像使用样例类模式，但实现方式不同。匹配`Twice(x)`这样的提取器模式，涉及对`Twice.unapply(x)`的调用，然后测试生成的`Option`值。 因此，前面示例中的代码将扩展如下：
 
 ```scala
 val x = Twice.apply(21) // x = 42
@@ -524,14 +530,18 @@ Twice.unapply(x) match {
 }
 ```
 
-Extractor patterns can also be defined with numbers of arguments different from one. A nullary pattern corresponds to an unapply method returning a boolean. A pattern with more than one element corresponds to an unapply method returning an optional tuple. The result of an extraction plays the role of a ”representation-object”, whose constituents (if any) can be bound or matched further with nested pattern matches.
+Extractor patterns can also be defined with numbers of arguments different from one. A nullary pattern corresponds to an `unapply` method returning a boolean. A pattern with more than one element corresponds to an unapply method returning an optional tuple. The result of an extraction plays the role of a ”representation-object”, whose constituents (if any) can be bound or matched further with nested pattern matches.
+
+> 提取器模式的参数不止一个：nullary模式（指对应的`apply`方法无参数）对应于返回布尔值的`unapply`方法； 具有多个元素的模式对应于返回`Option[Tuplei[T1, ..., Ti]]`的`unapply`方法，提取的结果起到“==**表示对象**==”的作用，其组成部分（如果有的话）可以通过嵌套模式做进一步绑定或匹配。
 
 ~12~
 
 ----
 ^13^
 
-Pattern matching in Scala is loosely typed, in the sense that the type of a pattern does not restrict the set of legal types of the corresponding selector value. The same principle applies to extractor patterns. For instance, it would be possible to match a value of Scala’s root type Any with the pattern Twice(y). In that case, the call to Twice.unapply(x) is preceded by a type test whether the argument x has type int. If x is not an int, the pattern match would fail without executing the unapply method of Twice. This choice is convenient, because it avoids many type tests in unapply methods which would otherwise be necessary. It is also crucial for a good treatment of parameterized class hierarchies, as will be explained in Section 6.
+Pattern matching in Scala is loosely typed, in the sense that the type of a pattern does not restrict the set of legal types of the corresponding selector value. The same principle applies to extractor patterns. For instance, it would be possible to match a value of Scala’s root type `Any` with the pattern `Twice(y).` In that case, the call to `Twice.unapply(x)` is preceded by a type test whether the argument `x` has type int. If `x` is not an int, the pattern match would fail without executing the `unapply` method of `Twice`. This choice is convenient, because it avoids many type tests in `unapply` methods which would otherwise be necessary. It is also crucial for a good treatment of parameterized class hierarchies, as will be explained in Section 6.
+
+> Scala的模式匹配中的类型是松散的，因为模式的类型不限制相应选择器值的合法类型集。同样的原理适用于提取器模式。例如，可将Scala根类型`Any`的值与模式`Twice(y)`匹配。此时，调用`Twice.unapply(x)`之前，先对参数`x`做类型测试，看是否是整数类型。如果`x`不是整数，则模式匹配失败，不会执行`Twice`的`unapply`方法。这种选择很方便，因为它避免了在`unapply`中进行各种类型测试，否则这些测试是必要的。如第6节所述，它对于良好地处理参数化类层次结构也是至关重要的。
 
 ### Representation Independence
 
