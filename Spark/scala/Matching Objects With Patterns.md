@@ -929,104 +929,38 @@ def eval[a](t : Term[a], env : Env): a = t match {
 >
 > 模式匹配不是以某种方式替换`switch`语句，我认为它是**在oop中进行动态分派的另一种方式**。 他们尝试做同样的事情：根据参数的动态类型调用函数的不同版本。
 3. [Pattern Matching in Scala](https://pdfs.semanticscholar.org/af48/68c617192fee0618a5fcef262b8e551a9461.pdf)
-4. 
+4. [通过 Clojure 1.2 解决表达式问题](https://www.ibm.com/developerworks/cn/java/j-clojure-protocols/index.html)
 
 -----
 
-```
-	The Expression Problem
-		   Philip Wadler, 12 November 1998
+# The Expression Problem
 
-The Expression Problem is a new name for an old problem.  The goal is
-to define a datatype by cases, where one can add new cases to the
-datatype and new functions over the datatype, without recompiling
-existing code, and while retaining static type safety (e.g., no
-casts).  For the concrete example, we take expressions as the data
-type, begin with one case (constants) and one function (evaluators),
-then add one more construct (plus) and one more function (conversion
-to a string).
+The Expression Problem is a new name for an old problem.  The goal is to define a datatype by cases, where one can add new cases to the datatype and new functions over the datatype, without recompiling existing code, and while retaining static type safety (e.g., no casts).  For the concrete example, we take expressions as the data type, begin with one case (constants) and one function (evaluators), then add one more construct (plus) and one more function (conversion to a string).
 
-Whether a language can solve the Expression Problem is a salient
-indicator of its capacity for expression.  One can think of cases as
-rows and functions as columns in a table.  In a functional language,
-the rows are fixed (cases in a datatype declaration) but it is easy to
-add new columns (functions).  In an object-oriented language, the
-columns are fixed (methods in a class declaration) but it is easy to
-add new rows (subclasses).  We want to make it easy to add either rows
-or columns.
+Whether a language can solve the Expression Problem is a salient indicator of its capacity for expression.  One can think of cases as rows and functions as columns in a table.  In a functional language, the rows are fixed (cases in a datatype declaration) but it is easy to add new columns (functions).  In an object-oriented language, the columns are fixed (methods in a class declaration) but it is easy to add new rows (subclasses).  We want to make it easy to add either rows or columns.
 
-The Expresion Problem delineates a central tension in language design.
-Accordingly, it has been widely discussed, including Reynolds (1975),
-Cook (1990), and Krishnamurthi, Felleisen and Friedman (1998); the
-latter includes a more extensive list of references.  It has also been
-discussed on this mailing list by Corky Cartwright and Kim Bruce.  Yet
-I know of no widely-used language that solves The Expression Problem
-while satisfying the constraints of independent compilation and static
-typing.
+The Expresion Problem delineates a central tension in language design. Accordingly, it has been widely discussed, including Reynolds (1975), Cook (1990), and Krishnamurthi, Felleisen and Friedman (1998); the latter includes a more extensive list of references.  It has also been discussed on this mailing list by Corky Cartwright and Kim Bruce.  Yet  know of no widely-used language that solves The Expression Problem while satisfying the constraints of independent compilation and static typing.
 
-Until now, that is.  Here I present a solution to this problem in GJ,
-as extended by the mechanism I described in my previous note `Do
-parametric types beat virtual types?'.  (However, there is a caveat
-with regard to inner interfaces, see below.)
+Until now, that is.  Here I present a solution to this problem in GJ, as extended by the mechanism I described in my previous note 'Do parametric types beat virtual types?'.  (However, there is a caveat with regard to inner interfaces, see below.)
 
+## 1.  A solution
 
-1.  A solution
+Figure 1 shows a solution to the Expression Problem in GJ.  The two phases of the problem are clumped into two classes, LangF and Lang2F, each of which defines several mutually recursive inner classes and interfaces.
 
-Figure 1 shows a solution to the Expression Problem in GJ.  The two
-phases of the problem are clumped into two classes, LangF and Lang2F,
-each of which defines several mutually recursive inner classes and
-interfaces.
+In the first phase, the class LangF define an interface Exp with a subclass Num representing constants, and an interface Visitor with a method forNum specifying functions over constants.  The Visitor class is parameterized on the result type of the function.  Class Eval implements Visitor<Integer> and specifies evaluation of expressions. 
 
-In the first phase, the class LangF define an interface Exp with a
-subclass Num representing constants, and an interface Visitor with a
-method forNum specifying functions over constants.  The Visitor class
-is parameterized on the result type of the function.  Class Eval
-implements Visitor<Integer> and specifies evaluation of expressions.
+In the second phase, the class Lang2F extends Exp with an additional subclass Sum representing the sum of two expressions, and extends Visitor with an additional method forSum specifying how to act on sums.  Class Eval is extended appropriately, and class Show implements Visitor<String> and specifies conversion of an expression to a string. Finally, a test class creates, evaluates, and shows expressions from both phases.
 
-In the second phase, the class Lang2F extends Exp with an additional
-subclass Sum representing the sum of two expressions, and extends
-Visitor with an additional method forSum specifying how to act on
-sums.  Class Eval is extended appropriately, and class Show implements
-Visitor<String> and specifies conversion of an expression to a string.
-Finally, a test class creates, evaluates, and shows expressions from
-both phases.
+The class Eval in the second phase extends the class Eval from the first phase and implements the interface Visitor from the second phase.  So it is essential that Visitor be an interface, not an abstract class. 
 
-The class Eval in the second phase extends the class Eval from
-the first phase and implements the interface Visitor from the
-second phase.  So it is essential that Visitor be an interface,
-not an abstract class.
+The LangF class is parameterised on a type parameter This that is itself bounded by LangF<This>, and the Lang2F class is parameterized on a type parameter This that is bounded by Lang2F<This>; further, Lang2F<This> extends LangF<This>.  This use of `This' is the standard trick to provide accurate static typing in the prescence of subtypes (sometimes called MyType or ThisType).  As usual, we tie the knot with fixpoint classes Lang and Lang2.
 
-The LangF class is parameterised on a type parameter This that is
-itself bounded by LangF<This>, and the Lang2F class is parameterized
-on a type parameter This that is bounded by Lang2F<This>; further,
-Lang2F<This> extends LangF<This>.  This use of `This' is the standard
-trick to provide accurate static typing in the prescence of subtypes
-(sometimes called MyType or ThisType).  As usual, we tie the knot with
-fixpoint classes Lang and Lang2.
+The key trick here is the use of This.Exp and This.Visitor, via the mechanism described in `Do parametric types beat virtual types?'. Recall that mechanism allows a type variable to be indexed by any inner class defined in the variable's bound; in order for this to be sound, any type which instantiates a type parameter must define inner classes that extend those in the bound.  Here we can refer to This.Exp and This.Visitor because This is bound by LangF<This> which defines Exp and Vistor; soundness is satisfied since Lang2F<This>.Exp extends LangF<This>.Exp, and Lang2F<This>.Visitor extends Lang2F<This>.Visitor.
 
-The key trick here is the use of This.Exp and This.Visitor, via the
-mechanism described in `Do parametric types beat virtual types?'.
-Recall that mechanism allows a type variable to be indexed by any
-inner class defined in the variable's bound; in order for this to be
-sound, any type which instantiates a type parameter must define inner
-classes that extend those in the bound.  Here we can refer to This.Exp
-and This.Visitor because This is bound by LangF<This> which defines
-Exp and Vistor; soundness is satisfied since Lang2F<This>.Exp extends
-LangF<This>.Exp, and Lang2F<This>.Visitor extends
-Lang2F<This>.Visitor.
+This solution is remarkably straightforward, once one is familiar with the techniques for simulating ThisType and virtual types.  However, I must admit it took me a while to see the solution, even after I went looking for it.  (Some of you will have seen an earlier solution, similar in structure but impossible to implement since it had the type variable This.Exp as a supertype of Num and Sum; the current version has no such problem.)
 
-This solution is remarkably straightforward, once one is familiar with
-the techniques for simulating ThisType and virtual types.  However, I
-must admit it took me a while to see the solution, even after I went
-looking for it.  (Some of you will have seen an earlier solution,
-similar in structure but impossible to implement since it had the type
-variable This.Exp as a supertype of Num and Sum; the current version
-has no such problem.)
-
-------------------------------------------------------------------------
 Figure 1:  A solution to The Expression Problem
-------------------------------------------------------------------------
-
+```java
 class LangF<This extends LangF<This>> {
   interface Visitor<R> {
     public R forNum(int n);
@@ -1089,98 +1023,42 @@ final class Main {
     System.out.println("show: "+e2.visit(l2.new Show()));
   }
 }
+```
 
-------------------------------------------------------------------------
+## 2.  A caveat with regard to inner interfaces
 
+In GJ as it is currently implemented, type parameters do not scope over static members, and further, a type parameter may be indexed only by non-static classes or interfaces defined in the bound.  And in Java as it is currently defined, all inner interfaces are taken as static, whether declared so are not.  This makes the mechanism for indexing type variables by inner classes useless for interfaces, greatly reducing its utility.  In particular, it invalidates the solution just presented, which depends on Visitor being an interface.
 
-2.  A caveat with regard to inner interfaces
-
-In GJ as it is currently implemented, type parameters do not scope
-over static members, and further, a type parameter may be indexed only
-by non-static classes or interfaces defined in the bound.  And in Java
-as it is currently defined, all inner interfaces are taken as static,
-whether declared so are not.  This makes the mechanism for indexing
-type variables by inner classes useless for interfaces, greatly
-reducing its utility.  In particular, it invalidates the solution just
-presented, which depends on Visitor being an interface.
-
-Fortunately, it looks possible to relax either the GJ or the Java
-constraint.  So far as I can see, the only difference in making an
-interface non-static is that it can now include non-static inner
-classes; so the change would not render invalid any existing Java
-programs.  But this point requires further study.  Also, I should note
-that since the changes have not been implemented yet, I have not
-actually run the proposed solution.  (I did translate from GJ to Java
-by hand, and run that.)
+Fortunately, it looks possible to relax either the GJ or the Java constraint.  So far as I can see, the only difference in making an interface non-static is that it can now include non-static inner classes; so the change would not render invalid any existing Java programs.  But this point requires further study.  Also, I should note that since the changes have not been implemented yet, I have not actually run the proposed solution.  (I did translate from GJ to Java by hand, and run that.)
 
 
-3.  Related work
+## 3.  Related work
 
-It is instructive to compare this solution with previous solutions
-circulated by Corky Cartwright and Kim Bruce.  Corky's solution
-requires contravariant extension -- that is, even though Lang2F.Exp
-extends LangF.Exp, one may use LangF.Exp in place of Lang2F.Exp and
-not conversely.  This partly explains why fixpoints are required here:
-though LangF is a superclass of Lang2F, the classes Lang and Lang2 are
-unrelated.  Short of complicating the language with contravariance,
-unrelated classes is the best we could hope for.
+It is instructive to compare this solution with previous solutions circulated by Corky Cartwright and Kim Bruce.  Corky's solution requires contravariant extension -- that is, even though Lang2F.Exp extends LangF.Exp, one may use LangF.Exp in place of Lang2F.Exp and not conversely.  This partly explains why fixpoints are required here: though LangF is a superclass of Lang2F, the classes Lang and Lang2 are unrelated.  Short of complicating the language with contravariance, unrelated classes is the best we could hope for.
 
+```
                                 LangF
                                 /    \
                             Lang      Lang2F
                                      /
                                 Lang2
+```
 
-Kim's solution required a type to be parameterized over a type
-constructor (rather than another type).  In terms of our example, it
-required Exp to be parameterized on Visitor.  Here, instead of
-paramerizing Exp on Visitor, Exp refers to This.Vistor<R>.  Although
-GJ supports parametization over types, it does not support
-parameterization over higher-order type constructors.  However,
-virtual types (as simulated by GJ) in effect support higher-order type
-parameters for free.  I'm grateful to Mads Torgersen and Kresten Krab
-Thorup for this insight, which they passed on when we discussed this
-problem at OOPSLA a few weeks ago.  (Ironically, though, it looks like
-this solution won't work in Beta, which lacks interfaces or any other
-form of multiple supertyping; there also may be a problem in having a
-single expression type that allows visitors with different result
-types, like Integer and String.)
+Kim's solution required a type to be parameterized over a type constructor (rather than another type).  In terms of our example, it required Exp to be parameterized on Visitor.  Here, instead of paramerizing Exp on Visitor, Exp refers to This.Vistor<R>.  Although GJ supports parametization over types, it does not support parameterization over higher-order type constructors.  However, virtual types (as simulated by GJ) in effect support higher-order type parameters for free.  I'm grateful to Mads Torgersen and Kresten Krab Thorup for this insight, which they passed on when we discussed this problem at OOPSLA a few weeks ago.  (Ironically, though, it looks like this solution won't work in Beta, which lacks interfaces or any other form of multiple supertyping; there also may be a problem in having a single expression type that allows visitors with different result types, like Integer and String.)
 
-The solution presented here is similar to the Extended Visitor pattern
-described by Krishnamurthi et al.  Their solution differs in that it
-is not statically typed; they cannot distinguish Lang.Exp from
-Lang2.Exp, and as a result must depend on dynamic casts at some key
-points.  This isn't due to a lack of cleverness on their part, rather
-it is due to a lack of expressiveness in Pizza.
+The solution presented here is similar to the Extended Visitor pattern described by Krishnamurthi et al.  Their solution differs in that it is not statically typed; they cannot distinguish Lang.Exp from Lang2.Exp, and as a result must depend on dynamic casts at some key points.  This isn't due to a lack of cleverness on their part, rather it is due to a lack of expressiveness in Pizza.
 
-I am aware of two solutions to the expression problem, but both
-depend on special-purpose language extensions designed specifically
-for that problem.  One appears in the Krishnamurthi et al. paper,
-the other in a master's thesis by a student of Martin Odersky.
-In contrast, the solution presented here arises from the general
-purpose mechanisms of type parameters and virtual types.
+I am aware of two solutions to the expression problem, but both depend on special-purpose language extensions designed specifically for that problem.  One appears in the Krishnamurthi et al. paper, the other in a master's thesis by a student of Martin Odersky. In contrast, the solution presented here arises from the general purpose mechanisms of type parameters and virtual types.
 
-I'd be grateful for pointers to other solutions to the Expression
-Problem.  How do Beta, Sather, Ocaml, and others fare?
+I'd be grateful for pointers to other solutions to the Expression Problem.  How do Beta, Sather, Ocaml, and others fare?
 
 Cheers, -- P
 
 
-References
+## References
 
-W. R. Cook (1990). Object-oriented programming versus abstract data
-  types.  REX workshop on Foundations of Object-Oriented Languages,
-  Springer-Verlag LNCS 489, 1990.
+W. R. Cook (1990). Object-oriented programming versus abstract data   types.  REX workshop on Foundations of Object-Oriented Languages,   Springer-Verlag LNCS 489, 1990.
 
-S. Krishamurthis, M. Felleisen, and D. Friedman (1998).  Synthesizing
-  object-oriented and functional design to promote re-use.  ECOOP 1998,
-  Springer-Verlag LNCS 1445, July 1998.
+S. Krishamurthis, M. Felleisen, and D. Friedman (1998).  Synthesizing   object-oriented and functional design to promote re-use.  ECOOP 1998,   Springer-Verlag LNCS 1445, July 1998.
 
-J. C. Reynolds (1975).  User-defined types and procedural data as
-  complementary approaches to data abstraction.  In S. A. Schuman,
-  editor, New Directions in Algorithmic Languages, IFIP Working Group
-  2.1 on Algol, INRIA, 1975.  Reprinted in D. Gries, editor, Programming
-  Methodology, Springer-Verlag, 1978, and in C. A. Gunter and
-  J. C. Mitchell, editors, Theoretical Aspects of Object-Oriented
-  Programming, MIT Press, 1994.
-```
+J. C. Reynolds (1975).  User-defined types and procedural data as   complementary approaches to data abstraction.  In S. A. Schuman,   editor, New Directions in Algorithmic Languages, IFIP Working Group   2.1 on Algol, INRIA, 1975.  Reprinted in D. Gries, editor, Programming   Methodology, Springer-Verlag, 1978, and in C. A. Gunter and   J. C. Mitchell, editors, Theoretical Aspects of Object-Oriented   Programming, MIT Press, 1994.
