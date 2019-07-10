@@ -341,7 +341,7 @@ A case class is written like a normal class with a case modifier in front. This 
 ```scala
 // Class hierarchy:
 trait Expr
-case class Num(value : int) extends Expr
+case class Num(value : Int) extends Expr
 case class Var(name : String) extends Expr
 case class Mul(left : Expr, right : Expr) extends Expr
 
@@ -386,7 +386,6 @@ To distinguish variable patterns from named constants, we require that variables
 >  为了区分**变量模式**和**命名常量**，我们要求变量以小写字母开头，而常量应以大写字母或特殊符号开头。存在绕过这些限制的方法：把==**小写字母开头的名称**==括在反引号中，例如 `case ‘x‘ => …`，将被视为==**命名**==常量。可以在变量绑定模式中使用==**以大写字母开头的名称**==，如， `case X@_ => ....`，此时，`X`被视为变量。
 
 ### 优化匹配表达式（Optimizing Matching Expressions）
-![image-20190707173129531](Matching Objects With Patterns/fig-6.png)Fig. 6. 优化嵌套模式
 
 A pattern match has usually several branches which each associate a pattern with a computation. For instance, a slightly more complete realistic simplification of arithmetic expressions might involve the following match:
 
@@ -404,17 +403,34 @@ t match {
 
 A possible implementation for this match would be to try patterns one by one. However, this strategy would not be very efficient, because the same type tests would be performed multiple times. Evidently, one needs to test not more than once whether t matches Mul, whether the left operand is a Num, and whether the right operand is a Num. The literature on pattern matching algebraic data types discusses identification and removal of superfluous tests [27]. We adapt these results to an object-oriented setting by replacing constructor-tests with subtyping [28].
 
-The principle is shown in Fig. 6 for a match on a pair (tuple types are explained in  detail below). After preprocessing, a group of nested patterns is expressed as a decision tree. During execution of the generated code, a successful test leads to the right branch, where as a failing one proceeds downwards. If there is no down path, backtracking becomes necessary until we can move down again. If backtracking does not yield a down branch either, the whole match expression fails with a MatchError exception. Note that for this match, match failure is excluded by the pattern in the last case.
+> 一种可能的实现方式是每个模式逐个进行匹配。但是，因为会多次执行相同类型的测试，这种策略效率不高。显然，只需要测试一次`t`是否匹配`Mul`，左操作数是否为`Num`，以及右操作数是否为`Num`。 关于模式匹配代数数据类型的文献讨论了多余测试的识别和删除[27]。我们通过用**子类型替换构造函数测试**[28]，使这些结果适应面向对象的设置。
+>
+>  注：最新的编译器貌似没有优化
 
-A vertically connected line in the decision tree marks type tests on the same value (the selector). This can be implemented using type-test and type-case. However, a linear sequence of type tests could be inefficient: in matches with n cases, on average n/2 cases might fail. For this reason, we attach integer tags to case class and translates tests on the same selector to a lookup-switch. After having switched on a tag, only a constant number of type tests (typically one) is performed on the selector. We review this decision in the performance evaluation. 
+![image-20190707173129531](Matching Objects With Patterns/fig-6.png)Fig. 6. 优化嵌套模式
+
+The principle is shown in Fig. 6 for a match on a pair (tuple types are explained in  detail below). After preprocessing, a group of nested patterns is expressed as a decision tree. During execution of the generated code, a successful test leads to the right branch, where as a failing one proceeds downwards. If there is no down path, backtracking becomes necessary until we can move down again. If backtracking does not yield a down branch either, the whole match expression fails with a `MatchError` exception. Note that for this match, match failure is excluded by the pattern in the last case.
+
+> 图6显示了匹配（包含两个对象的）元组的原理（元组类型在下面详细说明）。在预处理之后，一组嵌套模式被表示为决策树。在执行生成的代码的过程中，成功的测试会导致右分支，失败的测试会向下进行。如果没有下行路径，则必须进行回溯，直到我们再次向下移动为止。 如果回溯也不会产生向下分支，则整个匹配表达式将失败并出现`MatchError`异常。 请注意，对于此匹配，最后一种情况中的模式排除了匹配失败。
+
+A vertically connected line in the decision tree marks type tests on the same value (the selector). This can be implemented using **type-test** and **type-case**. However, a linear sequence of type tests could be inefficient: in matches with n cases, on average n/2 cases might fail. For this reason, we attach integer tags to case class and translates tests on the same selector to a lookup-switch. After having switched on a tag, only a constant number of type tests (typically one) is performed on the selector. We review this decision in the performance evaluation. 
+
+> 决策树中垂直连接的行表示对同一个（选择器的）值进行类型测试。这可以使用**类型测试**和**type-case**来实现。但是，线性序列的类型测试可能效率低下：在与n个模式匹配时，平均n/2个模式可能会失败。 因此，我们将整数标记附加到样例类，并将同一选择器上的类型测试转换为[lookup-switch]()。切换到标签后，只对选择器执行一定数量（通常为一次）的类型测试，我们将在性能评估中回顾这个决定。
+>
+> 注：关于lookup-switch：
+>
+> 1. [JVM指令集中tableswitch和lookupswitch指令的区别](https://github.com/aCoder2013/blog/issues/7)
+> 2. [Difference between JVM's LookupSwitch and TableSwitch?](https://stackoverflow.com/questions/10287700/difference-between-jvms-lookupswitch-and-tableswitch)
 
 ~10~
 
 ----
 ^11^
-### Examples of Case Classes
+### 样例类示例（Examples of Case Classes）
 
 Case classes are ubiquitous in Scala’s libraries. They express lists, streams, messages, symbols, documents, and XML data, to name just a few examples. Two groups of case classes are referred to in the following section. First, there are classes representing optional values:
+
+> 样例类在Scala的库中无处不在，试举几个例子：它们表达了列表，流，消息，符号，文档和XML数据。下面将引用==**标准库中的**==两组样例类。 首先是`Option`类型，表示一个值可能存在：
 
 ```scala
 trait Option[+T]
@@ -422,9 +438,17 @@ case class Some[T](value : T) extends Option[T]
 case object None extends Option[Nothing]
 ```
 
-Trait Option[T] represents optional values of type T. The subclass Some[T] represents a value which is present whereas the sub-object None represents absence of a value. The ‘+’ in the type parameter of Option indicates that optional values are covariant: if S is a subtype of T, then Option[S] is a subtype of Option[T]. The type of None is Option[Nothing], where Nothing is the bottom in Scala’s type hierarchy. Because of covariance, None thus conforms to every option type.
+Trait `Option[T]` represents optional values of type `T`. The subclass `Some[T]` represents a value which is present whereas the sub-object None represents absence of a value. The ‘+’ in the type parameter of Option indicates that optional values are covariant: if S is a subtype of T, then Option[S] is a subtype of Option[T]. The type of None is Option[Nothing], where Nothing is the bottom in Scala’s type hierarchy. Because of covariance, None thus conforms to every option type.
 
 For the purpose of pattern matching, None is treated as a named constant, just as any other singleton object. The case modifier of the object definition only changes some standard method implementations for None, as explained in Section 4. A typical pattern match on an optional value would be written as follows.
+
+> 特质`Option[T]`表示类型`T`的值可能存在。子类`Some [T]`表示值存在，而子对象`None`表示值不存在。类型参数中的`'+'`表示`Option`是**协变类型**：如果`S`是`T`的子类型，则`Option [S]`是`Option [T]`的子类型。`None`的类型是`Option [Nothing]`，`Nothing`是Scala类型层次结构中==**为所有类型兜底的类型**==，因此由于协变，`None`是所有`Option[T]`的子类。
+>
+> 在模式匹配中，像其他单例对象一样，`None`被视为命名常量。如第4节所述，`object`前的`case`修饰符只更改了`None`的一些标准方法的实现。`Option`典型的模式匹配如下：
+>
+> 注：
+>
+>  1. **兜底类型**，参见 Programming in Scala 11.4 节
 
 ```scala
 v match {
@@ -433,17 +457,25 @@ v match {
 }
 ```
 
-Option types are recommended in Scala as a safer alternative to null. Unlike with null, it is not possible to accidentally assume that a value is present since an optional type must be matched to access its contents. 
+`Option` types are recommended in Scala as a safer alternative to `null`. Unlike with `null`, it is not possible to accidentally assume that a value is present since an optional type must be matched to access its contents. 
+
+> Scala建议使用`Option`类型作为`null`值更安全的替代方法。 与`null`不同，由于必须匹配`Option`才能访问其内容，因此不可能意外地假设值存在。
 
 Tuples are another group of standard case classes in Scala. All tuple classes are of the form:
+
+> Scala中另一组标准样例类是元组，所有元组类的形式如下：
 
 ```scala
 case class Tuplei[T1, ..., Ti]( _1 : T1, ..., _i : Ti)
 ```
 
-There’s also an abbreviated syntax: (T1, ..., Ti) means the same as the tuple type Tuplei[T1,..., Ti] and analogous abbreviations exist for expressions and patterns.
+There’s also an abbreviated syntax: `(T1, ..., Ti)` means the same as the tuple type Tuplei[T1,..., Ti] and analogous abbreviations exist for expressions and patterns.
+
+> 还有一个缩写语法：`(T1, ..., Ti)`，与`Tuplei[T1，...，Ti]`表达的意思相同。元组在模式和表达式都存在类似缩写。
 
 *Evaluation*: Pattern matching with case classes requires no notational overhead for the class hierarchy. As in functional programming languages, the matching code is concise for shallow as well as for nested patterns. However, also as in functional programmin, case classes expose object representation. They have mixed characteristics with respect to extensibility. Adding new variants is straightforward. However, it is not possible to define new kinds of patterns, since patterns are in a one to one correspondence with (the types of) case classes. This shortcoming is eliminated when case classes are paired with extractors.
+
+> **评估**：**样例类**的模式匹配不需要类层次结构的**符号开销**。对于浅层和嵌套模式，**样例类**的匹配代码都很简洁，但公开了对象表示，这些与函数式编程语言一样。 可扩展性方面，**样例类**具有混合特性，添加新的变体很简单，但无法定义新的模式类型，因为模式与样例类的（类型）一一对应。 当案例类与提取器配对时，就消除了这个缺点。
 
 ~11~
 
