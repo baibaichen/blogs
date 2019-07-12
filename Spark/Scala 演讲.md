@@ -132,6 +132,7 @@ case final class Some(val value : ???) {
 > - [ ] Cake Pattern 现在还在用吗？Spark里能找到对应的例子吗？
 
 ### 特征混入（`trait` mixin）
+
 Spark的 `StructType` 混入了 `Seq[StrcutField]`
 
 ```scala
@@ -140,6 +141,35 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
     override def length: Int = fields.length
     override def iterator: Iterator[StructField] = fields.iterator
 }
+```
+
+#### `trait` 可以从 `class` 继承
+
+- [ ] 参见 [How to limit which classes can use a trait by inheritance](https://alvinalexander.com/scala/how-to-limit-which-classes-can-use-traits-inheritance-in-scala)
+- [ ] [2 ways to limit classes that can extend traits in Scala](https://backtobazics.com/scala/2-ways-to-limit-classes-that-can-extend-traits-in-scala/)
+- [ ] [Why can a Scala trait extend a class?](https://stackoverflow.com/questions/12854941/why-can-a-scala-trait-extend-a-class)
+
+目前看来就是为了限制可以从`trait` 继承的类，从一个类继承的`trait`限制了哪些类可以从该`trait`继承——也就是说，所有混入了这个`trait`的类都必须继承自`trait扩展的类。
+
+```scala
+scala> class Foo
+defined class Foo
+
+scala> trait FooTrait extends Foo
+defined trait FooTrait
+
+scala> val good = new Foo with FooTrait
+good: Foo with FooTrait = $anon$1@773d3f62
+
+scala> class Bar
+defined class Bar
+
+scala> val bad = new Bar with FooTrait
+<console>:10: error: illegal inheritance; superclass Bar
+ is not a subclass of the superclass Foo
+ of the mixin trait FooTrait
+       val bad = new Bar with FooTrait
+                              ^
 ```
 
 ## 6 模式匹配
@@ -496,7 +526,7 @@ testData3.groupBy('a).agg(count('b))
    - 使用函数的“meta 方法”，如调用 `Function.curried`，参见*Scala程序设计（Programming Scala）***6.6**节。
    
 6. [Meaning of underscore in lift[A,B](f: A => B): Option[A\] => Option[B] = _ map f](https://stackoverflow.com/questions/28375449/meaning-of-underscore-in-lifta-bf-a-b-optiona-optionb-map-f)
-   
+  
    ```scala
    def lift[A,B](f: A => B): Option[A] => Option[B] = _ map f
 
