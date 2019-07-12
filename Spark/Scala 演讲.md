@@ -484,14 +484,40 @@ testData3.groupBy('a).agg(count('b))
 
 ### 参考
 1. [浅谈 Scala 中下划线的用途](https://my.oschina.net/leejun2005/blog/405305)
+
 2. [Scala基础 - 下划线使用指南](https://my.oschina.net/joymufeng/blog/863823)
+
 3. [知乎](https://www.zhihu.com/question/21622725)
+
 4. 导入类型和成员时，取代（`*`）作为 `import` 的通配符，`*` 在 `scala` 中被允许用作**函数名**。（这特么脑子有毛病）。
+
 5. 用于消除歧义：
    - 定义部分应用函数（**Partially Applied Functions**）时。参见*Scala程序设计（Programming Scala）***6.5**节。
    - 使用函数的“meta 方法”，如调用 `Function.curried`，参见*Scala程序设计（Programming Scala）***6.6**节。
+   
+6. [Meaning of underscore in lift[A,B](f: A => B): Option[A\] => Option[B] = _ map f](https://stackoverflow.com/questions/28375449/meaning-of-underscore-in-lifta-bf-a-b-optiona-optionb-map-f)
+   
+   ```scala
+   def lift[A,B](f: A => B): Option[A] => Option[B] = _ map f
+
+   // 
+   // 这里的下划线是函数的简写。编译器足够智能，可以根据方法签名的返回类型推断出的含义是：
+   def lift[A,B](f: A => B): Option[A] => Option[B] = (_: Option[A]).map(f)
+   
+   // 进而扩展到：
+   def lift[A,B](f: A => B): Option[A] => Option[B] = (o: Option[A]) => o.map(f)
+   ```
+   
+7. xcd
+
+8. 
+
+    
+
+    
 
 ### Spark中的例子
+
 1. 对变量进行默认初始化，比如：
 
     ```scala
@@ -736,9 +762,10 @@ filtered: List[(String, String)] = List()
 
 #### 作为表达式（expression）和语句块（code blocks）时
 
-如果需要声明、多个语句、导入或类似的内容，则需要大括号。由于表达式是一个语句，括号可能出现在大括号内。但有趣的是，代码块也是表达式，因此可以在表达式内的任何位置使用它们。
+如果需要声明、多个语句、导入或类似的内容，则需要大括号。**由于表达式是一个语句，括号可能出现在大括号内**。但有趣的是，代码块也是表达式，因此可以在表达式内的任何位置使用它们。
 
-在非函数调用时，小括号可以用于界定表达式，花括号可以用于界定代码块。代码块由多条语句(statement)组成，每一条语句可以是一个”import”语句，一个变量或函数的声明，或者是一个表达式（expression），而一个表达式必定也是一条语句（statement），所以小括号可能出现在花括号里面，同时，语句块里可以出现表达式，所以花括号也可能出现在小括号里。看看下面的例子：
+**在非函数调用时，小括号可以用于界定表达式，花括号可以用于界定代码块**。代码块由多条语句(statement)组成，每一条语句可以是一个”import”语句，一个变量或函数的声明，或者是一个表达式（expression），而一个表达式必定也是一条语句（statement），所以小括号可能出现在花括号里面，同时，语句块里可以出现表达式，所以花括号也可能出现在小括号里。看看下面的例子：
+
 ```scala
 1       // literal - 字面量
 (1)     // expression - 表达式
@@ -749,7 +776,7 @@ filtered: List[(String, String)] = List()
 ```
 ## 例子
 
-### 变量可以 `override` 方法
+### val 可以 `override` 方法
 
     RuleExecutor/*...*/ {
        abstract class Strategy { def maxIterations: Int }
@@ -757,7 +784,36 @@ filtered: List[(String, String)] = List()
        case class FixedPoint(maxIterations: Int) extends Strategy
     }
 
-在超类中实际定义的是 `maxIterations` 方法，但是在 `FixedPoint` 子类中，我们定义的是一个**变量**！
+在超类中实际定义的是 `maxIterations` 方法，但是在 `FixedPoint` 子类中，我们定义的是一个**val 变量**！
+
+#### Spark中的例子
+
+```scala
+FileSourceScanExec extends DataSourceScanExec with ColumnarBatchScan {
+  override lazy val (outputPartitioning, outputOrdering): (Partitioning, Seq[SortOrder]) = ...
+}
+
+```
+
+#### 在`trait`中使用 `def` 的更多动机
+
+`def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，就说明了应该如何实现。
+
+> 在[Stack Overflow页面](https://stackoverflow.com/questions/19642053/when-to-use-val-or-def-in-scala-traits)的这个注释，为在`trait`中使用`def`字段的原因提供了一些更好的观点：
+>
+> > `def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，就说明了应该如何实现。
+>
+> 编写真正有意义的代码的角度来看，该段中最后两个句子说得不错。他们了解了在一个`trait`中创造这样一个字段的本质：
+>
+> - 我的意图是什么？
+> - 在`trait`中暴露`id`字段，我试图表达什么？
+>
+> 我以前在Java中非常随意地编程 - 比如不担心将字段标记为`private`或 `final`等等 - 但随着我变老（并且希望更加明智），我已经了解到，使用Scala你可以非常清楚地知道，你试图通过自己的方式来传达给自己和其他开发人员的信息。花一些时间来思考这样的问题。你应该能够对其他开发者说：“我故意这样做，这就是为什么......”
+
+#### 参考
+
+1. [On Using `def` vs `val` To Define Abstract Members in Scala Traits](https://alvinalexander.com/scala/fp-book/def-vs-val-abstract-members-traits-classes-override)
+2. [Choices with def and val in Scala](https://blog.jessitron.com/2012/07/10/choices-with-def-and-val-in-scala/)，**这个有货**。
 
 ### Loop没有`break`和`continue`
 
