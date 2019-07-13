@@ -59,21 +59,12 @@ Catalyst实现了完善的表达式体系，与各种算子（`QueryPlan`）占�
 - **`Nondeterministic`**特质：具有不确定性的`Expression`，其中`deteministic`和`foldable`属性都返回**false**，经典的实现包括`MonotonicallyIncreasingID`、`Rand`和`Randn`等表达式。
 - **`Unevaluable`**特质：不可执行的表达式，即调用`eval`函数会抛出异常。该特质主要用于生命周期不超过逻辑计划解析和优化阶段的表达式，例如`Star`表达式（*）在解析阶段就会被展开成具体的列集合。
 - **`CodegenFallback`**特质：不支持代码生成的表达式。某些表达式涉及第三方实现（例如Hive的UDF）等情况，无法生成Java代码，此时通过`CodegenFallback`直接调用，该接口实现了具体的调用方法。
-- **`LeafExpression`**：
-- **`UnaryExpression`**：
-- **`BinaryExpression`**：
-- **`TernaryExpression`** ：
+- **`LeafExpression`**：叶子节点类型的表达式，即不包含任何子节点，因此其`children`方法通常默认返回`Nil`值。该类型的表达式目前大约有**30**个，包括`Star`、`CurrentDate`、`Pi`等。
+- **`UnaryExpression`**：一元类型的表达式，只含有一个子节点。这种类型的表达式总量**110**多种，较为庞大。其输入涉及一个子节点，例如，`Abs`操作、`UpCast`表达式等。
+- **`BinaryExpression`**：二元类型的表达式，包含两个子节点。这种类型的表达式数目也比较庞大，大约80种。比较常用的是一些二元的算数表达式，例如加减乘除操作、`RLike`函数等。另外`BinaryExpression`有一个`BinaryOperator`特例，它要求两个子节点具有相同的输出数据类型。
+- **`TernaryExpression`** ：三元类型的表达式，包含三个子节点。这种类型的表达式数目不多，大约10种，大部分都是一些字符串操作函数，非常典型的例子可以参考Substring函数，其子节点分别是字符串、下标和长度的表达式。
 
-An expression in Catalyst. If an expression wants to be exposed in the function registry (so users can call it with "name(arguments...)", the concrete implementation must be a case class whose constructor arguments are all Expressions types. See Substring for an example. There are a few important traits: 
-
-- Nondeterministic: an expression that is not deterministic. 
-- Unevaluable: an expression that is not supposed to be evaluated. 
-- CodegenFallback: an expression that does not have code gen implemented and falls back to interpreted mode. 
-- LeafExpression: an expression that has no child. 
-- UnaryExpression: an expression that has one child. 
-- BinaryExpression: an expression that has two children. 
-- TernaryExpression: an expression that has three children. 
-- BinaryOperator: a special case of BinaryExpression that requires two children to have the same output data type. 
+Catalyst中的表达式如果想要在函数注册表中公开（用户因此可以使用`name(arguments...)`的方式调用它），具体实现必须是一个`case`类，其构造函数的参数都必须是`Expression`s类型。有关示例，请参阅Substring。
 
 ```scala
 abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {

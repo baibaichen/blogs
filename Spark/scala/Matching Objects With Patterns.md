@@ -1083,7 +1083,7 @@ There are three things going on here: a test (is `x` an `Integer`), a conversion
 
 This problem gets worse when we want to test against multiple possible target types. We sometimes repeatedly test the same target with a chain of `if...else` tests:
 
-```
+```java
 String formatted = "unknown";
 if (obj instanceof Integer) {
     int i = (Integer) obj;
@@ -1110,7 +1110,9 @@ else if (obj instanceof String) {
 
 The above code is familiar, but has many undesirable properties. As already mentioned, repeating the cast in each arm is annoying and unnecessary. The business logic can too easily get lost in the boilerplate. But most importantly, the approach allows coding errors to remain hidden -- because we've used an overly-general control construct. The intent of the above code is to assign something to `formatted` in each arm of the `if...else` chain. But, there is nothing here that enables the compiler to verify this actually happens. If some block -- perhaps one that is executed rarely in practice -- forgets to assign to `formatted`, we have a bug. (Leaving `formatted` as a blank local or blank final would at least enlist the "definite assignment" analysis in this effort, but this is not always done.) Finally, the above code is less optimizable; absent compiler heroics, the chain with *n* branches will have *O(n)* time complexity, even though the underlying problem is often *O(1)*.
 
-There have been plenty of ad-hoc suggestions for ameliorating these problems, such as *flow typing* (where the type of `obj` after an `instanceof Integer` test is refined in any control path dominated by the test, so that the cast is unneeded), or *type switch* (where the case labels of a switch statement can specify types as well as constants). But these are mostly band-aids; there's a better alternative that subsumes these (and other cases.)
+There have been plenty of ad-hoc suggestions for ameliorating these problems, such as *flow typing* (where the type of `obj` after an `instanceof Integer` test is refined in any control path dominated by the test, so that the cast is unneeded), or *type switch* (where the case labels of a switch statement can specify types as well as constants). But these are mostly ==band-aids==; there's a better alternative that subsumes these (and other cases.)
+
+> 已经有很多关于改善这些问题的**临时建议**，例如**类型流**（`obj`在`instanceof Integer`测试之后，它的类型在测试主导的任何控制路径中就被确定了，不用在强制转换），或者**类型 `switch`**（`switch`语句的`case`标签可以指定类型和常量）。 但这些主要是==创可贴==; 有一个更好的选择包含这些（和其他情况）。
 
 #### Patterns
 
@@ -1118,9 +1120,11 @@ Rather than reach for ad-hoc solutions to the test-and-extract problem, we belie
 
 A *pattern* is a combination of a *match predicate* that determines if the pattern matches a target, along with a set of *pattern variables* that are conditionally extracted if the pattern matches the target. Many language constructs that test an input, such as `instanceof` and `switch`, can be generalized to accept patterns that are matched against the input.
 
+> 模式是匹配谓词的组合，用于确定模式是否与目标匹配，以及在模式与目标匹配时有条件地提取一组模式变量。 许多**测试输入的**语言结构（例如`instanceof`和`switch`）可以被推广为接受**与输入匹配的**模式。
+
 One form of pattern is a *type pattern*, which consists of a type name and the name of a variable to bind the result to, illustrated below in a generalization of `instanceof`:
 
-```
+```java
 if (x instanceof Integer i) {
     // can use i here, of type Integer
 }
@@ -1130,7 +1134,7 @@ Here, `x` is being matched against the type pattern `Integer i`. First `x` is te
 
 Using patterns with `instanceof` simplifies commonly messy operations, such as implementation of `equals()` methods. For a class `Point`, we might implement `equals()` as follows:
 
-```
+```java
 public boolean equals(Object o) {
     if (!(o instanceof Point))
         return false;
@@ -1142,7 +1146,7 @@ public boolean equals(Object o) {
 
 Using a pattern match instead, we can combine this into a single expression, eliminating the repetition and simplifying the control flow:
 
-```
+```java
 public boolean equals(Object o) {
     return (o instanceof Point other)
         && x == other.x
@@ -1152,7 +1156,7 @@ public boolean equals(Object o) {
 
 Similarly, we could simplify the `if..else` chain above with type patterns, eliminating the casting and binding boilerplate:
 
-```
+```java
 String formatted = "unknown";
 if (obj instanceof Integer i) {
     formatted = String.format("int %d", i);
@@ -1178,9 +1182,15 @@ This is already a big improvement -- the business logic pops out much more clear
 
 The chain of `if...else` still has some redundancy we'd like to squeeze out, both because it gives bugs a place to hide, and makes readers work harder to understand what the code does. Specifically, the `if (obj instanceof ...)`part is repeated. We'd like to say "choose the block which best describes the target object", and be guaranteed that exactly one of them will execute.
 
+> 我们仍然想从`if ... else`链中挤出一些冗余，因为它给**bug**提供了隐藏的地方，并使读者更难以理解代码的作用。 具体来说就是重复的`if (obj instanceof ...)`这部分。 我们想表达的是：“选择最能描述目标对象的代码块”，并保证其中只有一个会执行。
+
 We already have a mechanism for a multi-armed equality test in the language -- `switch`. But `switch` is currently very limited. You can only switch on a small set of types -- numbers, strings, and enums -- and you can only test for exact equality against constants. But these limitations are mostly accidents of history; the `switch` statement is a perfect "match" for pattern matching. Just as the type operand of `instanceof` can be generalized to patterns, so can `case` labels. Using a switch expression with pattern cases, we can express our formatting example as:
 
-```
+**我们已经有了一种在语言中进行多臂平等测试的机制 - 切换。 但目前交换机非常有限。 您只能打开一小组类型 - 数字，字符串和枚举 - 并且您只能测试与常量完全相等。 但这些限制主要是历史事故; switch语句是模式匹配的完美“匹配”。 就像instanceof的类型操作数可以推广到模式一样，case标签也是如此。 使用带有模式案例的开关表达式，我们可以将格式化示例表达为：**
+
+**我们已经有了一个在语言中进行多臂平等测试的机制——切换。但目前这种转换非常有限。只能打开一小部分类型（数字、字符串和枚举），并且只能测试常量是否完全相等。但这些限制大多是历史上的意外事件；switch语句是模式匹配的完美“匹配”。正如instanceof的类型操作数可以概括为模式一样，case标签也可以。使用带有模式事例的开关表达式，我们可以将格式化示例表示为：**
+
+```java
 String formatted =
     switch (obj) {
         case Integer i -> String.format("int %d", i); 
@@ -1205,7 +1215,7 @@ The example above, where we are handed an `Object` and have to do different thin
 
 Often, we are able to arrange our classes into a hierarchy, in which case we can use the type system to make answering questions like this easier. For example, consider this hierarchy for describing an arithmetic expression:
 
-```
+```java
 interface Node { }
 
 class IntNode implements Node {
