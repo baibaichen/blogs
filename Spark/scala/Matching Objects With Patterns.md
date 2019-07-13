@@ -758,9 +758,13 @@ def eval[a](t : Term[a], env : Env): a = t match {
 
 Fig. 11. Typed evaluation of simply-typed lambda calculus
 
-Figure 11 shows an evaluation function eval which uses typecase for pattern matching its term argument t. The first observation from studying this function is that we need to generalize our previous concept of a typed pattern. Given a term of type Term[a] and pattern of form f : App[...], what type arguments should be provided? In fact, looking at a term’s static type we can determine only the second type argument of App (which must be equal to a), but not the first one. The first type argument needs to be a fresh, completely undeterminedtype constant. We express this by extending the syntax in a type pattern:
+Figure 11 shows an evaluation function `eval` which uses typecase for pattern matching its term argument `t`. The first observation from studying this function is that we need to generalize our previous concept of a typed pattern. Given a term of type `Term[a]` and pattern of form `f : App[...]`, what type arguments should be provided? In fact, looking at a term’s static type we can determine only the second type argument of `App` (which must be equal to a), but not the first one. The first type argument needs to be a fresh, completely undetermined type constant. We express this by extending the syntax in a type pattern:
 
-A type pattern can now consist of types and type variables. As for normal patterns, we have the convention that type variables start with a lower-case letter whereas references to existing types should start with an upper-case letter. (The primitive types int, char, boolean, etc are excepted from this rule; they are treated as type references, not variables).
+A type pattern can now consist of types and *type variables*. As for normal patterns, we have the convention that type variables start with a lower-case letter whereas references to existing types should start with an upper-case letter. (The primitive types `int`, `char`, `boolean`, etc are excepted from this rule; they are treated as type references, not variables).
+
+> 图11显示了一个`eval`函数，它使用**typecase**来匹配其`Term`参数`t`。研究这个函数，第一个意见是泛化前述关于类型模式的概念。给定`Term[a]`类型的变量和形如`f : App[…]`这样的模式，那么类型参数`a`应该是什么？实际上，通过查看参数`t`的静态类型，我们只能确定`App`的第二个类型参数必须等于`a`，但不能确定第一个类型参数。第一个类型参数需要是一个新的、完全不确定的类型常量。我们通过扩展类型模式中的语法来表示这一点<u>：</u>
+>
+> 类型模式现在可以包含类型和类型变量。对于普通模式，我们有类型变量以小写字母开头的约定，而对现有类型的引用应以大写字母开头（原始类型int，char，boolean等从此规则中排除;它们被视为类型引用，而不是变量）。
 
 ~19~
 
@@ -769,44 +773,56 @@ A type pattern can now consist of types and type variables. As for normal patter
 
 However, Scala currently does not keep run-time type information beyond the top-level class, i.e. it uses the same erasure module for generics as Java 1.5. Therefore, all type arguments in a pattern must be type variables. Normally, a type variable represents a fresh, unknown type, much like the type variable of an opened existential type. We enforce that the scope of such type variables does not escape a pattern matching clause. For instance, the following would be illegal:
 
+> 但是，Scala目前不会保留类型参数的**运行时类型信息**，即它使用与Java 1.5相同的泛型擦除模块。因此，模式中的所有类型参数都必须是类型变量。通常，**类型变量**表示一个新的未知类型，非常类似于打开的存在类型的类型变量。我们确保这样的类型变量不会逃离模式匹配子句的作用域。例如，以下内容是非法的：
+
 ```scala
 def headOfAny(x : Any) = x match {
-
-case xs : List[a] ) xs.head // error: type variable ‘a’ escapes its scope as
-
+  case xs : List[a] => xs.head // error: type variable ‘a’ escapes its scope as
 } // part of the type of ‘xs.head’
 ```
 
-The problem above can be cured by ascribing to the right-hand side of the case clause a weaker type, which does not mention the type variable. Example:
+The problem above can be cured by ascribing to the right-hand side of the `case` clause a weaker type, which does not mention the **type variable**. Example:
+
+> 上述问题可以通过将`case`子句的右侧归为弱类型来解决，该类型未提及类型变量（注，感觉这里应收类型参数）。 例如：
 
 ```scala
 def headOfAny(x : Any): Any = x match {
-
-case xs : List[a] ) xs.head // OK, xs.head is inferred to have type ‘Any’, the
-
+  case xs : List[a] => xs.head // OK, xs.head is inferred to have type ‘Any’, the
 } // explicitly given return type of ‘headOfAny’
 ```
 
 In the examples above, type variables in patterns were treated as fresh type constants. However, there are cases where the Scala type system is able to infer that a pattern-bound type variable is an alias for an existing type. An example is the first case in the eval function in Figure 11.
+
+> 在上面的示例中，模式中的类型变量被视为新的类型常量。 但是，在某些情况下，Scala类型系统能够推断出模式绑定的类型变量是现有类型的别名。 一个例子是图11中`eval`函数的第一种情况。
 
 ```scala
 def eval[a](t : Term[a], env : Env): a = t match {
   case v : Var[b] => env(v) ...
 ```
 
-Here, the term t of type Term[a] is matched against the pattern v :Var[b]. From the class hierarchy, we know that Var extends Term with the same type argument, so we can deduce that b must be a type alias for a. It is essential to do so, because the right-hand side of the pattern has type b, whereas the expected result type of the eval function is a. Aliased type variables are also not subject to the scoping rules of fresh type variables, because they can always be replaced by their alias.
+Here, the term `t` of type `Term[a]` is matched against the pattern `v :Var[b]`. From the class hierarchy, we know that `Var` extends `Term` with the same type argument, so we can deduce that `b` must be a type alias for `a`. It is essential to do so, because the right-hand side of the pattern has type `b`, whereas the expected result type of the `eval` function is `a`. Aliased type variables are also not subject to the scoping rules of fresh type variables, because they can always be replaced by their alias.
 
 A symmetric situation is found in the next case of the eval function:
+
+> 这里，参数`t`的类型`Term[a]`与模式`v:Var[b]`匹配。从类层次结构中，我们知道`Var`扩展至`Term`，它们的类型参数相同，因此我们可以推断出`b`必须是`a`的类型别名。必须得这么做，因为模式右侧的类型是`b`，而`eval`函数预期的结果类型是`a`。别名类型变量也不受新类型变量的作用域规则的约束，因为它们总是可以用别名替换。
+>
+> 在`eval`函数的下一个`case`语句中发现对称情况：
 
 ``` scala
 case n : Num => n
 ```
 
-Here, the type system deduces that the type parameter a of eval is an alias of int. It must be, because class Num extends Term[int], so if a was any other type but int, the Num pattern could not have matched the value t, which is of type Term[a]. Because a is now considered to be an alias of int, the right-hand side of the case can be shown to conform to eval’s result type.
+Here, the type system deduces that the type parameter `a` of eval is an alias of `int`. It must be, because class `Num` extends `Term[int]`, so if `a` was any other type but `int`, the `Num` pattern could not have matched the value `t`, which is of type Term[a]. Because a is now considered to be an alias of int, the right-hand side of the case can be shown to conform to eval’s result type.
 
 Why is such a reasoning sound? Here is the crucial point: the fact that a pattern matched  a value tells us something about the type variables in the types of both. Specifically, it tells us that there is a non-null value which has both the static type of the selector and the static type of the pattern. In other words, the two types must overlap. Of course, in a concrete program run, the pattern might not match the selector value, so any deductions we can draw from type overlaps must be restricted to the pattern-matching case in question.
 
-We now formalize this reasoning in the following algorithm overlap-aliases. Given two types t1, t2 which are known to overlap, the algorithm yields a set E of equations of the form a = t where a is a type variable in t1 or t2 and t is a type.
+We now formalize this reasoning in the following algorithm overlap-aliases. Given two types `t1`, `t2` which are known to overlap, the algorithm yields a set E of equations of the form a = t where a is a type variable in t1 or t2 and t is a type.
+
+> 这里，类型系统推断`eval`的类型参数`a`是`int`的别名。这必须是，因为类`Num`扩展`Term[int]`，所以如果`a`是除`int`之外的任何其他类型，`Num`模式就不能匹配`Term[a]`类型的参数`t`。因为`a`现在被认为是`int`的别名，所以`case`语句的右侧符合`eval`的结果类型。
+>
+> 为什么这是合理的推理？关键点是：**模式匹配某个值**的事实告诉我们关于这两种类型中类型变量的一些事情。具体来说，它告诉我们有一个非空值，它既有**选择器**的静态类型，也有模式的静态类型。换句话说，这两种类型必须重叠。当然，具体程序运行时，模式可能与选择器值不匹配，因此我们可以从类型重叠中提取的任何推论必须限制在所讨论的模式匹配情况中。
+>
+> 现在，我们用下面的**重叠别名算法**将这种推理形式化。给定两个已知重叠的类型`t1`、`t2`，该算法生成一组形式为 **a=t** 的等式组ℇ，其中`a`是`t1`或`t2`中的类型变量，`t`是类型。
 
 ~20~
 
@@ -893,7 +909,7 @@ A pattern match with a singleton type p.type is implemented by comparing the sel
 
 ### Parametric case-classes and extractors
 
-Type overlaps also apply to the other two pattern matching constructs of Scala, caseclasses and extractors. The techniques are essentially the same. A class constructor pattern C(p1, ..., pm) for a class C with type parameters a1, . . . , an is first treated as if it was a type pattern : C[a1, . . . an]. Once that pattern is typed and aliases for the type variables a1, . . . , an are computed using algorithm overlap-aliases, the types of the component patterns (p1, ..., pm) are computed recursively. Similarly, if the pattern C(p1, ..., pn) refers to a extractor of form
+Type overlaps also apply to the other two pattern matching constructs of Scala, case classes and extractors. The techniques are essentially the same. A class constructor pattern C(p1, ..., pm) for a class C with type parameters a1, . . . , an is first treated as if it was a type pattern : C[a1, . . . an]. Once that pattern is typed and aliases for the type variables a1, . . . , an are computed using algorithm overlap-aliases, the types of the component patterns (p1, ..., pm) are computed recursively. Similarly, if the pattern C(p1, ..., pn) refers to a extractor of form
 
 ```scala
 object C {
