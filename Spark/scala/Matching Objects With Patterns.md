@@ -1186,9 +1186,7 @@ The chain of `if...else` still has some redundancy we'd like to squeeze out, bot
 
 We already have a mechanism for a multi-armed equality test in the language -- `switch`. But `switch` is currently very limited. You can only switch on a small set of types -- numbers, strings, and enums -- and you can only test for exact equality against constants. But these limitations are mostly accidents of history; the `switch` statement is a perfect "match" for pattern matching. Just as the type operand of `instanceof` can be generalized to patterns, so can `case` labels. Using a switch expression with pattern cases, we can express our formatting example as:
 
-**我们已经有了一种在语言中进行多臂平等测试的机制 - 切换。 但目前交换机非常有限。 您只能打开一小组类型 - 数字，字符串和枚举 - 并且您只能测试与常量完全相等。 但这些限制主要是历史事故; switch语句是模式匹配的完美“匹配”。 就像instanceof的类型操作数可以推广到模式一样，case标签也是如此。 使用带有模式案例的开关表达式，我们可以将格式化示例表达为：**
-
-**我们已经有了一个在语言中进行多臂平等测试的机制——切换。但目前这种转换非常有限。只能打开一小部分类型（数字、字符串和枚举），并且只能测试常量是否完全相等。但这些限制大多是历史上的意外事件；switch语句是模式匹配的完美“匹配”。正如instanceof的类型操作数可以概括为模式一样，case标签也可以。使用带有模式事例的开关表达式，我们可以将格式化示例表示为：**
+> Java语言已有`switch`，可以在多个分支中测试相等性，但目前`switch`的功能有限。只能在一小部分类型上使用，即数字、字符串和枚举类型，并且只能测试常量是否完全相等，但这些限制主要是历史事故，`switch`语句完美“匹配”模式匹配。正如`instanceof`的类型操作数可以推广到模式一样，`case`标签也可以。使用带有模式的`switch-case`表达式，格式化示例可以改为：
 
 ```java
 String formatted =
