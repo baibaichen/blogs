@@ -705,15 +705,15 @@ However, in the current Scala implementation case classes are left unexpanded, s
 
 Up to now, we have studied only hierarchies of monomorphic classes. The problem becomes more interesting once we consider classes with type parameters. An example is the typed evaluator for lambda expressions given in Figure 11.
 
-There is an abstract base trait `Term` with subclasses `Var` for variables, `Num` for numbers, `Lam` for lambda abstractions, App for function applications, and Suc for a predefined successor function. The abstract base trait is now parameterized with the type of the term in question. The parameters of subclasses vary. For instance `Var` is itself generic with the same type parameter as `Term`, whereas `Num` is a Term of `Int`, and Lam is a Term of `b =>c` where both `b` and `c` are type parameters of `Lam`.
+There is an abstract base trait `Term` with subclasses `Var` for variables, `Num` for numbers, `Lam` for lambda abstractions, `App` for function applications, and `Suc` for a predefined successor function. The abstract base trait is now parameterized with the type of the term in question. The parameters of subclasses vary. For instance `Var` is itself generic with the same type parameter as `Term`, whereas `Num` is a Term of `Int`, and Lam is a Term of `b =>c` where both `b` and `c` are type parameters of `Lam`.
 
 The challenge is now how to write – in a statically type-safe way – an evaluation function that maps a term of type `Term[a]` and an environment to a value of type `a`. Similar questions have been explored in the context of “generalized algebraic data types” (GADT’s) in functional languages such as Haskell [29] and Omega [30]. Kennedy and Russo [12] have introduced techniques to simulate GADT’s in an extension of C# using visitors and equational constraints on parameters. We show here how GADT’s can be simulated using typecase as the decomposition technique. This provides a new perspective on the essence of GADTs by characterizing them as a framework for exploiting type-overlaps. It goes beyond previous work by also providing a way to write updateable polymorphic functions. Such functions are used in several forms in denotational and operational semantics, for instance they can implement stores or environments.
 
 > 目前为止，我们只研究了单态的类层次结构。一旦我们考虑带有类型参数的类，这个问题就变得更加有趣了。图11给出的例子是`lambda`表达式的类型化计算器。
 >
-> `Term`是根特质，其子类`Var`用于变量，`Num`用于数字，`Lam`用于**lambda**抽象，`App`用于函数应用，`Suc`用于预定义的后继函数。现在，抽象的根特质被参数化了，参数化类型和其子类的类型相关，因此各不相同。例如，`Var`本身具有与`Term`相同的类型参数，而`Num`是Term[Int]的子类，而`Lam`是`Term[b=>c]`的子类，其中`b`和`c`都是`Lam`的类型参数。
+> `Term`是根特质，其子类`Var`用于变量，`Num`用于数字，`Lam`用于**lambda**抽象，`App`用于函数应用，`Suc`用于预定义的后继函数。现在，抽象的根特质被参数化了，参数化类型和其子类的类型相关，因此各不相同。例如，`Var`本身具有与`Term`相同的类型参数，而`Num`是`Term[Int]`的子类，而`Lam`是`Term[b=>c]`的子类，其中`b`和`c`都是`Lam`的类型参数。
 >
-> 现在的挑战是如何以静态类型安全的方式编写计算函数，该函数将`Term[a]`类型和`Env`类型的变量**映射为**类型`a`的值。类似的问题，已经在诸如Haskell [29]和Omega [30]等函数式语言的“泛型代数数据类型”（GADT）中探讨过。Kennedy和Russo[12]使用访问者和参数的等式约束，在C＃的扩展中模拟GADT。我们在这里展示如何使用**typecase**作为分解技术来模拟GADT。这通过将它们描述为利用类型重叠的框架，提供了关于GADT本质的新视角。它还提供了一种方法编写可更新的多态函数，因而超越了以前的工作。这些函数在指称和操作语义上有几种使用形式，例如它们可用于实现存储或环境。
+> 现在的挑战是如何以静态类型安全的方式编写计算函数，该函数将`Term[a]`类型和`Env`类型的变量**映射为**类型`a`的值。类似的问题，已经在诸如Haskell [29]和Omega [30]等函数式语言的“泛型代数数据类型”（GADT）中探讨过。Kennedy和Russo[12]使用访问者和参数的等式约束，在C#的扩展中模拟GADT。我们在这里展示如何使用**typecase**作为分解技术来模拟GADT。这通过将它们描述为利用**类型重叠的框架**，提供了关于GADT本质的新视角。它还提供了一种编写可更新多态函数的方法， 从而超越了以前的工作。这些函数在指称和操作语义上有几种使用形式，例如它们可用于实现存储或环境。
 >
 > > 注：这里的环境可以理解为上下文。这里的存储（store）不知道啥意思。指称和操作语义具体看[维基百科](https://zh.wikipedia.org/wiki/指称语义)。
 >
@@ -762,9 +762,19 @@ Figure 11 shows an evaluation function `eval` which uses typecase for pattern ma
 
 A type pattern can now consist of types and *type variables*. As for normal patterns, we have the convention that type variables start with a lower-case letter whereas references to existing types should start with an upper-case letter. (The primitive types `int`, `char`, `boolean`, etc are excepted from this rule; they are treated as type references, not variables).
 
-> 图11显示了一个`eval`函数，它使用**typecase**来匹配其`Term`参数`t`。研究这个函数，第一个意见是泛化前述关于类型模式的概念。给定`Term[a]`类型的变量和形如`f : App[…]`这样的模式，那么类型参数`a`应该是什么？实际上，通过查看参数`t`的静态类型，我们只能确定`App`的第二个类型参数必须等于`a`，但不能确定第一个类型参数。第一个类型参数需要是一个新的、完全不确定的类型常量。我们通过扩展类型模式中的语法来表示这一点<u>：</u>
+> 图11显示了一个`eval`函数，它使用**typecase**来匹配其`Term`参数`t`。研究这个函数得到的第一个想法是扩展前述类型模式的概念。给定`Term[a]`类型的变量和形如`f : App[…]`这样的模式，类型参数`a`应该是什么？实际上，通过查看参数`t`的静态类型，我们只能确定`App`的第二个类型参数必须等于`a`，但不能确定第一个类型参数。第一个类型参数需要是一个新的、完全不确定的类型常量。我们通过扩展类型模式中的语法来表示这一点<u>：</u>
 >
-> 类型模式现在可以包含类型和类型变量。对于普通模式，我们有类型变量以小写字母开头的约定，而对现有类型的引用应以大写字母开头（原始类型int，char，boolean等从此规则中排除;它们被视为类型引用，而不是变量）。
+> 类型模式现在可以包含类型和类型变量。对于普通模式，我们有类型变量以小写字母开头的约定，而对存在类型的引用应以大写字母开头（原始类型int，char，boolean等从此规则中排除;它们被视为类型引用，而不是变量）。
+>
+> - [ ] 注，这个地方要编译下，毕竟本文是2007的文章。这里表达的意思是：
+>   ```scala
+>   // 下面的这个模式匹配，b就是类型变量
+>   case v : Var[b]    => env(v)
+> 
+>   //但实际上现在是存在类型的写法：
+>   case v : Var[_]    => env(v)
+>   ```
+>   **类型变量以小写字母开头的约定**对应的是前面的变量模式，变量以小写字母开头。大写字母这个不明白。 不过反正类型擦除，模式中的所有类型参数都必须是**类型变量**。
 
 ~19~
 
@@ -773,7 +783,7 @@ A type pattern can now consist of types and *type variables*. As for normal patt
 
 However, Scala currently does not keep run-time type information beyond the top-level class, i.e. it uses the same erasure module for generics as Java 1.5. Therefore, all type arguments in a pattern must be type variables. Normally, a type variable represents a fresh, unknown type, much like the type variable of an opened existential type. We enforce that the scope of such type variables does not escape a pattern matching clause. For instance, the following would be illegal:
 
-> 但是，Scala目前不会保留类型参数的**运行时类型信息**，即它使用与Java 1.5相同的泛型擦除模块。因此，模式中的所有类型参数都必须是类型变量。通常，**类型变量**表示一个新的未知类型，非常类似于打开的存在类型的类型变量。我们确保这样的类型变量不会逃离模式匹配子句的作用域。例如，以下内容是非法的：
+> 但是，Scala目前不会保留类型参数的**运行时类型信息**，即它使用与Java 1.5相同的泛型擦除模块。因此，模式中的所有类型参数都必须是**类型变量**。通常，**类型变量**表示一个新的未知类型，非常类似于==开放的==存在类型的类型变量。我们确保这样的类型变量不会逃离模式匹配子句的作用域。例如，以下内容是非法的：
 
 ```scala
 def headOfAny(x : Any) = x match {
@@ -783,7 +793,7 @@ def headOfAny(x : Any) = x match {
 
 The problem above can be cured by ascribing to the right-hand side of the `case` clause a weaker type, which does not mention the **type variable**. Example:
 
-> 上述问题可以通过将`case`子句的右侧归为弱类型来解决，该类型未提及类型变量（注，感觉这里应收类型参数）。 例如：
+> 上述问题可以通过将`case`子句的右侧归为弱类型来解决，该类型未提及类型变量。 例如：
 
 ```scala
 def headOfAny(x : Any): Any = x match {
@@ -804,7 +814,7 @@ Here, the term `t` of type `Term[a]` is matched against the pattern `v :Var[b]`.
 
 A symmetric situation is found in the next case of the eval function:
 
-> 这里，参数`t`的类型`Term[a]`与模式`v:Var[b]`匹配。从类层次结构中，我们知道`Var`扩展至`Term`，它们的类型参数相同，因此我们可以推断出`b`必须是`a`的类型别名。必须得这么做，因为模式右侧的类型是`b`，而`eval`函数预期的结果类型是`a`。别名类型变量也不受新类型变量的作用域规则的约束，因为它们总是可以用别名替换。
+> 这里，参数`t`的类型`Term[a]`与模式`v:Var[b]`匹配。从类层次结构中，我们知道`Var`扩展至`Term`，它们的类型参数相同，因此我们可以推断出`b`必须是`a`的类型别名。必须得这么做，因为模式右侧的类型是`b`，而`eval`函数预期的结果类型是`a`。此外，别名类型变量不受新类型变量作用域规则的约束，因为它们总是可以用别名替换。
 >
 > 在`eval`函数的下一个`case`语句中发现对称情况：
 
@@ -816,11 +826,11 @@ Here, the type system deduces that the type parameter `a` of eval is an alias of
 
 Why is such a reasoning sound? Here is the crucial point: the fact that a pattern matched  a value tells us something about the type variables in the types of both. Specifically, it tells us that there is a non-null value which has both the static type of the selector and the static type of the pattern. In other words, the two types must overlap. Of course, in a concrete program run, the pattern might not match the selector value, so any deductions we can draw from type overlaps must be restricted to the pattern-matching case in question.
 
-We now formalize this reasoning in the following algorithm overlap-aliases. Given two types `t1`, `t2` which are known to overlap, the algorithm yields a set E of equations of the form a = t where a is a type variable in t1 or t2 and t is a type.
+We now formalize this reasoning in the following algorithm overlap-aliases. Given two types `t1`, `t2` which are known to overlap, the algorithm yields a set ℇ of equations of the form a = t where a is a type variable in t1 or t2 and t is a type.
 
 > 这里，类型系统推断`eval`的类型参数`a`是`int`的别名。这必须是，因为类`Num`扩展`Term[int]`，所以如果`a`是除`int`之外的任何其他类型，`Num`模式就不能匹配`Term[a]`类型的参数`t`。因为`a`现在被认为是`int`的别名，所以`case`语句的右侧符合`eval`的结果类型。
 >
-> 为什么这是合理的推理？关键点是：**模式匹配某个值**的事实告诉我们关于这两种类型中类型变量的一些事情。具体来说，它告诉我们有一个非空值，它既有**选择器**的静态类型，也有模式的静态类型。换句话说，这两种类型必须重叠。当然，具体程序运行时，模式可能与选择器值不匹配，因此我们可以从类型重叠中提取的任何推论必须限制在所讨论的模式匹配情况中。
+> 为什么这是合理的推理？关键点是：**模式匹配某个值**的事实告诉我们关于这两种类型中类型变量的一些事情。具体来说，它告诉我们有一个非空值，它既有**选择器**的静态类型，也有模式的静态类型。换句话说，这两种类型必须重叠。当然，具体程序运行时，模式可能与选择器值不匹配，因此我们从类型重叠中提取的任何推论，必须限制在对应的模式匹配中。
 >
 > 现在，我们用下面的**重叠别名算法**将这种推理形式化。给定两个已知重叠的类型`t1`、`t2`，该算法生成一组形式为 **a=t** 的等式组ℇ，其中`a`是`t1`或`t2`中的类型变量，`t`是类型。
 
@@ -884,15 +894,15 @@ In each case, the overlap of the selector type and the pattern type gives us the
 
 The evaluator in question uses environments as functions which map lambda-bound variables to their types. In fact we believe it is the first type-safe evaluator to do so. Previous type-safe evaluators written in Haskell [29], Omega [30] and extended C# [12] used lambda expressions with DeBrujn numbers and represented environments as tuples rather than functions. 
 
-In Figure 11, environments are modeled by a class Env with an abstract polymorphic apply method. Since functions are represented in Scala as objects with apply methods, instances of this class are equivalent to polymorphic functions of type 8a.Var[a] ) a. Environments are built from an object empty representing an empty environment and a method extend which extends an environment by a new variable/value pair. Every environment has the form
+In Figure 11, environments are modeled by a class `Env` with an abstract polymorphic `apply` method. Since functions are represented in Scala as objects with `apply` methods, instances of this class are equivalent to polymorphic functions of type `∀a.Var[a] => a`. Environments are built from an object empty representing an empty environment and a method extend which extends an environment by a new variable/value pair. Every environment has the form
 
-```
+```scala
 empty.extend(v1, x1). ... .extend(vn, xn)
 ```
 
-for n  0, where each vi is a variable of type Var[Ti] and each xi is a value of type Ti.
+for n ≥ 0, where each `vi` is a variable of type `Var[Ti]` and each `xi` is a value of type `Ti`.
 
-The empty object is easy to define; its apply method throws an exception every time it is called. The implementation of the extend method is more difficult, because it has to maintain the universal polymorphism of environments. Consider an extension env.extend(v, x), where v has type Var[a] and x has type a. What should the apply method of this extension be? The type of this method is 8b.Var[b] ) b. The idea is that apply compares its argument w (of type Var[b]) to the variable v. If the two are the same, the value to return is x. Otherwise the method delegates its task by calling the apply method of the outer environment env with the same argument. The first case is represented by the following case clause:
+The empty object is easy to define; its `apply` method throws an exception every time it is called. The implementation of the extend method is more difficult, because it has to maintain the universal polymorphism of environments. Consider an extension env.extend(v, x), where v has type Var[a] and x has type a. What should the apply method of this extension be? The type of this method is `∀b.Var[b] => b`. The idea is that apply compares its argument w (of type Var[b]) to the variable v. If the two are the same, the value to return is x. Otherwise the method delegates its task by calling the apply method of the outer environment env with the same argument. The first case is represented by the following case clause:
 
 ```scala
 case _ : v.type => x 
@@ -958,7 +968,7 @@ def eval[a](t : Term[a], env : Env): a = t match {
 
 # The Expression Problem
 
-The Expression Problem is a new name for an old problem.  The goal is to define a datatype by cases, where one can add new cases to the datatype and new functions over the datatype, without recompiling existing code, and while retaining static type safety (e.g., no casts).  For the concrete example, we take expressions as the data type, begin with one case (constants) and one function (evaluators), then add one more construct (plus) and one more function (conversion to a string).
+The Expression Problem is a new name for an old problem.  The goal is to define a data type by cases, where one can add new cases to the data type and new functions over the data type, without recompiling existing code, and while retaining static type safety (e.g., no casts).  For the concrete example, we take expressions as the data type, begin with one case (constants) and one function (evaluators), then add one more construct (plus) and one more function (conversion to a string).
 
 Whether a language can solve the Expression Problem is a salient indicator of its capacity for expression.  One can think of cases as rows and functions as columns in a table.  In a functional language, the rows are fixed (cases in a datatype declaration) but it is easy to add new columns (functions).  In an object-oriented language, the columns are fixed (methods in a class declaration) but it is easy to add new rows (subclasses).  We want to make it easy to add either rows or columns.
 
@@ -978,7 +988,7 @@ The class Eval in the second phase extends the class Eval from the first phase a
 
 The LangF class is parameterised on a type parameter This that is itself bounded by LangF<This>, and the Lang2F class is parameterized on a type parameter This that is bounded by Lang2F<This>; further, Lang2F<This> extends LangF<This>.  This use of `This' is the standard trick to provide accurate static typing in the prescence of subtypes (sometimes called MyType or ThisType).  As usual, we tie the knot with fixpoint classes Lang and Lang2.
 
-The key trick here is the use of This.Exp and This.Visitor, via the mechanism described in `Do parametric types beat virtual types?'. Recall that mechanism allows a type variable to be indexed by any inner class defined in the variable's bound; in order for this to be sound, any type which instantiates a type parameter must define inner classes that extend those in the bound.  Here we can refer to This.Exp and This.Visitor because This is bound by LangF<This> which defines Exp and Vistor; soundness is satisfied since Lang2F<This>.Exp extends LangF<This>.Exp, and Lang2F<This>.Visitor extends Lang2F<This>.Visitor.
+The key trick here is the use of This.Exp and This.Visitor, via the mechanism described in **Do parametric types beat virtual types?**. Recall that mechanism allows a type variable to be indexed by any inner class defined in the variable's bound; in order for this to be sound, any type which instantiates a type parameter must define inner classes that extend those in the bound.  Here we can refer to This.Exp and This.Visitor because This is bound by LangF<This> which defines Exp and Vistor; soundness is satisfied since Lang2F<This>.Exp extends LangF<This>.Exp, and Lang2F<This>.Visitor extends Lang2F<This>.Visitor.
 
 This solution is remarkably straightforward, once one is familiar with the techniques for simulating ThisType and virtual types.  However, I must admit it took me a while to see the solution, even after I went looking for it.  (Some of you will have seen an earlier solution, similar in structure but impossible to implement since it had the type variable This.Exp as a supertype of Num and Sum; the current version has no such problem.)
 
@@ -1257,7 +1267,7 @@ class AddNode implements Node {
 
 An operation we might commonly perform on such a hierarchy is to evaluate the expression; this is an ideal application for a virtual method:
 
-```
+```java
 interface Node { 
     int eval();
 }
@@ -1287,7 +1297,7 @@ class AddNode implements Node {
 }
 ```
 
-In a bigger program, we might define many operations over a hierarchy. Some, like `eval()`, are intrinsically sensible to the hierarchy, and so we will likely implement them as virtual methods. But some operations are too ad-hoc (such as "does this expression contain any intermediate nodes that evaluate to 42"); it would be silly to put this into the hierarchy, as it would just pollute the API.
+In a bigger program, we might define many operations over a hierarchy. Some, like `eval()`, are intrinsically sensible to the hierarchy, and so we will likely implement them as virtual methods. **But some operations are too ad-hoc (such as "does this expression contain any intermediate nodes that evaluate to 42");** it would be silly to put this into the hierarchy, as it would just pollute the API.
 
 #### The Visitor pattern
 
@@ -1295,7 +1305,7 @@ The standard trick for separately specifying a hierarchy from its operations is 
 
 But, the visitor pattern has costs. To use it, a hierarchy has to be designed for visitation. This involves giving every node an `accept(Visitor)` method, and defining a `Visitor` interface:
 
-```
+```java
 interface NodeVisitor<T> {
     T visit(IntNode node);
     T visit(NegNode node);
@@ -1306,20 +1316,17 @@ interface NodeVisitor<T> {
 
 If we wanted to define our evaluation method as a visitor over `Node`, we would do so like this:
 
-```
+```java
 class EvalVisitor implements NodeVisitor<Integer> {
     Integer visit(IntNode node) {
         return node.value;
     }
-    
     Integer visit(NegNode node) {
         return -node.accept(this);
     }
-    
     Integer visit(MulNode node) {
         return node.left.accept(this) * node.right.accept(this);
     }
-
     Integer visit(AddNode node) {
         return node.left.accept(this) + node.right.accept(this);
     }
