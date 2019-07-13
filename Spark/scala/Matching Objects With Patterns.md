@@ -701,15 +701,23 @@ However, in the current Scala implementation case classes are left unexpanded, s
 ----
 ^18^
 
-## 6 Parametricity
+## 6 参数化（Parametricity）
 
 Up to now, we have studied only hierarchies of monomorphic classes. The problem becomes more interesting once we consider classes with type parameters. An example is the typed evaluator for lambda expressions given in Figure 11.
 
-There is an abstract base trait Term with subclasses Var for variables, Num for numbers, Lam for lambda abstractions, App for function applications, and Suc for a predefined successorfunction. The abstract base trait is now parameterized with the type of the term in question. The parameters of subclasses vary. For instance Var is itself generic with the same type parameter as Term, whereas Num is a Term of int, and Lam is a Term of b ) c where both b and c are type parameters of Lam.
+There is an abstract base trait `Term` with subclasses `Var` for variables, `Num` for numbers, `Lam` for lambda abstractions, App for function applications, and Suc for a predefined successor function. The abstract base trait is now parameterized with the type of the term in question. The parameters of subclasses vary. For instance `Var` is itself generic with the same type parameter as `Term`, whereas `Num` is a Term of `Int`, and Lam is a Term of `b =>c` where both `b` and `c` are type parameters of `Lam`.
 
-The challenge is now how to write – in a statically type-safe way – an evaluation function that maps a term of type Term[a] and an environment to a value of type a. Similar questions have been explored in the context of “generalized algebraic data types” (GADT’s) in functional languages such as Haskell [29] and Omega [30]. Kennedy and Russo [12] have introduced techniques to simulate GADT’s in an extension of C# using visitors and equational constraints on parameters. We show here how GADT’s can be simulated using typecase as the decomposition technique. This provides a new perspective on the essence of GADTs by characterizing them as a framework for exploiting type-overlaps. It goes beyond previous
+The challenge is now how to write – in a statically type-safe way – an evaluation function that maps a term of type `Term[a]` and an environment to a value of type `a`. Similar questions have been explored in the context of “generalized algebraic data types” (GADT’s) in functional languages such as Haskell [29] and Omega [30]. Kennedy and Russo [12] have introduced techniques to simulate GADT’s in an extension of C# using visitors and equational constraints on parameters. We show here how GADT’s can be simulated using typecase as the decomposition technique. This provides a new perspective on the essence of GADTs by characterizing them as a framework for exploiting type-overlaps. It goes beyond previous work by also providing a way to write updateable polymorphic functions. Such functions are used in several forms in denotational and operational semantics, for instance they can implement stores or environments.
 
-~18~
+> 目前为止，我们只研究了单态的类层次结构。一旦我们考虑带有类型参数的类，这个问题就变得更加有趣了。图11给出的例子是`lambda`表达式的类型化计算器。
+>
+> `Term`是根特质，其子类`Var`用于变量，`Num`用于数字，`Lam`用于**lambda**抽象，`App`用于函数应用，`Suc`用于预定义的后继函数。现在，抽象的根特质被参数化了，参数化类型和其子类的类型相关，因此各不相同。例如，`Var`本身具有与`Term`相同的类型参数，而`Num`是Term[Int]的子类，而`Lam`是`Term[b=>c]`的子类，其中`b`和`c`都是`Lam`的类型参数。
+>
+> 现在的挑战是如何以静态类型安全的方式编写计算函数，该函数将`Term[a]`类型和`Env`类型的变量**映射为**类型`a`的值。类似的问题，已经在诸如Haskell [29]和Omega [30]等函数式语言的“泛型代数数据类型”（GADT）中探讨过。Kennedy和Russo[12]使用访问者和参数的等式约束，在C＃的扩展中模拟GADT。我们在这里展示如何使用**typecase**作为分解技术来模拟GADT。这通过将它们描述为利用类型重叠的框架，提供了关于GADT本质的新视角。它还提供了一种方法编写可更新的多态函数，因而超越了以前的工作。这些函数在指称和操作语义上有几种使用形式，例如它们可用于实现存储或环境。
+>
+> > 注：这里的环境可以理解为上下文。这里的存储（store）不知道啥意思。指称和操作语义具体看[维基百科](https://zh.wikipedia.org/wiki/指称语义)。
+>
+> ~18~
 
 ----
 ^19^
@@ -718,9 +726,9 @@ The challenge is now how to write – in a statically type-safe way – an evalu
 //Class hierarchy
 trait Term[a]
 class Var[a]    (val name : String)                    extends Term[a]
-class Num       (val value : int)                      extends Term[int]
+class Num       (val value : int)                      extends Term[Int]
 class Lam[b, c] (val x : Var[b], val e : Term[c])      extends Term[b => c]
-class App[b, c] (val f : Term[b ) c], val e : Term[b]) extends Term[c]
+class App[b, c] (val f : Term[b =>c], val e : Term[b]) extends Term[c]
 class Suc       ()                                     extends Term[int => int]
 
 // Environments:
@@ -749,8 +757,6 @@ def eval[a](t : Term[a], env : Env): a = t match {
 ```
 
 Fig. 11. Typed evaluation of simply-typed lambda calculus
-
-work by also providing a way to write updateable polymorphic functions. Such functions are used in several forms in denotational and operational semantics, for instance they can implement stores or environments.
 
 Figure 11 shows an evaluation function eval which uses typecase for pattern matching its term argument t. The first observation from studying this function is that we need to generalize our previous concept of a typed pattern. Given a term of type Term[a] and pattern of form f : App[...], what type arguments should be provided? In fact, looking at a term’s static type we can determine only the second type argument of App (which must be equal to a), but not the first one. The first type argument needs to be a fresh, completely undeterminedtype constant. We express this by extending the syntax in a type pattern:
 
