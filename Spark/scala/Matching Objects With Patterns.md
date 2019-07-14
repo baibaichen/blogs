@@ -774,7 +774,7 @@ A type pattern can now consist of types and *type variables*. As for normal patt
 >   //但实际上现在是存在类型的写法：
 >   case v : Var[_]    => env(v)
 >   ```
->   **类型变量以小写字母开头的约定**对应的是前面的变量模式，变量以小写字母开头。大写字母这个不明白。 不过反正类型擦除，模式中的所有类型参数都必须是**类型变量**。
+>   **类型变量以小写字母开头的约定**对应的是前面的变量模式，变量以小写字母开头。大写字母这个不明白。 不过反正类型擦除，模式中的所有类型参数都必须是**类型变量**。另，参见《Progamming in Scala》中文版第15章（样例类和模式匹配） 284页：==<u>类型模式（type pattern）中的下划线就像是其他模式中的通配符。除了下划线，你也可以用（小写的）类型变量</u>==
 
 ~19~
 
@@ -894,32 +894,45 @@ In each case, the overlap of the selector type and the pattern type gives us the
 
 The evaluator in question uses environments as functions which map lambda-bound variables to their types. In fact we believe it is the first type-safe evaluator to do so. Previous type-safe evaluators written in Haskell [29], Omega [30] and extended C# [12] used lambda expressions with DeBrujn numbers and represented environments as tuples rather than functions. 
 
-In Figure 11, environments are modeled by a class `Env` with an abstract polymorphic `apply` method. Since functions are represented in Scala as objects with `apply` methods, instances of this class are equivalent to polymorphic functions of type `∀a.Var[a] => a`. Environments are built from an object empty representing an empty environment and a method extend which extends an environment by a new variable/value pair. Every environment has the form
+In Figure 11, environments are modeled by a class `Env` with an abstract polymorphic `apply` method. Since functions are represented in Scala as objects with `apply` methods, instances of this class are equivalent to polymorphic functions of type `∀a.Var[a] => a`. Environments are built from an object `empty` representing an empty environment and a method `extend` which extends an environment by a new variable/value pair. Every environment has the form, for `n ≥ 0`, where each `vi` is a variable of type `Var[Ti]` and each `xi` is a value of type `Ti`.
+
+> 所讨论的计算器把==**环境**==作为**函数**，将**lambda绑定的变量**映射到其类型。事实上，我们相信它是第一个这样做的类型安全的计算器。以前用Haskell [29]，Omega [30]和扩展C＃[12]编写的类型安全计算器使用带有DeBrujn数字的lambda表达式，并将==**环境**==表示为元组而不是函数。
+>
+> 在图11中，环境由类`Env`表示，它有一个抽象的多态方法`apply`。由于Scala中函数的表示为具有`apply`方法的对象，因此这个类的实例等价于`∀a.Var[a] => a`的多态函数。==**环境**==由 `empty` 对象和 `extend`方法构建，其中 `empty` 对象表示**空环境**，`extend`方法通过==**新的（变量，值）对**==扩展==**环境**==。每个环境都有这种形式，对于`n≥0`，每个`vi`是类型`Var [Ti]`的变量，每个`xi`是类型`Ti`的值。
 
 ```scala
 empty.extend(v1, x1). ... .extend(vn, xn)
 ```
 
-for n ≥ 0, where each `vi` is a variable of type `Var[Ti]` and each `xi` is a value of type `Ti`.
+The empty object is easy to define; its `apply` method throws an exception every time it is called. The implementation of the extend method is more difficult, because it has to maintain the universal polymorphism of environments. Consider an extension `env.extend(v, x)`, where `v` has `type Var[a]` and `x` has type `a`. What should the apply method of this extension be? The type of this method is `∀b.Var[b] => b`. The idea is that apply compares its argument `w` (of type `Var[b]`) to the variable v. If the two are the same, the value to return is x. Otherwise the method delegates its task by calling the `apply` method of the outer environment env with the same argument. The first case is represented by the following case clause:
 
-The empty object is easy to define; its `apply` method throws an exception every time it is called. The implementation of the extend method is more difficult, because it has to maintain the universal polymorphism of environments. Consider an extension env.extend(v, x), where v has type Var[a] and x has type a. What should the apply method of this extension be? The type of this method is `∀b.Var[b] => b`. The idea is that apply compares its argument w (of type Var[b]) to the variable v. If the two are the same, the value to return is x. Otherwise the method delegates its task by calling the apply method of the outer environment env with the same argument. The first case is represented by the following case clause:
+> 空对象很容易定义，每次调用`apply`方法时都会抛出异常。实现`extend`方法难一些，因为它必须保持==**环境**==的通用多态性。考虑扩展`env.extend(v, x)`，其中`v`的类型为`Var[a]`，`x`的类型为`a`。这个新子类的`apply`方法应该怎么实现？ 此方法的类型是`∀b.Var[b] => b`。想法是`apply`将其参数`w`（类型为`Var [b]`）与变量`v`进行比较，如果两者相同，则返回的值为`x`；否则，使用相同参数调用外部`env`的apply方法。第一种情况由以下`case`子句表示：
 
 ```scala
 case _ : v.type => x 
 ```
 
-This clause matches a selector of type Var[b] against the singleton type v.type. The latter has Var[a] as a basetype, where a is the type parameter of the enclosing extend method. Hence, overlap-aliases(v.type, Var[b]) yields Var[a] = Var[b] and by propagation a = b. Therefore, the case clause’s right hand side x of type a is compatible with the apply method’s declared result type b. In other words, type-overlap together with singleton types lets us express the idea that if two references are the same, their types must be the same as well.
+This clause matches a selector of type `Var[b]` against the singleton type `v.type`. The latter has `Var[a]` as a basetype, where `a` is the type parameter of the enclosing `extend` method. Hence, overlap-aliases(v.type, Var[b]) yields Var[a] = Var[b] and by propagation a = b. Therefore, the case clause’s right hand side x of type a is compatible with the apply method’s declared result type b. In other words, type-overlap together with singleton types lets us express the idea that if two references are the same, their types must be the same as well.
+
+> 此子句将类型为`Var[b]`的**选择器**与单例类型`v.type`匹配。后者将`Var[a]`作为基类型，其中`a`是封闭的 `extend`方法的类型参数。因此，重叠别名算法`overlap-aliases(v.type, Var [b])`产生`Var[a] = Var[b]`，并且推导出`a = b`。 所以，**case**子句右侧`x`的类型`a`，与`apply`方法声明的结果类型`b`兼容。换句话说，类型重叠与单例类型一起让我们表达的观点是，**如果两个引用相同，它们的类型也必须相同**。
+>
+> - [ ] Scala 的单例类型（singleton type）：[(1) What is a Singleton Type exactly?](https://stackoverflow.com/questions/33052086/what-is-a-singleton-type-exactly)，[(2)scala类型系统：3) 单例类型与this.type](http://hongjiang.info/scala-type-system-singleton-type/)。
+>     模式匹配中，`case _: Foo.type`使用`eq`检查匹配对象和`Foo`是否为同一个对象，而`case Foo`使用`equals`检查匹配对象否等于**Foo** 。这里有两个点，(1)模式匹配中以大写字母开头是**常量模式**；(2)`eq`是引用相等性，`eqauls`是值相等性。
 
 ~22~
 
 ----
 ^23^
 
-A pattern match with a singleton type p.type is implemented by comparing the selector value with the path p. The pattern matches if the two are equal. The comparison operation to be used for this test is reference equality (expressed in Scala as eq). If we had used userdefinable equality instead (which is expressed in Scala as == and which corresponds to Java’s equals), the type system would become unsound. To see this, consider a definition of equals in some class which equates members of different classes. In that case, a succeeding pattern match does no longer imply that the selector type must overlap with the pattern type.
+A pattern match with a singleton type `p.type` is implemented by comparing the selector value with the path p. The pattern matches if the two are equal. The comparison operation to be used for this test is reference equality (expressed in Scala as eq). If we had used userdefinable equality instead (which is expressed in Scala as `==` and which corresponds to Java’s `equals`), the type system would become **unsound**. To see this, consider a definition of equals in some class which equates members of different classes. In that case, a succeeding pattern match does no longer imply that the selector type must overlap with the pattern type.
+
+> 单例类型`p.type`的模式匹配的实现是通过比较路径`p`和**选择器的值**，如果两个相等，则匹配成功。用于此测试的比较操作是引用相等（在Scala中表示为eq）。如果我们使用可以重定义的相等性测试方法（Scala是`==`，对应于Java的`equals`），则类型系统将变得不健全。要了解这一点，请考虑某些类中`equals`的定义，它将不同类的成员等同起来（注，因为可以重写`equals`，所以苹果和梨可以判断为相同）。 在这种情况下，后续模式匹配不再暗示选择器类型必须与模式类型重叠。
 
 ### Parametric case-classes and extractors
 
-Type overlaps also apply to the other two pattern matching constructs of Scala, case classes and extractors. The techniques are essentially the same. A class constructor pattern C(p1, ..., pm) for a class C with type parameters a1, . . . , an is first treated as if it was a type pattern : C[a1, . . . an]. Once that pattern is typed and aliases for the type variables a1, . . . , an are computed using algorithm overlap-aliases, the types of the component patterns (p1, ..., pm) are computed recursively. Similarly, if the pattern C(p1, ..., pn) refers to a extractor of form
+Type overlaps also apply to the other two pattern matching constructs of Scala, case classes and extractors. The techniques are essentially the same. A class constructor pattern C(p1, ..., pm) for a class `C` with type parameters `a1, . . . , an` is first treated as if it was a type pattern : `C[a1, . . . an]`. Once that pattern is typed and aliases for the type variables `a1, . . . , an` are computed using algorithm **overlap-aliases**, the types of the component patterns `(p1, ..., pm)` are computed recursively. Similarly, if the pattern `C(p1, ..., pn)` refers to a extractor of form, it is treated as if it was the type pattern `: T`. Note that T would normally contain type variables `a1, . . . , an`.
+
+> 类型重叠也适用于Scala另外两类模式匹配：样例类和提取器。技术上基本相同。样例类`C`有类型参数 `a1, . . . , an`，其构造函数模式 `C(p1, ..., pm)`，首先被视为一种**类型模式**`C[a1, . . . an]`，然后使用重叠别名算法（**overlap-aliases**）计算类型变量`a1, . . . , an`的别名，以递归方式计算组件模式`(p1, ..., pm)` 的类型。同样，如果模式`C(p1, ..., pn)`指向的是**提取器的形式**，则被视为类型模式`:T`。注意，T通常包含类型变量`a1, . . . , an`。
 
 ```scala
 object C {
@@ -928,9 +941,9 @@ object C {
 } ,
 ```
 
-it is treated as if it was the type pattern : T. Note that T would normally contain type variables a1, . . . , an.
-
 As an example, here is another version of the evaluation function of simply-typed lambda calculus, which assumes either a hierarchy of case-classes or extractors for every alternative (the formulation of eval is the same in each case). 
+
+> 例如，下面是简单类型**lambda**演算`eval`的另一个版本，它假定每个替代的`case`分支，要么有对应层次的样例类，要么有对应的提取器（`eval`的每个`case`语句的公式和前面相同）
 
 ```scala
 def eval[a](t : Term[a], env : Env): a = t match {
