@@ -968,7 +968,7 @@ def eval[a](t : Term[a], env : Env): a = t match {
 
 # 参考
 
-1. injector：注入。参见 Programming in Scala 第三版，翻译版，==**第26.2节，593页**==。
+1. injector：注入。参见 *Programming in Scala 第三版，翻译版*，==**第26.2节，593页**==。
 2. [What is the advantage of using scala pattern matching instead of java switch case?](https://stackoverflow.com/questions/21355060/what-is-the-advantage-of-using-scala-pattern-matching-instead-of-java-switch-cas) 
 > [**pattern matching** is not somehow an alternative of **switch statement**, I consider it to be another way of doing **dynamic dispatch** in oop. They try to do the same thing: calling a different version of the function based on the dynamic type of the arguments](https://stackoverflow.com/questions/21355060/what-is-the-advantage-of-using-scala-pattern-matching-instead-of-java-switch-cas/21358937#21358937).
 >

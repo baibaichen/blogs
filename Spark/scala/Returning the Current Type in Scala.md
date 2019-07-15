@@ -20,7 +20,7 @@ Say we have an open trait for pets, with an unknown number of implementations. L
 
 Right. So here is our first attempt, and one implementation.
 
-```
+```scala
 trait Pet {
   def name: String
   def renamed(newName: String): Pet
@@ -35,7 +35,7 @@ In our `Fish` implementation `name` is implemented via a case class field, and t
 
 Just as a sanity check, we can create a `Fish` and rename it and all is well; the static type of the returned value is what we want.
 
-```
+```scala
 scala> val a = Fish("Jimmy", 2)
 a: Fish = Fish(Jimmy,2)
 
@@ -45,7 +45,7 @@ b: Fish = Fish(Bob,2)
 
 However a limitation of this approach is that our trait doesn’t actually constrain the implementation very much; we are simply required to return a `Pet`, not necessarily the *same type*of pet. So here is a `Kitty` that turns into a `Fish` when we rename it.
 
-```
+```scala
 case class Kitty(name: String, color: Color) extends Pet {
   def renamed(newName: String): Fish = new Fish(newName, 42) // oops
 }
@@ -68,7 +68,7 @@ So this approach doesn’t meet our stated goal of requiring that `renamed` retu
 
 An F-bounded type is **parameterized over its own subtypes**, which allows us to “pass” the implementing type as an argument to the superclass. The self-referential nature of `Pet[A <: Pet[A]]` is puzzling when you first see it; if it doesn’t click for you just keep on reading and it should start making more sense.
 
-```
+```scala
 trait Pet[A <: Pet[A]] {
   def name: String
   def renamed(newName: String): A // note this return type
@@ -77,7 +77,7 @@ trait Pet[A <: Pet[A]] {
 
 Ok, so any subtype of `Pet` needs to pass “itself” as a type argument.
 
-```
+```scala
 case class Fish(name: String, age: Int) extends Pet[Fish] { // note the type argument
   def renamed(newName: String) = copy(name = newName)
 }
@@ -85,7 +85,7 @@ case class Fish(name: String, age: Int) extends Pet[Fish] { // note the type arg
 
 And all is well.
 
-```
+```scala
 scala> val a = Fish("Jimmy", 2)
 a: Fish = Fish(Jimmy,2)
 
@@ -95,7 +95,7 @@ b: Fish = Fish(Bob,2)
 
 This time we **can** write our generic renaming method because we now have a more specific return type for `renamed`: any `Pet[A]` will return an `A`.
 
-```
+```scala
 scala> def esquire[A <: Pet[A]](a: A): A = a.renamed(a.name + ", Esq.")
 esquire: [A <: Pet[A]](a: A)A
 
@@ -105,9 +105,9 @@ res8: Fish = Fish(Jimmy, Esq.,2)
 
 So this is a big win. We now have a way to talk about the “current” type because it appears as a parameter.
 
-However we still have a problem with lying about what the “current” type is; there is nothing forcing us to pass the correct type argument. So here again is our `Kitty` that turns into a `Fish`.
+However we still have a problem with lying about what the “current” type is; **there is nothing forcing us to pass the correct type argument**. So here again is our `Kitty` that turns into a `Fish`.
 
-```
+```scala
 case class Kitty(name: String, color: Color) extends Pet[Fish] { // oops
   def renamed(newName: String): Fish = new Fish(newName, 42)
 }

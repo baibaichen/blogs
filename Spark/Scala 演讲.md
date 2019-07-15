@@ -363,59 +363,21 @@ String d = localTuple21._2;
 
 ## 集合
 
-1. [ ] [性能特点](http://docs.scala-lang.org/zh-cn/overviews/collections/performance-characteristics)
+Scala的集合很复杂，因此2.13引入了新的设计：
 
-### [集合的架构](http://docs.scala-lang.org/overviews/core/architecture-of-scala-collections.html)
+1. [当前的设计](https://docs.scala-lang.org/zh-cn/overviews/core/architecture-of-scala-collections.html)，也可以看*Programming in Scala 3rd Edition*中文版的第25章。*Programming Scala 2nd Edition*中文版第12章。
+2. 为什么要重新设计
+   1. [SCALA 2.13 COLLECTIONS REWORK](https://www.scala-lang.org/blog/2017/02/28/collections-rework.html)
+   2. [Wanted: Strawman proposals for new collections architecture](https://github.com/lampepfl/dotty/issues/818)
+   3. [Ongoing work on standard collections redesign](https://contributors.scala-lang.org/t/ongoing-work-on-standard-collections-redesign/293)
+   4. 一些讨论，[Fixing scala.collection.Iterator](https://alexn.org/blog/2017/01/16/iterator.html)，[What should go in an iterator](https://github.com/scala/collection-strawman/issues/17)
+   5. 中间代码：https://github.com/scala/collection-strawman
+3. 当前的设计
+   1. [THE ARCHITECTURE OF SCALA 2.13’S COLLECTIONS](https://docs.scala-lang.org/overviews/core/architecture-of-scala-213-collections.html)
 
-To summarize, if you want to fully integrate a new collection class into the framework you need to pay attention to the following points:
+### 集合的架构
 
-1. Decide whether the collection should be mutable or immutable.
-2. Pick the right base traits for the collection.
-3. Inherit from the right implementation trait to implement most collection operations.
-4. If you want map and similar operations to return instances of your collection type, provide an implicit CanBuildFrom in your class’s companion object.
-
-You have now seen how Scala’s collections are built and how you can add new kinds of collections. Because of Scala’s rich support for abstraction, each new collection type has a large number of methods without having to reimplement them all over again.
-
-https://github.com/scala/scala/commit/3de96153e5bfbde16dcc89bfbd71ff6e8cf1f6c6
-
-```
-TraversableOnce --> GenTraversableOnce
-  ^                    ^
-  |                    |
-Traversable     --> GenTraversable
-  ^                    ^
-  |                    |
-Iterable        --> GenIterable        <-- ParIterable
-  ^                    ^                      ^
-  |                    |                      |
-Seq             --> GenSeq             <-- ParSeq
-
-
-TraversableOnce --> GenTraversableOnce
-  ^                    ^                              |--------------|
-  |      |-------------|--------------------------->  |Parallelizable|
-TraversableLike --> GenTraversableLike------------->  |--------------|
-  ^         ^          ^           ^
-  |         |          |           |                  |--------------------------|
-  |      |--|----------|-----------|----------------> |GenericTraversableTemplate|
-Traversable |   --> GenTraversable |  --------------> |--------------------------|
-  ^         |        ^             |                            ^
-  |  IterableLike    |-->  GenIterableLike                      |
-  |   ^              |      ^                                   |
-  |   |              |      |                                   |
-Iterable        --> GenIterable---------------------------------|
-   |------------------------------------------------------------|
-```
-
-> [Traversable]
-> Any HasNewBuilder FilterMonadic GenTraversableOnce TraversableOnce Parallelizable GenTraversableLike TraversableLike  GenericTraversableTemplate GenTraversable Traversable
-
-> [Iterable]
-> Any HasNewBuilder FilterMonadic GenTraversableOnce TraversableOnce Parallelizable GenTraversableLike TraversableLike  GenericTraversableTemplate GenTraversable Traversable GenIterableLike
-> GenIterable Equals IterableLike Iterable
-
-> [AbstractIterable]
-> Any HasNewBuilder FilterMonadic GenTraversableOnce TraversableOnce Parallelizable GenTraversableLike TraversableLike  GenericTraversableTemplate GenTraversable Traversable AbstractTraversable GenIterableLike GenIterable Equals IterableLike Iterable AbstractIterable
+- [ ] 
 
 
 ### [数组](http://docs.scala-lang.org/zh-cn/overviews/collections/arrays)

@@ -9,7 +9,19 @@ class SpecificInternalRow extends BaseGenericInternalRow {}
 class MutableUnsafeRow extends BaseGenericInternalRow {}
 class GenericInternalRow extends BaseGenericInternalRow {}
 '>
+
 ## `TreeNode` 体系
+
+TreeNode的定义如下：
+
+```scala
+abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product { // 1.
+  self: BaseType =>                                                       // 2. 
+}
+```
+这里有两个语法构造：
+1. **自递归类型**：`BaseType <: TreeNode[BaseType]`，即**F-Bounded Type**。
+2. **自类型标记**：`self: BaseType =>`，即**self-type annotation**。
 
 <img width="50%" height="50%"  src='https://g.gravizo.com/svg?
 abstract class TreeNode {}
