@@ -470,7 +470,28 @@ Scala 使用 `@transient` 注解不需要序列化的字段。
 testData3.groupBy('a).agg(count('b))
 ```
 
->  注意：这里还涉及到**隐式转换**。
+>  注意：这里还涉及到**隐式转换**。定义在[`SQLImplicits`](https://spark.apache.org/docs/latest/api/scala/#org.apache.spark.sql.SQLImplicits)
+>
+>  ```scala
+>  implicit def symbolToColumn(s: Symbol): ColumnName = new ColumnName(s.name)
+>  ```
+>
+>  不过，`SQLImplicits` 是一个抽象类，`SparkSession`定义了`object`
+>
+>  ```scala
+>    object implicits extends SQLImplicits with Serializable {
+>      protected override def _sqlContext: SQLContext = SparkSession.this.sqlContext
+>    }
+>  ```
+>
+>  所以一般的用法是：
+>
+>  ```scala
+>  val spark:SparkSession = ...// create SparkSession
+>  
+>  // 在需要的地方
+>  import spark.implicits._
+>  ```
 
 ## 下划线( `_` ) 的使用场景
 

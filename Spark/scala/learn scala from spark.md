@@ -1,3 +1,15 @@
+# 从 Spark中学Scala
+## Spark SQL
+
+```mermaid
+graph TB
+  SQL[SQL Queery] -->|SparkSqlParser.parse|LogicalPlan1[Unresolved LogicalPlan]
+  DS[Dataset API] -->LogicalPlan1
+  DSL[DSL 用于UT] -->LogicalPlan1
+  LogicalPlan1-->|Analyzer apply batches|LogicalPlan2[Analyzed LogicalPlan]
+  LogicalPlan2-->|Optimizer apply batches|LogicalPlan3[Optomized LogicalPlan]
+```
+
 ## `InternalRow`体系
 
 <img width="100%" height="100%" src='https://g.gravizo.com/svg?

@@ -132,8 +132,10 @@ There are typically two ways to create a Dataset. The most common way is by poin
 
 Datasets can also be created through transformations available on existing Datasets. For example, the following creates a new Dataset by applying a filter on the existing one:
 
-    val names = people.map(_.name)  // in Scala; names is a Dataset[String]
-    Dataset<String> names = people.map((Person p) -> p.name, Encoders.STRING)); // in Java 8
+```java
+val names = people.map(_.name)  // in Scala; names is a Dataset[String]
+Dataset<String> names = people.map((Person p) -> p.name, Encoders.STRING)); // in Java 8
+```
 
 Dataset operations can also be untyped, through various **domain-specific-language** (DSL) functions defined in: `Dataset` (this class), [`Column`](), and [`functions`](). These operations are very similar to the operations available in the data frame abstraction in R or Python. To select a column from the Dataset, use `apply` method in Scala and `col` in Java.
 
@@ -366,7 +368,7 @@ The latter is used for adaptive query planning, to look at map output statistics
 - @param ++callSite++ Where this job was initiated in the user's program (shown on UI).
 - @param ++listener++ A listener to notify if tasks in this job finish or the job fails.
 - @param ++properties++ Scheduling properties attached to the job, such as fair scheduler pool name.
-- ​
+- 
 
 ---
 在背台线程中执行`DAGScheduler.handleJobSubmitted`先创建`ResultStage`，然后再创建`ActiveJob`，建立两者之间的关联之后，`DAGScheduler.submitStage`提交这个`ResultStage`, 如果该Stage有依赖，则先提交依赖的Stage。
@@ -527,7 +529,6 @@ In total, the rules for the analyzer are about [1000 lines of code](https://gith
     <td class="tg-yw4l">Repartition the RDD according to the given partitioner and, within each resulting partition, sort records by their keys. This is more efficient than calling repartition and then sorting within each partition because it can push the sorting down into the shuffle machinery.</td>
   </tr>
 </table>
-
 
 ---
 ## SparkSession – a new entry point
