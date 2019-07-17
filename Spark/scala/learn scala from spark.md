@@ -1,16 +1,34 @@
 # 从 Spark中学Scala
+
 ## Spark SQL
 
 ```mermaid
 graph TB
-  SQL[SQL Queery] -->|SparkSqlParser.parse|LogicalPlan1[Unresolved LogicalPlan]
+  SQL[SQL Query] -->|SparkSqlParser.parse|LogicalPlan1[Unresolved LogicalPlan]
   DS[Dataset API] -->LogicalPlan1
   DSL[DSL 用于UT] -->LogicalPlan1
   LogicalPlan1-->|Analyzer apply batches|LogicalPlan2[Analyzed LogicalPlan]
   LogicalPlan2-->|Optimizer apply batches|LogicalPlan3[Optomized LogicalPlan]
 ```
 
-## `InternalRow`体系
+### Row
+
+<img width="100%" height="100%" src='https://g.gravizo.com/svg?
+interface Row {}
+class GenericRow  implements Row{}
+class GenericRowWithSchema extends GenericRow{}
+abstract class MutableAggregationBuffer implements Row{}
+class MutableAggregationBufferImpl extends MutableAggregationBuffer{}
+class InputAggregationBuffer implements Row{}
+'>
+
+
+
+### Aanlyer 机制
+
+
+
+### `InternalRow`体系
 
 <img width="100%" height="100%" src='https://g.gravizo.com/svg?
 abstract class InternalRow {}
@@ -22,7 +40,7 @@ class MutableUnsafeRow extends BaseGenericInternalRow {}
 class GenericInternalRow extends BaseGenericInternalRow {}
 '>
 
-## `TreeNode` 体系
+### `TreeNode` 体系
 
 TreeNode的定义如下：
 
@@ -59,7 +77,7 @@ withNewChildren==将当前子节点替换为新的子节点===e( )
 transformDown==用先序遍历方式将规则作用于子节点===f( )
 transformUp==用后序遍历方式将规则作用于子节点===g( )
 ```
-## `Expression` 体系
+### `Expression` 体系
 
 表达式一般指的是不需要触发执行引擎而能够直接进行计算的单元，例如加减乘除四则运算、逻辑操作、转换操作、过滤操作等。如果说`TreeNode`是框架，那么就是`Expression`灵魂。在各种SQL引擎中，表达式都起着重要的作用。
 
@@ -98,7 +116,7 @@ abstract class Expression extends TreeNode[Expression] {}
 ```
 
 ----
-
+# UML代码
 ```scala
 abstract class InternalRow {}
 class UnsafeRow extends InternalRow{}
@@ -116,3 +134,13 @@ abstract class QueryPlan extends TreeNode{}
 abstract class LogicalPlan extends QueryPlan{}
 abstract class SparkPlan extends QueryPlan{}
 ```
+``` java
+interface Row {}
+class GenericRow  implements Row{}
+class GenericRowWithSchema extends GenericRow{}
+abstract class MutableAggregationBuffer implements Row{}
+class MutableAggregationBufferImpl extends MutableAggregationBuffer{}
+class InputAggregationBuffer implements Row{}
+```
+
+![img](learn scala from spark/Center.png)
