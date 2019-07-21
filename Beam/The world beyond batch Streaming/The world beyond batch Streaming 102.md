@@ -296,19 +296,19 @@ PCollection<KV<String, Integer>> scores = input
 
 这两个版本还有一个很大的区别：**窗口的生命周期不同**。使用完美型水位，我们知道一旦水位通过窗口的尾部，窗口就不会再有任何输入数据，因此可以丢弃窗口的所有状态。而==使用启发式水位，为了计算延迟数据，我们仍需要在相当一段时间内保存内部状态==。目前为止，**系统还没有方法知道每个窗口需要保存多长时间**。这就需要引入**允许延迟多久**的概念。
 
-### *When*:  延迟多久（即，垃圾回收）
+### *When*:  允许延迟多久（即，垃圾回收）
 
-Before moving on to our last question (“How do refinements of results relate?”), I’d like to touch on a practical necessity within long-lived, out-of-order stream processing systems: garbage collection. In the heuristic watermarks example in Figure 7, the persistent state for each window lingers around for the entire lifetime of the example; this is necessary to allow us to appropriately deal with late data when/if they arrive. But while it’d be great to be able to keep around all of our persistent state until the end of time, in reality, when dealing with an unbounded data source, it’s often not practical to keep state (including metadata) for a given window indefinitely; we’ll eventually run out of disk space.
+> Before moving on to our last question (“How do refinements of results relate?”), I’d like to touch on a practical necessity within long-lived, out-of-order stream processing systems: garbage collection. In the heuristic watermarks example in Figure 7, the persistent state for each window lingers around for the entire lifetime of the example; this is necessary to allow us to appropriately deal with late data when/if they arrive. But while it’d be great to be able to keep around all of our persistent state until the end of time, in reality, when dealing with an unbounded data source, it’s often not practical to keep state (including metadata) for a given window indefinitely; we’ll eventually run out of disk space.
 
-进入最后一个问题（如何细化窗口多次输出的结果？）之前，我想先谈谈垃圾回收，这是处理乱序流的系统长期运行的必备工具。图7的启发式水位示例，在管道执行的整个生命周期内，会一直保存每个窗口的持久化状态。这是必要的，只有这样，当（或如果）延迟的数据到达时，才能做正确地处理。尽管保存状态到管道执行结束很酷，但实际上处理无穷数据源时，一直保存给定窗口的状态（包括元数据）通常不切实际，最终会用尽磁盘空间。
+进入最后一个问题（如何细化窗口多次输出的结果？）之前，我想先谈谈垃圾回收，这是处理乱序流的系统，长期运行的必备工具。图7的例子，在管道执行的整个生命周期内，启发式水位会一直保存每个窗口的持久化状态。必须这样做，当（或如果）延迟的数据到达时，才能正确处理。尽管保存状态到管道执行结束很酷，但实际上处理无穷数据源时，一直保存给定窗口的状态（包括元数据）通常不切实际，最终会用尽磁盘空间。
 
-As a result, any real-world, out-of-order processing system needs to provide some way to bound the lifetimes of the windows it’s processing. A clean and concise way of doing this is by defining a horizon on the allowed lateness within the system—i.e., placing a bound on how late any given record may be (relative to the watermark) for the system to bothers processing it; any data that arrive after this horizon are simply dropped. Once you’ve bounded how late individual data may be, you’ve also established precisely how long the state for windows must be kept around: until the watermark exceeds the lateness horizon for the end of the window[5]. But in addition, you’ve also given the system the liberty to immediately drop any data later than the horizon as soon as they’re observed, which means the system doesn’t waste resources processing data that no one cares about.
+> As a result, any real-world, out-of-order processing system needs to provide some way to bound the lifetimes of the windows it’s processing. A clean and concise way of doing this is by defining a horizon on the allowed lateness within the system—i.e., placing a bound on how late any given record may be (relative to the watermark) for the system to bothers processing it; any data that arrive after this horizon are simply dropped. Once you’ve bounded how late individual data may be, you’ve also established precisely how long the state for windows must be kept around: until the watermark exceeds the lateness horizon for the end of the window[5]. But in addition, you’ve also given the system the liberty to immediately drop any data later than the horizon as soon as they’re observed, which means the system doesn’t waste resources processing data that no one cares about.
 
-因此，现实中处理乱序的系统都需要提供一些方法来约束窗口的生命周期。整洁简练实现这一点的方法是，在允许延迟的系统内定义一个界限。为任意给定的记录，设置一个可以延迟多久的区间（相对于水位），以便系统处理它。超过这个区间到达的任何数据，系统只需简单地丢弃。一旦你定义了单个数据可延迟的区间，你就精确地确定了窗口的状态必须保持多久，即水位超过窗口尾部的延迟区间^[5]^。但除此之外，你也给了系统丢弃延迟数据的自由，即观察到延迟数据就可以立即丢弃，这意味着系统不会浪费资源，处理没有人关心的数据。
+因此，现实中处理乱序的系统都需要提供一些方法来约束窗口的生命周期。整洁简练实现这一点的方法是，在允许延迟的系统内定义一个界限。为任意给定的记录，设置一个（相对于水位）可以延迟多久的区间，以便系统处理它。超过这个区间到达的任何数据，系统只需简单地丢弃。一旦你定义了数据可延迟的区间，你就精确地确定了窗口的状态必须保持多久，即**水位超过窗口尾部的延迟区间**^[5]^。但除此之外，你也给了系统丢弃延迟数据的自由，即延迟数据一旦超过了允许的区间，就可以立即丢弃，这意味着系统不会浪费资源，处理没有人关心的数据。
 
-Since the interaction between allowed lateness and the watermark is a little subtle, it’s worth looking at an example. Let’s take the heuristic watermark pipeline from Listing 5/Figure 7 and add a lateness horizon of one minute (note that this particular horizon has been chosen strictly because it fits nicely into the diagram; for real-world use cases, a larger horizon would likely be much more practical):
+> Since the interaction between allowed lateness and the watermark is a little subtle, it’s worth looking at an example. Let’s take the heuristic watermark pipeline from Listing 5/Figure 7 and add a lateness horizon of one minute (note that this particular horizon has been chosen strictly because it fits nicely into the diagram; for real-world use cases, a larger horizon would likely be much more practical):
 
-由于允许的延迟和水位之间的相互作用==有点微妙==，值得看一看例子。我们给代码清单5/图7中启发式水位的管道，加上一分钟的延迟区间（请注意，这个特别选定的小区间能很好地在图中演示，真实场景下，更大的延迟区间可能更实用）：
+由于允许的延迟和水位之间的相互作用==有点微妙==，值得多看一个例子。我们给代码清单5（/图7）中启发式水位的管道，加上一分钟的延迟区间（注意，在图中能很好地演示小区间，特地选定之；现实中，大些的延迟区间更实用）：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
@@ -317,41 +317,40 @@ PCollection<KV<String, Integer>> scores = input
                  AtWatermark()
                    .withEarlyFirings(AtPeriod(Duration.standardMinutes(1)))
                    .withLateFirings(AtCount(1)))
-               .withAllowedLateness(Duration.standardMinutes(1)))
+               .withAllowedLateness(Duration.standardMinutes(1))) // 这行
   .apply(Sum.integersPerKey());
 //Listing 6. Early and late firings with allowed lateness.
 ```
 
-The execution of this pipeline would look something like Figure 8 below, where I’ve added the following features to highlight the effects of allowed lateness:
+> The execution of this pipeline would look something like Figure 8 below, where I’ve added the following features to highlight the effects of allowed lateness:
 
-这个管道看起来像图8演示的那样执行，在这里我添加了以下功能以突出延迟区间的影响：
+这个管道的执行类似于下面的图8，其中我添加了以下功能，以突出允许延迟的影响：
 
-The thick white line denoting the current position in processing time is now annotated with ticks indicating the lateness horizon (in event time) for all active windows.
+> - The thick white line denoting the current position in processing time is now annotated with ticks indicating the lateness horizon (in event time) for all active windows.
+> - Once the watermark passes the lateness horizon for a window, that window is closed, which means all state for the window is discarded. I leave around a dotted rectangle showing the extent of time (in both domains) that the window covered when it was closed, with a little tail extending to the right to denote the lateness horizon for the window (for contrasting against the watermark).
+> - For this diagram only, I’ve added an additional late datum for the first window with value 6. The 6 is late, but still within the allowed lateness horizon, so it gets incorporated into an updated result with value 11. The 9, however, arrives beyond the lateness horizon, so it is simply dropped.
 
-为所有的活动窗口，在表示当前处理时间的白色粗线上，加上记号标志其允许的延迟区间（在事件时间维度）。
+- 在表示当前处理时间的白色粗线上，为所有的活动窗口加上记号，标志其允许的延迟区间（在事件时间维度）。
+- 一旦水位通过窗口允许的延迟区间，该窗口即被关闭，这意味着窗口所有的状态可被丢弃。窗口关闭时，我保留了一个虚线矩形显示它覆盖的时间范围（在两个时间维度上），有一个小尾巴延伸到右边表示窗口允许的延迟区间（用于和水位对比）。
+- 只在这幅图，为第一个窗口额外增加一个延迟数据6。尽管数据6延迟了，但仍在允许的延迟区间内，所以它被纳入更新，输出结果11。然而，数值9到达时，超出了延迟区间，因此简单地丢弃。
 
-Once the watermark passes the lateness horizon for a window, that window is closed, which means all state for the window is discarded. I leave around a dotted rectangle showing the extent of time (in both domains) that the window covered when it was closed, with a little tail extending to the right to denote the lateness horizon for the window (for contrasting against the watermark).
+![图8](102-figure-8.png) 
 
-一旦水位通过窗口允许的延迟区间，该窗口即被关闭，这意味着窗口所有的状态可被丢弃。窗口关闭时，我保留了一个虚线矩形显示它覆盖的时间范围（在两个时间维度上），有一个小尾巴延伸到右边表示窗口允许的延迟区间（用于和水位对比）。
+*图8 Windowed summation on a streaming engine with early and late firings and allowed lateness.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/0fe570080208aa6b0b2a44790a95813e08889fdc/file.mp4)
 
-For this diagram only, I’ve added an additional late datum for the first window with value 6. The 6 is late, but still within the allowed lateness horizon, so it gets incorporated into an updated result with value 11. The 9, however, arrives beyond the lateness horizon, so it is simply dropped.
-
-只在这幅图为第一个窗口增加了一个额外的延迟数据6。尽管数据6延迟了，但仍在允许的延迟区间内，所以它被纳入更新，输出结果11。然而，数值9到达时，超出了延迟区间，因此简单地丢弃。
-
-![图8](102-figure-8.png) *图8 Windowed summation on a streaming engine with early and late firings and allowed lateness.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/0fe570080208aa6b0b2a44790a95813e08889fdc/file.mp4)
-
-Two final side notes about lateness horizons:
-
-- To be absolutely clear, if you happen to be consuming data from sources for which perfect watermarks are available, then there’s no need to deal with late data, and an allowed lateness horizon of zero seconds will be optimal. This is what we saw in the perfect watermark portion of Figure 7.
-
-- One noteworthy exception to the rule of needing to specify lateness horizons, even when heuristic watermarks are in use, would be something like computing global aggregates over all time for a tractably finite number of keys (e.g., computing the total number of visits to your site over all time, grouped by Web browser family). In this case, the number of active windows in the system is bounded by the limited keyspace in use. As long as the number of keys remains manageably low, there’s no need to worry about limiting the lifetime of windows via allowed lateness.
+> Two final side notes about lateness horizons:
+>
+> - To be absolutely clear, if you happen to be consuming data from sources for which perfect watermarks are available, then there’s no need to deal with late data, and an allowed lateness horizon of zero seconds will be optimal. This is what we saw in the perfect watermark portion of Figure 7.
+>
+> - One noteworthy exception to the rule of needing to specify lateness horizons, even when heuristic watermarks are in use, would be something like computing global aggregates over all time for a tractably finite number of keys (e.g., computing the total number of visits to your site over all time, grouped by Web browser family). In this case, the number of active windows in the system is bounded by the limited keyspace in use. As long as the number of keys remains manageably low, there’s no need to worry about limiting the lifetime of windows via allowed lateness.
+>
 
 关于允许的延迟区间，最后两点注解：
 
 - 非常明确，如果你消费的数据源，碰巧支持完美型水位，那么就没有处理延迟数据的必要，延迟区间设置为零秒最优。正如图7所示（见左边完美型水位的示例）。
-- 值得一提的是，即使是启发式水位的场景，需要指定延迟区间，==随着时间推移，计算有限数量键值的聚合值是一个例外==（例如按Web浏览器家族分组，计算站点的访问总数）。这种情况下，系统中活动窗口的数量受限于有限的键值空间。只要需要维护的键值数量很少，就不必通过允许的延迟来限制窗口的生命周期。
+- 值得一提的是，虽然使用启发式水位的需要指定延迟区间，但计算有限数量键值的聚合值是个例外（例如按Web浏览器家族分组，计算站点的访问总数）。这种情况下，系统中活动窗口的数量受限于有限的键值空间。如果需要维护的键值数量很少，就不必通过允许的延迟区间来限制窗口的生命周期。
 
-Practicality sated, let’s move on to our fourth and final question.
+> Practicality sated, let’s move on to our fourth and final question.
 
 垃圾回收讲完，继续讨论第四个，也是最后一个问题。
 
@@ -441,16 +440,17 @@ As you can imagine, the modes in the order presented (discarding, accumulating, 
 
 你可以想象，在存储和计算成本方面，按模式呈现的先后顺序（丢弃，累积，累积和收回）一个比一个更贵。为此，累积模式提供了另一个维度，用于在正确性，延迟和成本之间进行权衡。
 
-## **转场插曲**
+## 转场插曲
 
-At this point, we’ve touched upon all four questions:
-
-- *What* results are calculated? Answered via transformations.
-- *Where* in event time are results calculated? Answered via windowing.
-- *When* in processing time are results materialized? Answered via watermarks and triggers.
-- *How* do refinements of results relate? Answered via accumulation modes.
-
-However, we’ve really only looked at one type of windowing: fixed windowing in event-time. As you know from Streaming 101, there are a number of dimensions to windowing, two of which I’d like to visit before we call it day: fixed windowing in processing-time and session windowing in event-time.
+> At this point, we’ve touched upon all four questions:
+>
+> - *What* results are calculated? Answered via transformations.
+> - *Where* in event time are results calculated? Answered via windowing.
+> - *When* in processing time are results materialized? Answered via watermarks and triggers.
+> - *How* do refinements of results relate? Answered via accumulation modes.
+>
+> However, we’ve really only looked at one type of windowing: fixed windowing in event-time. As you know from Streaming 101, there are a number of dimensions to windowing, two of which I’d like to visit before we call it day: fixed windowing in processing-time and session windowing in event-time.
+>
 
 至此，我们已经触及了所有四个问题：
 
