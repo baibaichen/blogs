@@ -532,6 +532,7 @@ In total, the rules for the analyzer are about [1000 lines of code](https://gith
 
 ---
 ## SparkSession – a new entry point
+
 **SparkSession is the “SparkContext” for Dataset/DataFrame**
 - Entry point for reading data
 - Working with metadata

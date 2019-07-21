@@ -791,11 +791,13 @@ filtered: List[(String, String)] = List()
 
 ### val 可以 `override` 方法
 
-    RuleExecutor/*...*/ {
-       abstract class Strategy { def maxIterations: Int }
-       
-       case class FixedPoint(maxIterations: Int) extends Strategy
-    }
+```scala
+RuleExecutor/*...*/ {
+   abstract class Strategy { def maxIterations: Int }
+   
+   case class FixedPoint(maxIterations: Int) extends Strategy
+}
+```
 
 在超类中实际定义的是 `maxIterations` 方法，但是在 `FixedPoint` 子类中，我们定义的是一个**val 变量**！
 
@@ -805,23 +807,22 @@ filtered: List[(String, String)] = List()
 FileSourceScanExec extends DataSourceScanExec with ColumnarBatchScan {
   override lazy val (outputPartitioning, outputOrdering): (Partitioning, Seq[SortOrder]) = ...
 }
-
 ```
 
 #### 在`trait`中使用 `def` 的更多动机
 
-`def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，就说明了应该如何实现。
+`def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，等于说明了子类应该如何实现。
 
 > 在[Stack Overflow页面](https://stackoverflow.com/questions/19642053/when-to-use-val-or-def-in-scala-traits)的这个注释，为在`trait`中使用`def`字段的原因提供了一些更好的观点：
 >
-> > `def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，就说明了应该如何实现。
+> > `def`可以通过`def`，`val`，`lazy val`或`object`来实现。所以这是定义成员最抽象的形式。由于`trait`通常是抽象接口，所以在`trait`用`val`定义，等于说明了子类应该如何实现。
 >
-> 编写真正有意义的代码的角度来看，该段中最后两个句子说得不错。他们了解了在一个`trait`中创造这样一个字段的本质：
+> 从编写真正有意义的代码的角度来看，这段句子说得不错，抓住了在`trait`中创造这样一个字段的本质：
 >
 > - 我的意图是什么？
 > - 在`trait`中暴露`id`字段，我试图表达什么？
 >
-> 我以前在Java中非常随意地编程 - 比如不担心将字段标记为`private`或 `final`等等 - 但随着我变老（并且希望更加明智），我已经了解到，使用Scala你可以非常清楚地知道，你试图通过自己的方式来传达给自己和其他开发人员的信息。花一些时间来思考这样的问题。你应该能够对其他开发者说：“我故意这样做，这就是为什么......”
+> 我以前在Java中非常随意地编程 - 比如不担心将字段标记为`private`或 `final`等等 - 但随着我变老（并且希望更加明智），我已经了解到，使用Scala，你可以非常清楚地知道，自己正在尝试向==**未来的我**==和其他开发人员传递什么信息。花一些时间来思考这样的问题，你应该能够对其他开发者说：“我故意这样做，这就是为什么......”
 
 #### 参考
 

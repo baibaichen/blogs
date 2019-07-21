@@ -52,7 +52,7 @@
 最后，为了更容易理解这些概念之间的关系，我们将回答四个==不同维度的==问题，借此重新审视旧的，并同时探索新的内容，对于处理无穷数据时遇到的每一个难题，每个维度都至关重要：
 
 - ***What***：计算逻辑是**什么**？这个问题由管道内**transformation**的类型来回答，包括计算总和，构建直方图，训练机器学习模型等。这也基本上是传统批处理引擎要回答的问题。
-- ***Where***：计算**什么时候**（事件时间维度上）的数据？这个问题通过在管道中使用基于事件时间的窗口来回答。包括Streaming 101中的常规窗口示例（固定窗口、滑动窗口，Session窗口），似乎不存在窗口概念的场景（例如，Streaming 101中描述的与时间无关的场景，传统批处理一般也属于此类），和其他更复杂的窗口类型，例如限时拍卖。还要注意，如果将记录进入系统时的处理时间作为其事件时间，那么窗口就是基于处理时间的。
+- ***Where***：计算**什么时候**（事件时间维度上）的数据？这个问题通过在管道中使用基于事件时间的窗口来回答。这包括*Streaming 101*中的常规窗口示例（固定窗口、滑动窗口，Session窗口），似乎不存在窗口概念的场景（例如，Streaming 101中描述的与时间无关的场景，传统批处理一般也属于此类），和其他更复杂的窗口类型，例如限时拍卖。还要注意，如果将记录进入系统时的处理时间作为其事件时间，那么窗口就是基于处理时间的。
 - ***When***：在**什么时候**（处理时间维度上）进行计算，并输出结果？这个问题由水位和触发器来回答。这个主题有无限的变化，但是最常见的模式是，对于给定窗口，使用水位来描述其输入完成度，使用触发器允许输出早期结果（在窗口的输入结束之前，输出猜测性的，或者部分结果）和处理晚到的数据并输出晚期结果（在水位仅仅是窗口输入完整性估计的情况下，对于给定窗口，即使水位声明该窗口的输入已经结束，仍然可能会有更多的数据进入该窗口）。
 - ***How***：**如何**细化**窗口多次输出**的结果？这个问题由用到的累积类型来回答：**丢弃**（每次输出的结果独立且不相关），**累积**（后续的结果建立在先前的结果上），或**累积且回收**（输出累积值，并回收上次触发时输出的结果）。
 
@@ -60,204 +60,206 @@
 
 ### Streaming 101 重温
 
-首先，我们来回顾一下Streaming 101中提出的一些概念，但是这次多了一些详细的例子，有助于使这些概念更加具体。
+首先，我们来回顾一下*Streaming 101*中提出的一些概念，但这次多了一些详细的例子，使这些概念更加具体。
 
 #### *What*：转换
 
 传统批处理使用转换回答“计算逻辑是**什么**？”这个问题。尽管许多人可能早就熟悉，但我们还是从传统的批处理开始，因为我们将以它为基础，逐步添加其他概念。
 
-本节，我们看一个简单的例子：在一个由10个值组成的简单数据集上，按键值分组并求和。如果想稍微务实一点的话，你可以假设团队正在玩某种手机游戏，要为他们计算总分，需要将团队中个人成绩综合起来。可以想象，这也同样适用于计费和==使用监控==的场景。
+本节，我们看一个简单的例子：在一个由10个值组成的简单数据集上，按键值分组并求和。如果想稍微务实一点的话，你可以假设团队正在玩某种手机游戏，要为他们计算总分，需要将团队中个人成绩综合起来。可以想象，这也同样适用于计费和监控的场景。
 
-为了使管道的定义更具体，每个示例将包含一段简短的Dataflow伪码片段。我有时会修改规则以使示例更加清晰，清除细节（比如没有引入具体的I / O 数据源）或简化名称（当前Java触发器的名称太TM冗长了，为了清晰起见，将使用更简单的名称）。除了这些小修改（大部分我在后记中有明确列举）之外，它几乎就是真正的Dataflow代码。稍后，我还将提供[代码走读的链接](https://cloud.google.com/dataflow/examples/gaming-example)，如果对类似例子感兴趣，可以自己可以编译和运行。
+为了使管道的定义更具体，每个示例将包含一段简短的Dataflow伪码片段。我有时会修改规则以使示例更加清晰，清除细节（比如没有引入具体的I/O 数据源）或简化名称（当前Java触发器的名称太TM冗长了，为了清晰起见，将使用更简单的名称）。除了这些小修改（大部分我在后记中有明确列举）之外，它几乎就是真正的Dataflow代码。稍后，我还将提供[代码走读的链接](https://cloud.google.com/dataflow/examples/gaming-example)，如果对类似例子感兴趣，可以自己可以编译和运行。
 
 如果你至少熟悉Spark Streaming或Flink，那么理解Dataflow代码在做什么就要相对轻松些。为了让你速成，Dataflow有两个基本的原语：
 
 - `PCollection`s，表示数据集（可能是海量数据集），可以并行执行转换（名字开头“P”的由来，即表示parallel）。
-- `PTransform`s：应用于`PCollection`s，以创建新的`PCollection`s。`PTransform`s可以执行元素级别的转换，也可以把多个元素聚合到一起，或是其它`PTransform`s的复合组合。
+- `PTransform`s：应用于`PCollection`s，以创建新的`PCollection`s。`PTransform`s可以执行元素级别的转换，也可以把多个元素聚合到一起，或是其它`PTransform`s的组合（join）。
 
 ![图1，transformation的类型](102-figure-1.png)*图1，转换的类型*
 
-如果发现自己越发不能理解例子，或者只是想要查查参考手册，可以去看看[Dataflow Java SDK]()的官方文档。
+如果有疑惑或只是想查看参考手册，可以去看看[Dataflow Java SDK]()的官方文档。
 
-对于我们的例子而言，假设从一个`PCollection <KV<String，Integer>>`开始，命名为`input`（即，包含字符串和整数的键/值对的`PCollection`，其中字符串类似于团队名称，整数是相应团队中的个人得分）。但构建真实管道时，可能从I / O源（如日志文件）读取数据以获得原始输入数据集（`PCollection <String>`），然后解析日志记录将其转换为相应的键/值对（`PCollection <KV <String，Integer >>`）。为了在第一个例子中清楚起见，我将包括所有这些步骤的伪码，但是在随后的例子中，我删除了I / O和解析部分。
+对于我们的例子而言，假设从一个`PCollection <KV<String，Integer>>`开始，命名为`input`（即，包含字符串和整数的键/值对的`PCollection`，其中字符串类似于团队名称，整数是相应团队中的个人得分）。但构建真实管道时，可能从I/O源（如日志文件）读取数据以获得原始输入数据集（`PCollection <String>`），然后解析日志记录，将其转换为相应的键/值对（`PCollection <KV <String，Integer >>`）。为了清楚起见，我会在第一个例子中包括这些步骤的所有伪码，但在后续的例子中，省略了I/O和解析部分。
 
-因此从I / O源读取数据，解析出团队/分数这样的键/值对，并计算每队总分，这个简单管道的伪码如下：
+因此，对于简单地从I/O源读取数据的管道，解析出团队/分数对，并计算每队总分，代码如下：
 
 ```java
 PCollection<String> raw = IO.read(...);
 PCollection<KV<String, Integer>> input = raw.apply(ParDo.of(new ParseFn());
 PCollection<KV<String, Integer>> scores = input.apply(Sum.integersPerKey());
-// 代码清单1 求和管道。从I / O源读取键/值数据，其中字符串（例如，团队名称）作为键，
-// 整数（例如，团队成员的得分）作为值。 然后将每个键的值相加在一起以产生输出
-// 集合中每个键的总和（例如，团队的总得分）。
+// 代码清单1 求和管道。
+// 从I/O源读取键/值数据，其中字符串（例如，团队名称）作为Key，整数（例如，团队成员的得分）作为Value。 
+// 然后将每个键的值相加在一起以产生输出集合中每个键的总和（例如，团队的总得分）。
 ```
 
-对于所有示例，会先分析构建管道的代码片段，然后用动画演示管道在具体数据集上的执行情况。更具体地说，管道的输入数据集有10条不同的记录，**一个键**（即每条记录的键一样）。你可以想象在真实的管道中，类似的操作将会在多台机器上并行执行，但对于示例而言，越简单越清晰。
+对于所有示例，会先分析构建管道的代码片段，然后用动画演示管道在具体数据集上的执行情况。具体地说，管道的输入数据是10条Key一样的数据。在真实的管道中，你可以想象类似的操作将会在多台机器上并行执行，但对于示例而言，越简单越清晰。
 
-每个动画在两个维度上绘制输入和输出：事件时间（X轴）和处理时间（Y轴）。这样，管道的处理进度从底部向上移动，且代表了当前真实的处理时间，如图中的白色粗线所示。输入用圆圈表示，圆圈内的数字表示该条记录的值。圆圈开始是灰色，一旦管道处理了某条记录，圆圈就会变色。
+每个动画在两个维度上绘制输入和输出：事件时间（X轴）和处理时间（Y轴）。这样从管道的角度来看，白色粗线从下向上移动，代表了当前真实的**处理时间**。输入用圆圈表示，圆圈内的数字表示该记录的值。圆圈开始是灰色，管道处理它们后会变色。
 
-当管道处理记录时，会将其累积到管道的内部状态中，并最终输出聚合的结果。状态和输出由矩形表示，聚合值靠近顶部显示，矩形由事件时间和处理时间组成，其覆盖区域里的数值会被累积到结果中。对于列表1中的管道，在传统的批处理引擎上执行的效果如下图：
+当管道处理这些记录时，会将其累积到管道的内部状态中，并最终输出==聚合==的结果。状态和输出由矩形表示，聚合值靠近顶部显示，矩形由事件时间和处理时间组成，其覆盖区域里的数值会被累积到结果中。对于列表1中的管道，在传统的批处理引擎上执行的效果如下图：
 > 译注：
 > 1. 这里贴出的是静态图像，要看动图请点击<u>动画</u>
 > 2. 输出最终结果时，靠近顶部显示的聚合值会变色
 
 ![图2，传统的批处理](102-figure-2.png) *图2，传统的批处理*，[动画](https://embedwistia-a.akamaihd.net/deliveries/3116f7c9159e25b3bd5ff05fa6a3adf1f53c6252/file.mp4)
 
-由于是批处理管道，因此会将输入值累积在管道的中间状态中，直到看到所有的输入（顶部的绿色虚线处）才产生单个输出51。本例没有使用窗口转换，是对事件时间维度出现的所有值求和，因此，表示『状态和输出』的矩形覆盖了整个X轴。传统的批处理引擎无法处理无穷数据，因为不可能等到输入结束再计算，然而，无穷数据实际上永远不会结束。因此，我们需要窗口这一概念（在Streaming 101中引入）。这样，就要回答第二个问题：计算**什么时候**（事件时间维度上）的数据？现在，简要回顾一下窗口。
+由于是批处理管道，因此==**会将输入值累积在管道的中间状态**==中，直到看到所有的输入（顶部的绿色虚线处）才产生单个输出**51**。本例没有使用窗口，而是对事件时间维度出现的所有值求和，因此，表示『状态和输出』的矩形覆盖了整个X轴。<u>传统的批处理引擎无法处理无穷数据，因为无穷数据实际上永远不会结束，不可能等到输入结束</u>。因此，我们需要窗口（在Streaming 101中引入）这一概念。这样，就要回答第二个问题：计算**什么时候**（事件时间维度上）的数据？现在，简要回顾一下窗口。
 
 #### *Where*：窗口
 
-如上次讨论的那样，分窗是沿着时间边界分割数据源的过程。 常见的分窗策略包括固定窗口，滑动窗口和Session窗口：
+如上次讨论的那样，分窗是**沿着时间边界分割数据源**的过程。 常见的分窗策略包括**固定窗口**，**滑动窗口**和**Session窗口**：
 
 ![图3](102-figure-3.png) *图3 分窗策略示例。 每个例子显示了三个不同的键，突出显示了对齐窗口（适用于所有数据）和不对齐窗口（适用于数据子集）之间的差异。 授权：Tyler Akidau，灵感来自Robert Bradshaw的插图。*
 
-为了更好的理解窗口在实践中看起像啥，我们用『时长2分钟的固定窗口』切分整数求和的管道。使用Dataflow SDK，只需要简单地添加`Window.into`转换即可（==蓝色部分的文本==）：
+为更好理解实际中如何分窗，下面用『时长2分钟的固定窗口』切分先前求和的管道。使用Dataflow SDK，只需要简单地添加`Window.into`**转换**即可：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
-  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2))))
+  .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))) // 这一行
   .apply(Sum.integersPerKey());
 //代码清单2：分窗求和的代码
 ```
-回想一下，Dataflow为批处理和流式处理提供了统一模型，语义上，批处理只是流式处理的一个子集。因此，我们首先在机制更简单的批处理引擎上执行此管道，当我们切换到流式处理引擎时，==~~这会给我们一些直接比较的东西~~==。
+回想一下，Dataflow为批处理和流式处理提供了统一模型，**语义上批处理只是流式处理的一个子集**。批处理引擎机制更简单，因此我们首先基于此执行，切换到流式处理引擎后，可以直接与它进行比较。
 
 ![图4. 在批处理引擎中执行分窗求和](102-figure-4.png) *图4. 在批处理引擎中执行分窗求和*，[动画](https://embedwistia-a.akamaihd.net/deliveries/c525f1a06e7cfd19e37001d7c47fe33454591cfe/file.mp4)
 
-如前所述，在管道的内部状态中累积输入，直到消费完所有的输入之后产生输出。不过此时，不再是一个而是四个输出：每个『事件时间维度、时长2分钟的』窗口都有一个相关的输出。
+如前所述，在管道的内部状态中累积输入，直到消费完所有的输入之后产生输出。不过此时，是四个而非一个输出：每个输出都对应一个『2分钟的事件时间』窗口。
 
-至此，我们重新回顾了Streaming 101中引入的两个主要概念：事件时间和处理时间之间的关系，以及分窗。要想再进一步，就需要在管道中加入本节开头提到的新概念：水位，触发器和累积。Streaming 102出场。
+至此，我们重新回顾了*Streaming 101*中引入的两个主要概念：事件时间和处理时间之间的关系，以及分窗。要想再进一步，就需要在管道中加入本节开头提到的新概念：水位，触发器和累积。**Streaming 102**出场。
 
 ## Streaming 102
 
-刚才，在批处理引擎上执行带有窗口的管道。如果引擎能产生低延迟的结果且支持无穷数据源，那就理想了，切换到流式引擎是迈出了正确的一步。然而，批处理引擎知道每个窗口何时具有完整的输入（即，消费完有穷输入源所有数据的时刻），目前，我们缺乏确定无穷数据源输入完整性的实用方法。因此，引入水位。
+我们刚观察了窗口化的管道在批处理引擎上的执行情况。但理想情况下，我们希望获得低延迟的结果，并且原生支持无穷数据源。切换到**流式引擎**是迈出了正确的一步。然而，批处理引擎知道每个窗口何时输入完整（即，当有穷输入源数据全部读入的时候）。目前对于无穷数据源，缺乏有效方法确定输入**完整性**。因此，引入水位。
 
 ### *When*: watermarks
 
-“在什么时候（处理时间维度上）进行计算？”的前半部分答案是**水位**。在事件时间维度上，用时间表示输入完整性。换句话说，基于事件流中正被处理记录的事件时间（有穷或无穷数据源皆可，尽管对无穷数据源的用处更明显），用**水位**衡量系统进度和输入完整性 。
+『在什么时候（处理时间维度上）进行计算』的前半部分答案是**水位**。用**事件时间**表示输入完整性。换句话说，基于事件流中正被处理记录的事件时间（有穷或无穷数据源皆可，但对无穷数据源的用处更明显），用**水位**衡量**系统进度**和**输入完整性** 。
 
-Recall this diagram from Streaming 101, slightly modified here, where I described the skew between event time and processing time as an ever-changing function of time for most real-world distributed data processing systems.
+> Recall this diagram from Streaming 101, slightly modified here, where I described the skew between event time and processing time as an ever-changing function of time for most real-world distributed data processing systems.
 
-回想一下Streaming 101中的下图，这里稍作修改，它描述了事件时间和处理时间之间的偏差，在大多数实际的分布式数据处理系统中，这类偏差会随着时间不断变化。
+回想一下*Streaming 101*中的下图，这里稍作修改，它描述了事件时间和处理时间之间的偏差，在大多数实际的分布式数据处理系统中，这类偏差会随着时间不断变化。
 
-![图5. 事件时间进度，偏差和水位](102-figure-5.png)*图5. 事件时间进度，偏差和水位*
+![图5. 事件时间进度，偏差和水位](102-figure-5.png)
+*图5. 事件时间进度，偏差和水位*
 
+> That meandering red line that I claimed represented reality is essentially the watermark; it captures the progress of event time completeness as processing time progresses. Conceptually, you can think of the watermark as a function, F(P) -> E, which takes a point in processing time and returns a point in event time. (More accurately, the input to the function is really the current state of everything upstream of the point in the pipeline where the watermark is being observed: the input source, buffered data, data actively being processed, etc.; but conceptually, it’s simpler to think of it as a mapping from processing time to event time.) That point in event time, E, is the point up to which the system believes all inputs with event times less than E have been observed. In other words, it’s an assertion that no more data with event times less than E will ever be seen again. Depending upon the type of watermark, perfect or heuristic, that assertion may be a strict guarantee or an educated guess, respectively:
 
-That meandering red line that I claimed represented reality is essentially the watermark; it captures the progress of event time completeness as processing time progresses. Conceptually, you can think of the watermark as a function, F(P) -> E, which takes a point in processing time and returns a point in event time. (More accurately, the input to the function is really the current state of everything upstream of the point in the pipeline where the watermark is being observed: the input source, buffered data, data actively being processed, etc.; but conceptually, it’s simpler to think of it as a mapping from processing time to event time.) That point in event time, E, is the point up to which the system believes all inputs with event times less than E have been observed. In other words, it’s an assertion that no more data with event times less than E will ever be seen again. Depending upon the type of watermark, perfect or heuristic, that assertion may be a strict guarantee or an educated guess, respectively:
+蜿蜒的红线代表真实情况，本质上就是水位，随着处理时间的推移，它代表事件时间维度上的输入完整度。概念上，可以将水位视为函数`F(P)->E`，传入处理时间维度上的变量，返回事件时间维度上的值（更准确地说，实质是==在当前观察到的事件时间点上==，把此时上游当前的状态：输入源，缓冲数据，正在处理的数据等，当做函数的输入；但概念上，将其视为从处理时间到事件时间的映射更为简单）。事件时间维度上的值`E`，表示系统认为事件时间小于`E`的所有输入都已经被观察到。换个角度看，这表示系统**断言**不会再看到事件时间少于`E`的数据。根据水位的类型：**完美型**或**启发式**，分别提供有严格保障或基于事实猜测的**断言**。
 
-我声称的代表真实情况的那条蜿蜒的红线本质上就是水位，随着处理时间的推移，它捕获事件时间维度上输入完整性的进度。概念上，可以将水位视为函数`F(P)->E`，传入处理时间维度上的变量，返回事件时间维度上的值（更准确地说，为了返回管道下游当前的水位，函数的输入实际上是上游当前的状态：输入源，缓冲数据，正在处理的数据等；但在概念上，将其视为从处理时间到事件时间的映射更为简单）。事件时间维度上的这个值，`E`，表示系统认为事件时间小于`E`的所有输入都已经被观察到。换个角度，这表示系统**断言**不会再看到事件时间少于`E`的数据。根据水位是完美型还是启发式，断言可能会有严格的保障或只是凭经验所作的猜测。
+> - **Perfect watermarks**: In the case where we have perfect knowledge of all of the input data, it’s possible to construct a perfect watermark; in such a case, there is no such thing as late data; all data are early or on time.
+> - **Heuristic watermarks**: For many distributed input sources, perfect knowledge of the input data is impractical, in which case the next best option is to provide a heuristic watermark. Heuristic watermarks use whatever information is available about the inputs (partitions, ordering within partitions if any, growth rates of files, etc.) to provide an estimate of progress that is as accurate as possible. In many cases, such watermarks can be remarkably accurate in their predictions. Even so, the use of a heuristic watermark means it may sometimes be wrong, which will lead to late data. We’ll learn about ways to deal with late data in the triggers section below.
 
-- **Perfect watermarks**: In the case where we have perfect knowledge of all of the input data, it’s possible to construct a perfect watermark; in such a case, there is no such thing as late data; all data are early or on time.
-- **完美型水位**：在我们完全了解所有输入数据的情况下，可以构建完美型水位，此时，不存在延迟数据，所有数据要么早到，要么准时。
-- **Heuristic watermarks**: For many distributed input sources, perfect knowledge of the input data is impractical, in which case the next best option is to provide a heuristic watermark. Heuristic watermarks use whatever information is available about the inputs (partitions, ordering within partitions if any, growth rates of files, etc.) to provide an estimate of progress that is as accurate as possible. In many cases, such watermarks can be remarkably accurate in their predictions. Even so, the use of a heuristic watermark means it may sometimes be wrong, which will lead to late data. We’ll learn about ways to deal with late data in the triggers section below.
-- **启发式水位**：对于许多分布式输入源，完全了解输入数据是不切实际的，此时最好的选择就是提供启发式水位。为了尽可能准确地估计进度，所有关于输入的可用信息（分区，分区内的排序，文件的增长率等），启发式水位都会利用。许多情况下，这样的预估可以非常准确。即便如此，使用启发式水位意味有时可能出错，因此会出现延迟数据。我们将在后面触发器那节中了解如何处理延迟数据。
+- **完美型水位**：在我们完全了解所有输入数据的情况下，可以构建完美型水位，此时，不存在延迟数据，所有数据只会提前或者准时到达。
+- **启发式水位**：对于各种分布式输入源，完全了解输入数据是不切实际的，此时最好的选择就是提供启发式水位。为了尽可能准确地估计进度，所有关于输入的可用信息（分区，分区内的排序，文件的增长率等），启发式水位都会利用。许多情况下，这样的预估可以非常准确。即便如此，启发式水位意味着有时会出错，因此会出现延迟数据。我们将在后面触发器那节中了解如何处理延迟数据。
 
+> Watermarks are a fascinating and complex topic, with far more to talk about than I can reasonably fit here or in the margin, so a further deep dive on them will have to wait for a future post. For now, to get a better sense of the role that watermarks play as well as some of their shortcomings, let’s look at two examples of a streaming engine using watermarks alone to determine when to materialize output while executing the windowed pipeline from Listing 2. The example on the left uses a perfect watermark; the one on the right uses a heuristic watermark.
 
-Watermarks are a fascinating and complex topic, with far more to talk about than I can reasonably fit here or in the margin, so a further deep dive on them will have to wait for a future post. For now, to get a better sense of the role that watermarks play as well as some of their shortcomings, let’s look at two examples of a streaming engine using watermarks alone to determine when to materialize output while executing the windowed pipeline from Listing 2. The example on the left uses a perfect watermark; the one on the right uses a heuristic watermark.
-
-水位是一个令人着迷和复杂的话题，有太多的内容可以讨论，一篇文章根本不够，因此，对它们进一步深入的了解将不得不等待未来的文章。现在，为了更好地了解水位的作用以及它们缺点，我们来看看两个例子，执行列表2中定义了窗口的管道，流式引擎仅仅使用水位以确定何时实现输出，左边的例子使用完美型水位，右边的例子使用启发式水位。
+**水位**是一个令人着迷和复杂的话题，可以讨论太多的内容，这点篇幅根本不够，期待未来可以写篇文章，深入讨论之。现在来看看两个例子，以便更好地了解水位的作用及缺点，执行列表2中**窗口化的管道**，流式引擎只用水位来确定何时实现输出，左边使用**完美型水位**，右边使用**启发式水位**。
 
 ![图6. 在流式处理引擎中执行分窗求和，左边使用完美型水位，右边启发式水位](102-figure-6.png) *图6. 在流式处理引擎中执行分窗求和，左边使用完美型水位，右边使用启发式水位*，[动画](https://embedwistia-a.akamaihd.net/deliveries/29b524c8d427de5db2b7e80d4e0964bcfa546ab8/file.mp4)
 
-In both cases, windows are materialized as the watermark passes the end of the window. The primary difference between the two executions is that the heuristic algorithm used in watermark calculation on the right fails to take the value of 9 into account, which drastically changes the shape of the watermark^[3]^. These examples highlight two shortcomings of watermarks (and any other notion of completeness), specifically that they can be:
+> In both cases, windows are materialized as the watermark passes the end of the window. The primary difference between the two executions is that the heuristic algorithm used in watermark calculation on the right fails to take the value of 9 into account, which drastically changes the shape of the watermark^[3]^. These examples highlight two shortcomings of watermarks (and any other notion of completeness), specifically that they can be:
+>
 
-两种情况下，当水位通过窗口末尾时，输出窗口结果。两次执行的主要区别是：右侧的启发式算法计算水位时没有考虑9，从而大大改变了水位的形状^[3]^。这些例子突出了水印（以及任何其他完整性概念）的两个缺点，具体是：
+两种情况下，当水位通过窗口末尾时，输出窗口结果。两次执行的主要区别是：右侧的启发式算法计算水位时没有考虑到**9**，从而大大改变了水位曲线的形状^[3]^。这些例子突出了水位的两个缺点（其他完整性概念都一样），具体是：
 
-- Too slow: When a watermark of any type is correctly delayed due to known unprocessed data (e.g., slowly growing input logs due to network bandwidth constraints), that translates directly into delays in output if advancement of the watermark is the only thing you depend on for stimulating results.
+> - Too slow: When a watermark of any type is correctly delayed due to known unprocessed data (e.g., slowly growing input logs due to network bandwidth constraints), that translates directly into delays in output if advancement of the watermark is the only thing you depend on for stimulating results.
+>   This is most obvious in the left diagram, where the late arriving 9 holds back the watermark for all the subsequent windows, even though the input data for those windows become complete earlier. This is particularly apparent for the second window, [12:02, 12:04), where it takes nearly seven minutes from the time the first value in the window occurs until we see any results for the window whatsoever. The heuristic watermark in this example doesn’t suffer the same issue quite so badly (five minutes until output), but don’t take that to mean heuristic watermarks never suffer from watermark lag; that’s really just a consequence of the record I chose to omit from the heuristic watermark in this specific example.
+>   The important point here is the following: while watermarks provide a very useful notion of completeness, depending upon completeness for producing output is often not ideal from a latency perspective. Imagine a dashboard that contains valuable metrics, windowed by hour or day. It’s unlikely you’d want to wait a full hour or day to begin seeing results for the current window; that’s one of the pain points of using classic batch systems to power such systems. Instead, it’d be much nicer to see the results for those windows refine over time as the inputs evolve and eventually become complete.
+> - Too fast: When a heuristic watermark is incorrectly advanced earlier than it should be, it’s possible for data with event times before the watermark to arrive some time later, creating late data. This is what happened in the example on the right: the watermark advanced past the end of the first window before all the input data for that window had been observed, resulting in an incorrect output value of 5 instead of 14. This shortcoming is strictly a problem with heuristic watermarks; their heuristic nature implies they will sometimes be wrong. As a result, relying on them alone for determining when to materialize output is insufficient if you care about correctness.
 
-  This is most obvious in the left diagram, where the late arriving 9 holds back the watermark for all the subsequent windows, even though the input data for those windows become complete earlier. This is particularly apparent for the second window, [12:02, 12:04), where it takes nearly seven minutes from the time the first value in the window occurs until we see any results for the window whatsoever. The heuristic watermark in this example doesn’t suffer the same issue quite so badly (five minutes until output), but don’t take that to mean heuristic watermarks never suffer from watermark lag; that’s really just a consequence of the record I chose to omit from the heuristic watermark in this specific example.
+- **太慢**：对于各类水位，由于有已知未处理数据（如，由于网络带宽限制而缓慢导入的输入日志），而合理延迟时，如果系统仅仅依靠水位的提升来输出结果，那么直接的后果就是输出延迟。
 
-  The important point here is the following: while watermarks provide a very useful notion of completeness, depending upon completeness for producing output is often not ideal from a latency perspective. Imagine a dashboard that contains valuable metrics, windowed by hour or day. It’s unlikely you’d want to wait a full hour or day to begin seeing results for the current window; that’s one of the pain points of using classic batch systems to power such systems. Instead, it’d be much nicer to see the results for those windows refine over time as the inputs evolve and eventually become complete.
+  左图最明显，延迟数据9卡住水位提升，即使后续窗口早就有完整的输入数据，也不能及时输出结果。第二个窗口**[12:02，12:04)**尤其明显，从第一个值在窗口中出现到看到窗口结果，耗时将近7分钟。这个例子中，**启发式水位**的延迟没那么严重（只用了5分钟），但这不意味着启发式水位不会滞后，我在这个特定的例子中忽略了数据9才有了这样的结果。
 
-- **太慢**：当任何类型的水位由于已知的未处理数据而被正确地延迟时（例如，由于网络带宽限制而缓慢导入的输入日志），如果系统仅仅依靠水位的提升来输出结果，那么将直接转换为输出延迟。
+  这里的重点是：水位提供了一个非常有用的完整性概念，但从延迟的角度来看，依赖完整性产生输出通常不理想。==设想一个仪表盘，包含了有用的指标，按小时或天分窗显示，不能说等一小时或者一天，才能看到当前窗口的结果，而这正是传统批处理系统的痛点之一==。更好的方式是，随着时间推移，窗口结果随着输入的完整而逐渐完善。
+- **太快**：当启发式水位错误提升时（早于它应该处于的位置），那么仍可能出现水位之前的数据，这就导致了**延迟数据**。别右边的例子：在观察到第一个窗口的所有输入数据之前，水位就已通过了该窗口，导致输出错误的值**5**而非**14**。这个缺点严格说来就是启发式水位的问题，启发式本来就意味着总有出错的时候。因此，如果你关心正确性，单独依靠启发式水位，确定何时输出结果是不够的。
 
-  这在左图中最明显，延迟抵达的9阻碍了水位的前进，因此，即使后续窗口的输入数据早就完整，也不能及时输出结果。这对于第二个窗口[12:02，12:04)尤其明显，从窗口中的第一个值发生到我们看到窗口结果，耗时将近7分钟。这个例子中，启发式水位的延迟没那么严重（从窗口中的第一个值发生到我们看到窗口结果，耗时5分钟），但不要认为这意味着启发式算法不会滞后，在这个特定的例子中，是我选择忽略的记录才导致了这样的结果。
+> In Streaming 101, I made some rather emphatic statements about notions of completeness being insufficient for robust out-of-order processing of unbounded data streams. These two shortcomings, watermarks being too slow or too fast, are the foundations for those arguments. You simply cannot get both low latency and correctness out of a system that relies solely on notions of completeness. Addressing these shortcomings is where triggers come into play.
 
-  这里的重点是：水位位输入完整性提供了一个非常有用的概念，但是依赖完整性产生输出，从延迟的角度来看通常不是很理想。设想一个仪表板，包含了有价值的指标，按小时或天分窗显示。不可能说等待一整个小时或者一整天，才能看到当前窗口的结果，而这正是传统批处理系统的痛点之一。相反，随着时间的推移，窗口的结果随着输入的变化而逐渐完善，将会更好一些。
+在*Streaming 101*中，我强调完整性的概念并不足以处理无穷数据流中的乱序。水位太慢或太快这两个缺点就是这个结论的基础。如果系统只有完整性概念，就无法同时满足低延迟和正确性。解决这些缺点得引入触发器。
 
-- Too fast: When a heuristic watermark is incorrectly advanced earlier than it should be, it’s possible for data with event times before the watermark to arrive some time later, creating late data. This is what happened in the example on the right: the watermark advanced past the end of the first window before all the input data for that window had been observed, resulting in an incorrect output value of 5 instead of 14. This shortcoming is strictly a problem with heuristic watermarks; their heuristic nature implies they will sometimes be wrong. As a result, relying on them alone for determining when to materialize output is insufficient if you care about correctness.
+### *When*: ==触发器的奇妙之处是触发器是好东西!==
 
-- **太快**：当启发式水位错误地前进，早于它应该处于的位置，那么，水位之前的数据仍可能出现，这导致延迟数据。右边的例子就是一例：在观察到第一个窗口的所有输入数据之前，水位就已通过了该窗口，导致输出错误的结果5而不是14。这个缺点严格说来就是启发式水位的问题，启发式的本质意味着总有出错的时候。因此，如果你关心正确性，单独依靠启发式水位，确定何时输出结果是不够的。
+> Triggers are the second half of the answer to the question: “When in processing time are results materialized?” Triggers declare when output for a window should happen in processing time (though the triggers themselves may make those decisions based off of things that happen in other time domains, such as watermarks progressing in the event time domain). Each specific output for a window is referred to as a pane of the window.
 
-In Streaming 101, I made some rather emphatic statements about notions of completeness being insufficient for robust out-of-order processing of unbounded data streams. These two shortcomings, watermarks being too slow or too fast, are the foundations for those arguments. You simply cannot get both low latency and correctness out of a system that relies solely on notions of completeness. Addressing these shortcomings is where triggers come into play.
+触发器是“在**什么时候**（处理时间维度上）进行计算？”的==答案的后半部分==，**触发器**声明窗口应在处理时间维度的那个点上（但触发器自身可以根据发生在其他时间维度的事情做出触发决定，例如，水位在事件时间维度上前进了）输出结果。窗口的每个特定输出被称之为窗口的一个窗格。
 
-在Streaming 101中，我强调完整性的概念并不足以处理无穷数据流中的乱序。这两个缺点，水位太慢或太快，是这些论据的基础。如果系统只依赖于完整性的概念，那么无法同时满足低延迟和正确性。解决这些缺点是触发器发挥作用的地方。
+> Examples of signals used for triggering include:
 
-### *When*: ==触发器的奇妙之处是触发器是奇妙的东西!==
+触发信号包括：
 
-Triggers are the second half of the answer to the question: “When in processing time are results materialized?” Triggers declare when output for a window should happen in processing time (though the triggers themselves may make those decisions based off of things that happen in other time domains, such as watermarks progressing in the event time domain). Each specific output for a window is referred to as a pane of the window.
+> - **Watermark progress (i.e., event time progress)**, an implicit version of which we already saw in Figure 6, where outputs were materialized when the watermark passed the end of the window^[4]^. Another use case is triggering garbage collection when the lifetime of a window exceeds some useful horizon, an example of which we’ll see a little later on.
+> - **Processing time progress**, which is useful for providing regular, periodic updates since processing time (unlike event time) always progresses more or less uniformly and without delay.
+> - **Element counts**, which are useful for triggering after some finite number of elements have been observed in a window.
+> - **Punctuations**, or other data-dependent triggers, where some record or feature of a record (e.g., an EOF element or a flush event) indicates that output should be generated.
+>
 
-触发器是“在**什么时候**（处理时间维度上）进行计算？”的==答案的后半部分==，触发器声明窗口应在何时（处理时间维度，但触发器自身可以根据发生在其他时间维度的事情做出触发决定，例如，在事件时间维度上，水位前进了）输出结果。窗口的每个特定输出被称之为窗口的一个窗格。
-
-Examples of signals used for triggering include:
-
-触发信号的例子包括：
-
-- Watermark progress (i.e., event time progress), an implicit version of which we already saw in Figure 6, where outputs were materialized when the watermark passed the end of the window^[4]^. Another use case is triggering garbage collection when the lifetime of a window exceeds some useful horizon, an example of which we’ll see a little later on.
-- **水位进度（即，事件时间进度）**，我们已经在图6中看到的一个隐式版本，当水位通过窗口时，输出结果^[4]^。另一个使用水位进度的场景是，当窗口的生命周期超出一定的范围，触发垃圾回收，稍后我们将看到一个例子。
-- Processing time progress, which is useful for providing regular, periodic updates since processing time (unlike event time) always progresses more or less uniformly and without delay.
-- **处理时间进度**，对于提供周期性更新是有用的，因为处理时间（不像事件时间）总是大致均匀地进行，而不会延迟。
-- Element counts, which are useful for triggering after some finite number of elements have been observed in a window.
+- **水位进度（即，事件时间进度）**，我们已经在图6中看到的一个隐式版本，当水位通过窗口时，输出结果^[4]^。另一个使用场景是，当窗口的生命周期超出一定的范围，触发垃圾回收，稍后我们将看到一个例子。
+- **处理时间进度**，用于提供周期性更新，因为处理时间（不像事件时间）总是大致均匀地进行，而不会延迟。 
 - **元素数量**，用于在窗口中观察到一定数量的元素后触发。
-- Punctuations, or other data-dependent triggers, where some record or feature of a record (e.g., an EOF element or a flush event) indicates that output should be generated.
-- **特殊标记或者其它数据依赖的触发器**，某些记录或者记录的某个标记（例如，EOF元素或者表示刷新的事件）指示系统应该输出结果。
+- **特殊标记或者其它数据触发器**，某些记录或者记录的某个标记（例如，EOF元素或者表示刷新的事件）指示系统应该输出结果。
 
-In addition to simple triggers that fire based off of concrete signals, there are also composite triggers that allow for the creation of more sophisticated triggering logic. Example composite triggers include:
+> In addition to simple triggers that fire based off of concrete signals, there are also composite triggers that allow for the creation of more sophisticated triggering logic. Example composite triggers include:
 
-除了基于具体信号触发的简单触发器，你还可以创建组合触发器，获得更复杂的触发逻辑。复合触发器的例子有：
+除基于具体信号触发的简单触发器，还可以创建组合触发器，获得更复杂的触发逻辑。组合触发器的例子有：
 
-- Repetitions, which are particularly useful in conjunction with processing time triggers for providing regular, periodic updates.
-- 重复，特别有用于和处理时间触发器一起提供有规律的定期更新。
-- Conjunctions (logical AND), which fire only once all child triggers have fired (e.g., after the watermark passes the end of the window AND we observe a terminating punctuation record).
-- 逻辑与（联合），所有子触发器满足条件时，只触发一次（例如，水印通过通过窗口尾端，并且，观察到一个终止符号记录）。
-- Disjunctions (logical OR), which fire after any child triggers fire (e.g., after the watermark passes the end of the window OR we observe a terminating punctuation record).
-- 逻辑或（析取），任一子触发器满足条件时触发（例如，水印通过通过窗口尾端，或者，观察到一个终止符号记录）。
-- Sequences, which fire a progression of child triggers in a predefined order.
-- 序列，以预定义的顺序，子触发器依次触发。
+> - **Repetitions**, which are particularly useful in conjunction with processing time triggers for providing regular, periodic updates.
+> - **Conjunctions** (logical AND), which fire only once all child triggers have fired (e.g., after the watermark passes the end of the window AND we observe a terminating punctuation record).
+> - **Disjunctions** (logical OR), which fire after any child triggers fire (e.g., after the watermark passes the end of the window OR we observe a terminating punctuation record).
+> - **Sequences**, which fire a progression of child triggers in a predefined order.
+>
 
-To make the notion of triggers a bit more concrete (and give us something to build upon), let’s go ahead and make explicit the implicit default trigger used in Figure 6 by adding it to the code from Listing 2:
 
-为了稍微具体化触发器的概念（以便后续基于此构建更复杂的触发器），我们在图6的基础上修改，把图6隐含使用的默认触发器明确地写出来，将其添加到列表2的代码中：
+- **重复触发**，特别适用于处理时间触发器，用来提供有规律的定时更新。
+- **联合触发**（逻辑与），所有子触发器满足条件时触发一次（例如，水位通过通过窗口尾端，**并且**观察到一个结束符号记录）。
+- **分开触发**（逻辑或），任一子触发器满足条件时触发（例如，水位通过通过窗口尾端，**或者**观察到一个**终止**符号记录）。
+- **顺序触发**，以预定义的顺序，子触发器依次触发。
+
+> To make the notion of triggers a bit more concrete (and give us something to build upon), let’s go ahead and make explicit the implicit default trigger used in Figure 6 by adding it to the code from Listing 2:
+
+为了具体化触发器的概念（以便后续基于此构建更复杂的触发器），把图6隐含的默认触发器明确地写出来，添加到列表2的代码中：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
   .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
-               .triggering(AtWatermark()))
+               .triggering(AtWatermark()))  // 这行
   .apply(Sum.integersPerKey());
-//Listing 3. Explicit default trigger.
+//代码清单 3.  显示化缺省触发器.
 ```
-With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
+> With that in mind, and a basic understanding of what triggers have to offer, we can look at tackling the problems of watermarks being too slow or too fast. In both cases, we essentially want to provide some sort of regular, materialized updates for a given window, either before or after the watermark advances past the end of the window (in addition to the update we’ll receive at the threshold of the watermark passing the end of the window). So, we’ll want some sort of repetition trigger. The question then becomes: what are we repeating?
 
-记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。两种情况下，基本的想法是，对于一个给定的窗口，无论是在水位通过窗口的尾端之前还是之后，以某种形式提供有规律的更新（除了更新，我们将收到水位通过窗口尾端的消息）。因此，我们需要重复触发。现在问题就变成了：我们在重复什么？
+记住这一点，以及对触发器的基本理解，我们可以研究解决水位过慢或过快的问题。基本的想法是，给定一个窗口，无论是在水位通过窗口的尾端之前还是之后，（==即除了水位通过窗口尾端时的更新==）两种情形下都以某种形式提供有规律的更新。我们因此需要重复触发。现在问题就变成了：重复触发的条件是什么？
 
-In the too slow case (i.e., providing early, speculative results), we probably should assume that there may be a steady amount of incoming data for any given window since we know (by definition of being in the early stage for the window) that the input we’ve observed for the window is thus far incomplete. As such, triggering periodically when processing time advances (e.g., once per minute) is probably wise because the number of trigger firings won’t be dependent upon the amount of data actually observed for the window; at worst, we’ll just get a steady flow of periodic trigger firings.
+> In the too slow case (i.e., providing early, speculative results), we probably should assume that there may be a steady amount of incoming data for any given window since we know (by definition of being in the early stage for the window) that the input we’ve observed for the window is thus far incomplete. As such, triggering periodically when processing time advances (e.g., once per minute) is probably wise because the number of trigger firings won’t be dependent upon the amount of data actually observed for the window; at worst, we’ll just get a steady flow of periodic trigger firings.
 
-太慢的场景（即，提供早期猜测性的结果），对于任意给定的窗口，应该可以假设它有稳定的输入数据，因为我们知道（根据定义，窗口处于早期阶段）离输入结束还为时尚早。因此，随着处理时间的前进，周期性（例如，每分钟一次）触发或许是明智的，因为触发的数量并不依赖于实际观察到的数据量，在最坏的情况下，我们只会得到稳定的定时触发消息流。
+**太慢的场景**（即，提供早期猜测性的结果），对于任意给定的窗口，应该可以假设它有稳定的输入数据，因为我们知道（根据定义，窗口处于早期阶段）离输入结束还为时尚早。因此，随着处理时间的前进，周期性（例如，每分钟一次）触发或许是明智的，因为触发的数量并不依赖于实际观察到的数据量，在最坏的情况下，我们只会得到稳定的定时触发消息流。
 
-In the too fast case (i.e., providing updated results in response to late data due to a heuristic watermark), let’s assume our watermark is based on a relatively accurate heuristic (often a reasonably safe assumption). In that case, we don’t expect to see late data very often, but when we do, it’d be nice to amend our results quickly. Triggering after observing an element count of 1 will give us quick updates to our results (i.e., immediately any time we see late data), but is not likely to overwhelm the system given the expected infrequency of late data.
+> In the too fast case (i.e., providing updated results in response to late data due to a heuristic watermark), let’s assume our watermark is based on a relatively accurate heuristic (often a reasonably safe assumption). In that case, we don’t expect to see late data very often, but when we do, it’d be nice to amend our results quickly. Triggering after observing an element count of 1 will give us quick updates to our results (i.e., immediately any time we see late data), but is not likely to overwhelm the system given the expected infrequency of late data.
 
-太快的场景（即，由于启发式水位会产生延迟数据，需要为延迟时间提供更新后的结果）。假设我们的启发式水位相对比较准确（通常是一个相当安全的假设）。在这种情况下，我们预计不会频繁看到延迟数据，但是如果我们这么做，最好能快速更新结果。即观察到1个元素就触发，使得我们可以快速更新结果（观察到延迟数据后立即触发），考虑到预期的延迟数据并不频繁，触发消息不太可能淹没系统。
+**太快的场景**（由于启发式水位会产生延迟数据，要能更新输出结果）。假设我们的启发式水位相对比较准确（通常是一个合理的假设），这样，我们预计不会频繁看到延迟数据，但如果确实有，最好能快速更新。即观察到1个元素就触发（观察到延迟数据后立即触发），使得我们可以快速修改输出。考虑到预期的延迟数据并不频繁，触发消息不太可能淹没系统。
 
-Note that these are just examples: we’re free to choose different triggers (or to choose not to trigger at all for one or both of them) if appropriate for the use case at hand.
+> Note that these are just examples: we’re free to choose different triggers (or to choose not to trigger at all for one or both of them) if appropriate for the use case at hand.
 
-注意，上面只是示例：我们可以根据实际情况选择不同的触发器（也可以选择在上述两种场景下都不触发，或者只在一种场景下触发）。
+注意上面只是举例：根据实际情况自由选择不同的触发器（可以在上述两种场景下都不触发，或者只在一种场景下触发）。
 
-Lastly, we need to orchestrate the timing of these various triggers: early, on-time, and late. We can do this with a `Sequence` trigger and a special `OrFinally` trigger, which installs a child trigger that terminates the parent trigger when the child fires.
+> Lastly, we need to orchestrate the timing of these various triggers: early, on-time, and late. We can do this with a `Sequence` trigger and a special `OrFinally` trigger, which installs a child trigger that terminates the parent trigger when the child fires.
 
-最后，我们需要好好规划各种触发器触发的时机：早期（），准时（）和晚期（）。我们可以使用`Sequence`触发器和特殊的`OrFinally`触发器来完成。`OrFinally`作为子触发器，触发之后会终止其父触发器。
+最后，我们需要好好规划各种触发器触发的时机：水位处于窗口早期时，水位处于窗口结束时和数据有延迟时。我们可以使用`Sequence`触发器和特殊的`OrFinally`触发器来完成。`OrFinally`会安装一个子触发器，触发之后会终止其父触发器。
 
 ```java
 PCollection<KV<String, Integer>> scores = input
   .apply(Window.into(FixedWindows.of(Duration.standardMinutes(2)))
-               .triggering(Sequence(
+               .triggering(Sequence( // 这两行
                  Repeat(AtPeriod(Duration.standardMinutes(1)))
                    .OrFinally(AtWatermark()),
                  Repeat(AtCount(1))))
   .apply(Sum.integersPerKey());
-//Listing 4. Manually specified early and late firings.
+//代码清单 4. Manually specified early and late firings.
 ```
-However, that’s pretty wordy. And given that the pattern of repeated-early | on-time | repeated-late firings is so common, we provide a custom (but semantically equivalent) API in Dataflow to make specifying such triggers simpler and clearer:
+> However, that’s pretty wordy. And given that the pattern of repeated-early | on-time | repeated-late firings is so common, we provide a custom (but semantically equivalent) API in Dataflow to make specifying such triggers simpler and clearer:
 
-不过这相当烦琐。考虑到，早期重复触发|准时触发一次|晚期重复触发，这样的模式很常见，Dataflow提供了一个自定义API（语义等价），可以更加简单清晰地声明这样的触发器。
+不过这相当烦琐。考虑到这样的模式很常见：（水位处于窗口早期时）重复触发|（水位处于窗口结束时）触发一次|（数据有延迟时）重复触发，Dataflow提供了一个（语义等价）自定义API，可以更加简洁地声明：
 
 ```java
 PCollection<KV<String, Integer>> scores = input
@@ -269,31 +271,32 @@ PCollection<KV<String, Integer>> scores = input
   .apply(Sum.integersPerKey());
 //Listing 5. Early and late firings via the early/late API.
 ```
-Executing either Listing 4 or 5 on a streaming engine (with both perfect and heuristic watermarks, as before) then yields results that look like this:
+> Executing either Listing 4 or 5 on a streaming engine (with both perfect and heuristic watermarks, as before) then yields results that look like this:
 
-在流式引擎上执行代码清单4或5（像以前一样，左边完美型水位，右边启发式水印位），产生的结果看起来像这样：
+在流式引擎上执行代码清单4或5（像以前一样，左边完美型水位，右边启发式水位），效果如下：
 
 ![图7](102-figure-7.png) *图7.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/a956f3a2e3da28718444e303672bfebf450b3437/file.mp4)
 
-This version has two clear improvements over Figure 6:
+> This version has two clear improvements over Figure 6:
+>
+> - For the “watermarks too slow” case in the second window, [12:02, 12:04): we now provide periodic early updates once per minute. The difference is most stark in the perfect watermark case, where time-to-first-output is reduced from almost seven minutes down to three and a half; but it’s also clearly improved in the heuristic case as well. Both versions now provide steady refinements over time (panes with values 7, 14, then 22), with relatively minimal latency between the input becoming complete and materialization of the final output pane for the window.
+> - For the “heuristic watermarks too fast” case in the first window, [12:00, 12:02): when the value of 9 shows up late, we immediately incorporate it into a new, corrected pane with value of 14.
+>
 
-- For the “watermarks too slow” case in the second window, [12:02, 12:04): we now provide periodic early updates once per minute. The difference is most stark in the perfect watermark case, where time-to-first-output is reduced from almost seven minutes down to three and a half; but it’s also clearly improved in the heuristic case as well. Both versions now provide steady refinements over time (panes with values 7, 14, then 22), with relatively minimal latency between the input becoming complete and materialization of the final output pane for the window.
-- For the “heuristic watermarks too fast” case in the first window, [12:00, 12:02): when the value of 9 shows up late, we immediately incorporate it into a new, corrected pane with value of 14.
+图6相比，这个版本有两个明显的提高：
 
-这个版本有==两个明显的提高超过图6==：
+- 对于**[12:02, 12:04)**这个窗口水位太慢的问题：我们现在提供每分钟一次的早期更新。完美型水位的差异最显著，第一次输出的时间从近七分钟下降到三分钟半，启发式水位也有明显提高。现在，随着时间的推移，两种水位都能持续完善输出结果（窗格值7，14，然后22），在输入逐步完整的过程中，提供相对最实时的输出结果。
+- 对于启发式水位在**[12:00, 12:02)**这个窗口太快的问题：当值9最后出现时，立即将它纳入一个新的窗格，修正后值为正确的**14**。
 
-- 对于[12:02, 12:04)这个窗口水位太慢的问题：我们现在提供每分钟一次的早期更新。完美型水位的差异最显著，第一次输出的时间从近七分钟下降到三分钟半，启发式水位也有明显提高。现在，随着时间的推移，两种水位都能持续完善输出结果（窗格值7，14，然后22），在输入逐步完整的过程中，提供相对最实时的输出结果。
-- 对于[12:00, 12:02)这个窗口，启发式水位太快的问题：当值9最后出现，我立即将它纳入一个新的窗格，修正后值为14。
+> One interesting side effect of these new triggers is that they effectively normalize the output pattern between the perfect and heuristic watermark versions. Whereas the two versions in Figure 6 were starkly different, the two versions here look quite similar.
 
-One interesting side effect of these new triggers is that they effectively normalize the output pattern between the perfect and heuristic watermark versions. Whereas the two versions in Figure 6 were starkly different, the two versions here look quite similar.
+一个意外的惊喜是：新加入的触发器机制让两种类型的水位算法产生了统一的输出。对比图6，两个算法版本还截然不同，这里却十分相似。
 
-这些新触发器有个有趣的副作用，它事实上规范了完美型水位和启发式水印的输出模式。图6两种水位的执行结果截然不同，而这里看起来很相似。
+> The biggest remaining difference at this point is window lifetime bounds. In the perfect watermark case, we know we’ll never see any more data for a window once the watermark has passed the end of it, hence we can drop all of our state for the window at that time. In the heuristic watermark case, we still need to hold on to the state for a window for some amount of time to account for late data. But as of yet, our system doesn’t have any good way of knowing just how long state needs to be kept around for each window. That’s where allowed lateness comes in.
 
-The biggest remaining difference at this point is window lifetime bounds. In the perfect watermark case, we know we’ll never see any more data for a window once the watermark has passed the end of it, hence we can drop all of our state for the window at that time. In the heuristic watermark case, we still need to hold on to the state for a window for some amount of time to account for late data. But as of yet, our system doesn’t have any good way of knowing just how long state needs to be kept around for each window. That’s where allowed lateness comes in.
+这两个版本还有一个很大的区别：**窗口的生命周期不同**。使用完美型水位，我们知道一旦水位通过窗口的尾部，窗口就不会再有任何输入数据，因此可以丢弃窗口的所有状态。而==使用启发式水位，为了计算延迟数据，我们仍需要在相当一段时间内保存内部状态==。目前为止，**系统还没有方法知道每个窗口需要保存多长时间**。这就需要引入**允许延迟多久**的概念。
 
-剩下的最大差异是在窗口的生命周期结束的时刻，使用完美型水位，我们知道一旦水位通过窗口的尾部，窗口就不会再有任何输入数据，因此可以丢弃窗口的所有状态。而使用启发式水位，为了计算延迟数据，我们仍需要在相当一段时间内保存内部状态。但目前为止，系统还没有方法知道每个窗口需要保存多长时间。这就是需要引入允许延迟的地方。
-
-### *When*:  允许的延迟（即，垃圾回收）
+### *When*:  延迟多久（即，垃圾回收）
 
 Before moving on to our last question (“How do refinements of results relate?”), I’d like to touch on a practical necessity within long-lived, out-of-order stream processing systems: garbage collection. In the heuristic watermarks example in Figure 7, the persistent state for each window lingers around for the entire lifetime of the example; this is necessary to allow us to appropriately deal with late data when/if they arrive. But while it’d be great to be able to keep around all of our persistent state until the end of time, in reality, when dealing with an unbounded data source, it’s often not practical to keep state (including metadata) for a given window indefinitely; we’ll eventually run out of disk space.
 
