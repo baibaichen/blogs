@@ -376,7 +376,9 @@ PCollection<KV<String, Integer>> scores = input
 
 并排对比可使每种模式之间的不同语义更加清晰。考虑图7中第二个窗口的三个窗格（事件时间范围[12:02，12:04））。 下表显示了（在图7的管道中）使用三种累积模式，每个窗格的值是多少：
 
-![表1](102-figure-table1.png) *表1. Comparing accumulation modes using the second window from Figure 7.*
+![表1](102-figure-table1.png) 
+
+*表1. Comparing accumulation modes using the second window from Figure 7.*
 
 > - **Discarding**: Each pane incorporates only the values that arrived during that specific pane. As such, the final value observed does not fully capture the total sum. However, if you were to sum all the independent panes themselves, you would arrive at a correct answer of 22. This is why discarding mode is useful when the downstream consumer itself is performing some sort of aggregation on the materialized panes.
 > - **Accumulating**: As in Figure 7, each pane incorporates the values that arrived during that specific pane, plus all the values from previous panes. As such, the final value observed correctly captures the total sum of 22. If you were to sum up the individual panes themselves, however, you’d effectively be double- and triple-counting the inputs from panes 2 and 1, respectively, giving you an incorrect total sum of 51. This is why accumulating mode is most useful when you can simply overwrite previous values with new values: the new value already incorporates all the data seen thus far.
@@ -461,7 +463,7 @@ PCollection<KV<String, Integer>> scores = input
 > However, we’ve really only looked at one type of windowing: fixed windowing in event-time. As you know from Streaming 101, there are a number of dimensions to windowing, two of which I’d like to visit before we call it day: fixed windowing in processing-time and session windowing in event-time.
 >
 
-至此，我们已经触及了所有四个问题：
+至此，四个问题都已经回答了：
 
 - 计算逻辑是什么？由转换回答。
 
@@ -469,7 +471,7 @@ PCollection<KV<String, Integer>> scores = input
 - 在（处理时间维度上）何时进行计算，并输出结果？由水位和触发器回答
 - 如何合并窗口多次输出的结果？由聚合模式回答
 
-不过，我们只看了一种类型的窗口：事件时间维度上的固定窗口。正如你所知道，*Streaming 101*中还有一些其它类型的窗口。今天要讨论的其中两个是：处理时间维度上的固定窗口和事件时间维度上的Session窗口。
+但我们只讨论了一种类型的窗口：**固定事件时间窗口**。我们知道，*Streaming 101* 中还有一些其它类型的窗口。今天讨论其中的两个：处理时间维度上的固定窗口和事件时间维度上的Session窗口。
 
 ## *When/Where*：处理时间窗口
 
@@ -479,10 +481,10 @@ PCollection<KV<String, Integer>> scores = input
 > - For use cases where the time that events happened is important (e.g., analyzing user behavior trends, billing, scoring, etc), processing time windowing is absolutely the wrong approach to take, and being able to recognize these cases is critical.
 >
 
-有两个原因，处理时间窗口很重要：
+有两个原因使得处理时间窗口很重要：
 
-- 某些特定场景，像使用监控（例如，Web服务流量QPS），此时，以观察到数据进入系统的处理时间窗口来分析输流，是绝对适当的方法。
-- 对于发生事件时的时间很重要（例如，分析用户行为的趋势，计费，评分等）的情况，==至关重要的是，使用处理时间窗口，有助于识别出这是绝对错误的做法==。
+- 某些特定场景，像用量监控（例如，Web服务流量QPS），在观察到数据流时就分析数据，处理时间窗口是绝对合适的方法。
+- 对于事件的实际发生时间很重要（例如，分析用户行为的趋势，计费，评分等）的场景，使用处理时间窗口是绝对错误的做法，能识别出这种场景很重要。
 
 > As such, it’s worth gaining a solid understanding of the differences between processing-time windowing and event-time windowing, particularly given the prevalence of processing-time windowing in most streaming systems today.
 
@@ -490,18 +492,20 @@ PCollection<KV<String, Integer>> scores = input
 
 >When working within a model, such as the one presented in this post, where windowing as a first-class notion is strictly event-time based, there are two methods one can use to achieve processing-time windowing:
 >
->- For use cases where the time that events happened is important (e.g., analyzing user behavior trends, billing, scoring, etc), processing time windowing is absolutely the wrong approach to take, and being able to recognize these cases is critical.
->- For use cases where the time that events happened is important (e.g., analyzing user behavior trends, billing, scoring, etc), processing time windowing is absolutely the wrong approach to take, and being able to recognize these cases is critical.
+>- **Triggers:** Ignore event time (i.e., use a global window spanning all of event time) and use triggers to provide snapshots of that window in the processing-time axis.
+>- **Ingress time**: Assign ingress times as the event times for data as they arrive, and use normal event time windowing from there on. This is essentially what something like Spark Streaming does currently.
 
 
-在以窗口作为第一类概念的模型中，例如本文描述的模型，窗口严格基于事件时间。实现处理时间窗口有两种方法：
+在以窗口作为第一类概念，窗口严格基于事件时间的模型中，如本文的模型。有两种方法实现处理时间窗口：
 
-- **触发器**：忽略事件时间（即，使用全局窗口覆盖所有事件时间），使用触发器在处理时间维度上提供该窗口的快照。
-- **数据进入时间**：当数据到达时，指定进入时间作为其事件时间，此后使用正常的事件时间窗口。这基本上是Spark Streaming目前的做法。
+- **触发器**：忽略事件时间（等价于使用全局窗口覆盖所有事件时间），使用触发器在处理时间维度上提供该窗口的快照。
+- **数据进入时间**：当数据到达时，指定进入时间作为其事件时间，此后使用正常的事件时间窗口。这是Spark Streaming目前的做法。
 
 > Note that the two methods are more or less equivalent, although they differ slightly in the case of multi-stage pipelines: **in the triggers version**, each stage slices up the processing time “windows” independently, so for example, data in window X for one stage may end up in window X-1 or X+1 in the next stage; **in the ingress time version**, once a datum is incorporated into window X, it will remain in window X for the duration of the pipeline due to synchronization of progress between stages via watermarks (in the Dataflow case), micro-batch boundaries (in the Spark Streaming case), or whatever other coordinating factor is involved at the engine level.
 
-请注意，这两种方法或多或少是等价的。但是在多阶段管道下，它们略有不同：触发器版本，每个阶段各自独立地切分处理时间窗口，例如，在某个阶段，数据出现在窗口X，而在下一个阶段，可能最终出现在窗口X-1或窗口X+1；进入时间版本，一旦数据被纳入窗口X，那么在管道的整个生命周期，会一直在窗口X，==这是因为各阶段之间进度的同步，通过水位（Dataflow），micro-batch（Spark），或任何在引擎层的其它同步机制。==
+请注意，这两种方法或多或少等价。但是在**多阶段**管道下略有不同：**使用触发器**，每个阶段各自独立地切分处理时间窗口，例如，在某个阶段数据出现在窗口X，但数据在下一个阶段可能出现在窗口X-1或窗口X+1；**使用数据进入时间**，数据一旦被纳入窗口X，因为各阶段之间会同步进度，则在管道的整个生命周期，会一直在窗口X。Dataflow的同步机制是水位，Spark利用每个micro-batch的边界，其它引擎总会有某种协调因素。
+
+> 注：这里的多阶段可以理解为有多个**shffule**。
 
 >==As I’ve noted to death==, the big downside of processing time-windowing is that the contents of the windows change when the observation order of the inputs changes. To drive this point home in a more concrete manner, we’re going to look at these three use cases:
 >
@@ -509,7 +513,7 @@ PCollection<KV<String, Integer>> scores = input
 >-   Processing-time windowing via triggers
 >-   Processing-time windowing via ingress time
 
-处理时间窗口的最大缺点是，输入的顺序一旦改变，窗口内容会发生变化。为了真正理解这一点，我们来看三个场景：
+正如我所指出的，处理时间窗口的最大缺点是，输入的顺序一旦改变，窗口内容会发生变化。为了真正理解这一点，来看三个场景：
 
 -   事件时间
 -   处理时间窗口，使用触发器
@@ -517,7 +521,7 @@ PCollection<KV<String, Integer>> scores = input
 
 > We'll apply each to two different input sets (so, six variations total). **The two input sets will be for the exact same events** (i.e., same values, occurring at the same event times), **but with different observation orders**. The first set will be the observation order we’ve seen all along, colored white; the second one will have all the values shifted in the processing-time axis as in Figure 12 below, colored purple. You can simply imagine that the purple example is another way reality could have happened if the winds had been blowing in from the east instead of the west (i.e., the underlying set of complex distributed systems had played things out in a slightly different order).
 
-每个场景应用两个不同的输入集（总共执行六次）。两个输入集有相同的事件（即，相同的值和事件时间），但系统观察到的顺序不同。如图12所示，第一组白色，是我们一直使用的观察顺序；第二组紫色，所有的值沿着处理时间维度（Y轴）移动了位置。你可以简单地认为，紫色例子是现实中另一种可能发生的事实，比如今天刮东风，而不是西风（也就是说，底层复杂的分布式系统以稍微不同的顺序发挥了作用）。
+每个场景分别使用不同的两个输入集（总共执行六次）。**两个输入集有相同的事件**（即，相同的值和事件时间），**但系统观察到的顺序不同**。如图12所示，第一组白色，是我们一直使用的观察顺序；第二组紫色，所有的值沿着处理时间维度（Y轴）移动了位置。你可以简单地认为，今天刮东风，而不是西风，导致出现了紫色示例中的顺序，这是现实中可能发生的事实。当然，这其实是底层复杂的分布式系统以略微不同的顺序发挥了作用。
 
 ![图12](102-figure-12-1.png)![图12](102-figure-12-2.png) 
 *图12 Shifting input observation order in processing time, holding values and event times constant.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/30831a9ed334cdb87d247d2a21a0be53e729e869/file.mp4)
@@ -526,7 +530,7 @@ PCollection<KV<String, Integer>> scores = input
 
 > To establish a baseline, let’s first compare fixed windowing in event-time with a heuristic watermark over these two observation orderings. We’ll reuse the early/late code from Listing 5/Figure 7 to get the results below. The left-hand side is essentially what we saw before; the right-hand side is the results over the second observation order. The important thing to note here is: even though the overall shape of the outputs differs (due to the different orders of observation in processing time), **the final results for the four windows remain the sam**e: 14, 22, 3, and 12:
 
-为了建立基准，让我们先看看使用事件时间窗口和启发式水位，在观察顺序不同的两个数据集上的执行情况。我们重用代码清单5（图7）中早期和延迟的触发器，得到下面的结果。左边本质上就是我们前面看到的，右边是在另一个观察顺序数据集上执行的结果。这里的重点是：即使输出的整体形状不同（由于在处理时间观察到的顺序不同），四个窗口的最终结果保持不变：14，22，3，和12：
+为了建立比较基线，我们先看看使用事件时间窗口和启发式水位，在顺序不同的两个数据集上的执行情况。我们重用代码清单5（图7）中==早期和延迟==的触发器，得到下面的结果。左边和我们前面看到的一样，右边是在另一个数据集上执行的结果。这里的重点是：即使输出的整体形状不同（由于在处理时间观察到的顺序不同），**但四个窗口的最终结果保持不变：14，22，3，和12**：
 
 ![图13](102-figure-13.png) *图13 Event-time windowing over two different processing-time orderings of the same inputs.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/1c4b79c3f318b6873c417d10f0fdc16418176e9d/file.mp4)
 
@@ -536,16 +540,16 @@ PCollection<KV<String, Integer>> scores = input
 >
 > - **Windowing**: We use the global event-time window since we’re essentially emulating processing-time windows with event-time panes.
 > - **Triggering**: We trigger periodically in the processing-time domain, based off of the desired size of the processing-time windows.
-> - **Accumulation:** We use discarding mode to keep the panes independent from one     another, thus letting each of them act like an independent processing-time “window.”
+> - **Accumulation:** We use discarding mode to keep the panes independent from one another, thus letting each of them act like an independent processing-time “window.”
 >
 > The corresponding code looks something like Listing 9; note that global windowing is the default, hence there is no specific override of the windowing strategy:
 >
 
-现在，我们开始比较前述两种使用处理时间的方法。首先尝试触发器。要以这种方式使得处理时间“分窗”可以工作，要考虑三个方面：
+现在开始比较使用处理时间的两种方法。首先使用**触发器**。要使之工作，得考虑三个方面：
 
-- **窗口**：我们使用全局事件时间窗口，本质上是用事件时间窗格模拟处理时间窗口
-- **触发器**：我们根据所需处理时间窗口的大小，在处理时间维度定期触发。
-- **累积**：我们使用丢弃模式，以保持窗格彼此独立，从而让每个窗口都像一个独立的处理时间“窗口”。
+- **窗口**：使用全局事件时间窗口，本质上是用**事件时间窗格**模拟**处理时间窗口**
+- **触发器**：根据所需处理时间窗口的大小，在处理时间维度定期触发。
+- **累积**：使用丢弃模式，以保持窗格彼此独立，从而让每个窗格都像一个独立的“处理时间窗口”。
 
 参考代码清单9，注意全局窗口是默认的，因此没有明确指定分窗策略：
 
@@ -563,14 +567,14 @@ PCollection<KV<String, Integer>> scores = input
 >- Since we’re emulating processing time windows via event-time panes, the “windows” are delineated in the processing-time axis, which means their width is measured on the Y axis instead of the X axis.
 >- Since processing-time windowing is sensitive to the order that input data are encountered, the results for each of the “windows” differs for each of the two observation orders, even though the events themselves technically happened at the same times in each version. On the left we get 12, 21, 18, whereas on the right we get 7, 36, 4.
 
-在流式引擎上执行上述代码，在==观察顺序不同的两个数据集上==的运行结果如下图14，此图有趣的注释如下：
+在流式引擎上执行上述代码，使用顺序不同的两个数据集的运行结果如下图14，此图有趣的注释如下：
 
 - 由于我们通过事件时间窗格来模拟处理时间窗口，所以在处理时间轴定义“窗口”，这意味着窗口宽度是在Y轴，而不是X轴上测量的。
 - 由于处理时间窗口对数据输入顺序敏感，不同的观察顺序，即使技术上两个数据集的事件发生在同一时间，但对应窗口的结果不同。左边是12，21，18，而右边是7，36，4。
 
 ![图14](102-figure-14.png) *图14 Processing-time “windowing” via triggers, over two different processing-time orderings of the same inputs.*，[动画](https://embedwistia-a.akamaihd.net/deliveries/3d49514e2689726da73c2ef1a96dd53dd5d829a6/file.mp4)
 
-### 处理时间窗口：使用进入时间
+### 处理时间窗口：使用数据进入时间
 
 >Lastly, let’s look at processing-time windowing achieved by mapping the event times of input data to be their ingress times. Code-wise, there are four aspects worth mentioning here:
 >
@@ -581,11 +585,11 @@ PCollection<KV<String, Integer>> scores = input
 >
 >The actual code might thus looks something like this:
 
-最后，让我们来看看实现处理时间窗口的另一个方法，==输入数据的事件时间就是它们的进入时间==。代码层面，这里有四个方面值得一提：
+最后来看看实现处理时间窗口的另一个方法，数据的进入时间就是它们的事件时间。代码层面，这里有四个方面值得一提：
 
 - **时间偏移**：当记录到达时，用进入时间覆盖事件时间。请注意尽管未来可能实现，但目前Dataflow没有标准API来做到这点（下面伪码中的I / O源使用的是虚构方法来表示这点）。对于Google Cloud Pub/Sub服务，发消息时，只需要让`timestampLabel`字段为空即可；对于其他数据源，需要查阅它们的具体文档。
 - **窗口**：回到标准的、事件时间维度上的固定窗口。
-- **触发器**：由于==进入时间提供了计算完美水位的能力==，可使用默认触发器，在这种情况下，当水位通过**窗口末端**时，隐式地触发一次
+- **触发器**：由于使用数据进入时间，提供了完美型水位（没有延迟数据），可使用默认触发器，在这种情况下，当水位通过**窗口末端**时，隐式地触发一次
 - **累积模式**：因为每个窗口只有一个输出（使用缺省触发器，只触发一次），不需要设置累积模式。
 
 代码看起来如下：
@@ -608,7 +612,7 @@ PCollection<KV<String, Integer>> scores = input
 
 流式引擎上的执行效果如下图15。数据到达后，用进入时间覆盖事件时间（即到达时的处理时间），导致向右水平移动到理想的水位线。此图有趣的注释如下：
 
-- 与上一个例子一样的是，即使输入值和事件时间保持不变，但输入顺序有变化，我们得到的结果不同了。
+- 与上一个例子一样的是，尽管输入值和事件时间保持不变，输入顺序有变化，结果便不同。
 - 与上一个例子不同的是，窗口再次被划定在事件时间维度（因此沿X轴）。尽管如此，这并不是真正的事件时间窗口；我们只是在处理时间和事件发生时间之间做了简单地映射，删除每个输入原始发生的时间，更换成新的、表示首次在管道观察到数据的时间。
 - 尽管这样，由于水位，触发器触发的时间和上一个例子的触发时间完全一至。此外，产生的输出值也和上例一样，如预测：左边12、21、18和右边7、36、4。
 - 使用进入时间，完美水位成为可能。此时，实际水位和理想水位匹配，是一条向右上升的斜线。
@@ -618,7 +622,7 @@ PCollection<KV<String, Integer>> scores = input
 
 >While it’s interesting to see the different ways one can implement processing-time windowing, the big takeaway here is the one I’ve been harping on since the first post: event-time windowing is order-agnostic, at least in the limit (actual panes along the way may differ until the input becomes complete); processing-time windowing is not. If you care about the times at which your events actually happened, you must use event-time windowing or your results will be meaningless. I will get off my soapbox now.
 
-尽管用不同的方式实现处理时间窗口很有趣，但这里的核心关键点，正是我在第一篇文章中反复唠叨的：至少在某个时限内，事件时间窗口是顺序无关的（事实上，在输入变得完整之前，整个过程中窗格的输出可能会有所不同）；处理时间窗口是顺序相关的。如果你关心的是事件发生的实际时间，那就必须使用事件时间窗口，否则结果将毫无意义。好了，唠叨结束。
+尽管用不同的方式实现处理时间窗口很有趣，但这里的核心关键点，正是我在第一篇文章中反复唠叨的：至少在某个时限内，事件时间窗口是顺序无关的（当然在输入变得完整之前，整个过程中窗格的输出可能会不同）；处理时间窗口是顺序相关的。**如果你关心的是事件发生的实际时间，那就必须使用事件时间窗口，否则结果将毫无意义**。好了，唠叨结束。
 
 ## Where：Session 窗口
 
