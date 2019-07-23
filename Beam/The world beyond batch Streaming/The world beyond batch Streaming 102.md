@@ -632,7 +632,7 @@ PCollection<KV<String, Integer>> scores = input
 
 > Sessions are a special type of window that captures a period of activity in the data that is terminated by a gap of inactivity. They’re particularly useful in data analysis because they can provide a view of the activities for a specific user over a specific period of time where they were engaged in some activity. This allows for the correlation of activities within the session, drawing inferences about levels of engagement based off of the lengths of the sessions, etc.
 
-Session是一种特殊类型的窗口，它**捕获**数据中的活动周期，由不活动的间隔终止。在数据分析中Session特别有用，因为它们可以为特定用户在特定时间内从事某些活动提供==活跃视图==。例如，支持Session内活动的相关性分析，可基于Session的长度推论用户的参与度，等等。
+Session是一种特殊类型的窗口，它以不活动的间隔为界，划分出数据的活动周期。在数据分析中Session特别有用，因为它们可以为特定用户在特定时间内从事某些活动提供分析维度。因此使得分析Session内活动的相关性、基于Session的长度推论用户的参与度等等，都成为可能。
 
 > From a windowing perspective, sessions are particularly interesting in two ways:
 >
@@ -640,14 +640,14 @@ Session是一种特殊类型的窗口，它**捕获**数据中的活动周期，
 > - They are also an example of an unaligned window, i.e., a window that does not apply uniformly across the data, but instead only to a specific subset of the data (e.g., per user). This is in contrast to aligned windows like fixed and sliding windows, which typically apply uniformly across the data.
 >
 
-从窗口的角度，Session在两个方面特别有趣：
+从窗口的角度，Session在两个方面特别有意思：
 
-- 它是数据驱动窗口的一个例子：窗口的位置和大小是输入数据自身的直接结果，而不是像固定窗口和滑动窗口那样，基于某些预定义的时间模式。
-- 它也是非对齐窗口的一个例子：即，并不是一致地切分所有数据，不同的数据子集（例如，按用户）有不同地切分方式。对比对齐窗口，例如固定窗口和滑动窗口总是一致地切分所有数据。
+- 它是数据驱动窗口的一个例子：窗口的位置和大小是**输入数据自身的直接结果**，而不是像固定窗口和滑动窗口那样，基于某些预定义的时间模式。
+- 它也是非对齐窗口的一个例子：即，并非一致地切分所有数据，不同的数据子集（例如，按用户）有不同地切分方式。相比对齐窗口，例如固定窗口和滑动窗口，总是一致地切分所有数据。
 
 > For some use cases, it’s possible to tag the data within a single session with a common identifier ahead of time (e.g., a video player that emits heartbeat pings with quality of service information; for any given viewing, all of the pings can be tagged ahead of time with a single session ID). In this case, sessions are much easier to construct since it’s basically just a form of grouping by key.
 
-某些情况下，可以事先为单个Session里的数据用共同的标识符打标签（例如，视频播放器的心跳带有服务质量信息；对于任何给定的观察，所有的心跳信息可以提前标记单个Session ID）。此时，构造Session更容易，因为它基本上只是一种按键分组的形式。
+某些情况下，可以事先为单个Session里的数据用共同的标识符打标签（例如，视频播放器的心跳带有服务质量信息；对于任何给定的session，所有的心跳信息可以提前标记单个Session ID）。这个例子构造Session较容易，因为它只不过是一种按键分组的形式。
 
 > However, in the more general case (i.e., where the actual session itself is not known ahead of time), the sessions must be constructed from the locations of the data within time alone. When dealing with out-of-order data, this becomes particularly tricky.
 
@@ -655,13 +655,13 @@ Session是一种特殊类型的窗口，它**捕获**数据中的活动周期，
 
 > They key insight in providing general session support is that a complete session window is, by definition, a composition of a set of smaller, overlapping windows, each containing a single record, with each record in the sequence separated from the next by a gap of inactivity no larger than a predefined timeout. Thus, even if we observe the data in the session out of order, we can build up the final session simply by merging together any overlapping windows for individual data as they arrive.
 
-提供通用Session支持的关键直觉是：根据定义，完整的Session窗口由一组重叠的小窗口序列组成，每个窗口包含一个记录，序列中前后两个记录的不活跃间隔小于预定义的超时。这样，即使在Session中观察到乱序数据，当单独的延迟数据到达时，也只需简单地将所有重叠的窗口合并起来。
+支持通用Session的关键洞察是：完整的Session窗口根据定义是由一组重叠的小窗口序列组成，每个窗口包含一个记录，窗口序列中前后两条记录的**不活跃间隔**小于预定义的超时。因此，即使在Session中出现乱序数据，当单独的延迟数据到达时，也只需简单地合并所有重叠窗口。
 
 ![图16](102-figure-16.png) *图16 Unmerged proto-session windows, and the resultant merged sessions.*
 
 > Let’s look at an example, by taking the early/late code with retractions enabled from Listing 8 and updating the windowing to build sessions instead:
 
-让我们看一个例子，修改代码清单8的分窗策略以构建Session，早期和延迟的触发器配置不变，使用带有回收值得累积模式。
+举一个例子，修改代码清单8的分窗策略以构建Session，**早期和延迟的**触发器配置不变，使用带有回收值的累积模式。
 
 ```java
 PCollection<KV<String, Integer>> scores = input;
@@ -702,7 +702,7 @@ PCollection<KV<String, Integer>> scores = input;
 
 > This is some pretty powerful stuff. And what’s really awesome is how easy it is to describe something like this within a model that breaks apart the dimensions of stream processing into distinct, composable pieces. In the end, you can focus more on the interesting business logic at hand and less on the minutiae of shaping the data into some usable form.
 
-Session窗口非常强大。真正棒的是：我们的模型把流式处理问题分割成独立的、可组合的不同部分；在我们的模型里描述像Session窗口这样的东西是如此简单。最后，你可以把注意力更多地放在手边有趣的业务逻辑上，而较少关注在将数据转换成==可用形式==这样的细枝末节上。
+Session窗口非常强大。真正棒的是：我们的模型把流式处理问题分割成独立的、可组合的不同部分；在我们的模型里描述像Session窗口这样的东西是如此简单。最后，你可以把注意力更多地放在手边有趣的业务逻辑上，而不用操心怎么把数据组合成有用的形式这样的细枝末节。
 
 > If you don’t believe me, check out this blog post describing how to manually build up sessions on Spark Streaming (note that this is not done to point fingers at them; the Spark folks have just done a good enough job with everything else that someone’s actually bothered to go to the trouble of documenting what it takes to build a specific variety of sessions support on top of them; I can’t say the same for most other systems out there). It’s quite involved, and they’re not even doing proper event-time sessions, or providing speculative or late firings, nor retractions.
 
