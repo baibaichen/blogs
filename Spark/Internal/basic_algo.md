@@ -51,27 +51,24 @@ case class EventTimeWatermarkExec {
 ==计算==
 可以使用`Expression.apply(Row)`方法计算表达式的结果。
 
-![表达式体系](https://g.gravizo.com/source/custom_mark10?
-https://raw.githubusercontent.com/baibaichen/blogs/master/Spark/Spark%20Internal/%E5%9F%BA%E6%9C%AC%E7%AE%97%E6%B3%95.md
+![表达式体系](https://g.gravizo.com/source/custom_mark00?https://raw.githubusercontent.com/baibaichen/blogs/master/Spark/Internal/basic_algo.md)
 <details> 
 <summary></summary>
-custom_mark10
-  digraph G {
-    size ="4,4";
-    main [shape=box];
-    main -> parse [weight=8];
-    parse -> execute;
-    main -> init [style=dotted];
-    main -> cleanup;
-    execute -> { make_string; printf};
-    init -> make_string;
-    edge [color=red];
-    main -> printf [style=bold,label="100 times"];
-    make_string [label="make a string"];
-    node [shape=box,style=filled,color=".7 .3 1.0"];
-    execute -> compare;
-  }
-custom_mark10
+custom_mark00
+digraph G {
+    node  [shape=box]
+    rankdir = BT
+    Alias->UnaryExpression->Expression [arrowhead=empty]
+    AttributeReference->Attribute->LeafExpression->Expression [arrowhead=empty]
+    Alias->NamedExpression [penwidth=3]
+    NamedExpression->Expression [arrowhead=empty]
+    Attribute->NamedExpression [penwidth=3]
+    Attribute->NullIntolerant [penwidth=3]
+    NullIntolerant->Expression [arrowhead=empty]
+    AttributeReference->Unevaluable[penwidth=3]
+    Unevaluable->Expression [arrowhead=empty]
+}
+custom_mark00
 </details>
 
 <img src='https://g.gravizo.com/svg?
