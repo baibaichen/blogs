@@ -135,7 +135,7 @@ https://0x0fff.com/spark-architecture-shuffle
 
 This is my second article about Apache Spark architecture and today I will be more specific and tell you about the shuffle, one of the most interesting topics in the overall Spark design. The previous part was mostly about general Spark architecture and its memory management. It can be [accessed here](https://0x0fff.com/spark-architecture/). The next one is about Spark memory management and it [is available here](https://0x0fff.com/spark-memory-management/).
 
-![Spark Shuffle Design](https://0x0fff.com/wp-content/uploads/2015/08/Spark-Shuffle-Design.png)
+![Spark Shuffle Design](./SparkShuffle的技术演进/Spark-Shuffle-Design.png)
 
 What is the shuffle in general? Imagine that you have a list of phone call detail records in a table and you want to calculate amount of calls happened each day. This way you would set the “day” as your key, and for each record (i.e. for each call) you would emit “1” as a value. After this you would sum up values for each key, which would be an answer to your question – total amount of records for each day. But when you store the data across the cluster, how can you sum up the values for the same key stored on different machines? The only way to do so is to make all the values for the same key be on the same machine, after this you would be able to sum them up.
 
@@ -155,13 +155,13 @@ The logic of this shuffler is pretty dumb: it calculates the amount of “reduce
 
 Here is how it looks like:
 
-[![spark_hash_shuffle_no_consolidation](https://0x0fff.com/wp-content/uploads/2015/08/spark_hash_shuffle_no_consolidation-1024x484.png)](https://0x0fff.com/wp-content/uploads/2015/08/spark_hash_shuffle_no_consolidation.png)
+![spark_hash_shuffle_no_consolidation](./SparkShuffle的技术演进/spark_hash_shuffle_no_consolidation.png)
 
 There is an optimization implemented for this shuffler, controlled by the parameter “**spark.shuffle.consolidateFiles**” (default is “false”). When it is set to “true”, the “mapper” output files would be consolidated. If your cluster has **E** executors (“**–num-executors**” for YARN) and each of them has **C** cores (“**\*spark.executor.cores***” or “**\*–executor-cores***” for YARN) and each task asks for **T **CPUs (*“\**spark.task.cpus**“*), then the amount of execution slots on the cluster would be **E \* C / T**, and the amount of files created during shuffle would be **E \* C / T * R**. With 100 executors 10 cores each allocating 1 core for each task and 46000 “reducers” it would allow you to go from 2 billion files down to 46 million files, which is much better in terms of performance. This feature is implemented in a [rather straightforward way](https://github.com/apache/spark/blob/branch-1.6/core/src/main/scala/org/apache/spark/shuffle/FileShuffleBlockResolver.scala): instead of creating new file for each of the reducers, it creates a pool of output files. When map task starts outputting the data, it requests a group of **R** files from this pool. When it is finished, it returns this **R** files group back to the pool. As each executor can execute only **C / T** tasks in parallel, it would create only** C / T** groups of output files, each group is of **R** files. After the first **C / T** parallel “map” tasks has finished, each next “map” task would reuse an existing group from this pool.
 
 Here’s a general diagram of how it works:
 
-[![spark_hash_shuffle_with_consolidation](https://0x0fff.com/wp-content/uploads/2015/08/spark_hash_shuffle_with_consolidation-1024x500.png)](https://0x0fff.com/wp-content/uploads/2015/08/spark_hash_shuffle_with_consolidation.png)
+![spark_hash_shuffle_with_consolidation](./SparkShuffle的技术演进/spark_hash_shuffle_with_consolidation.png)
 
 Pros:
 
@@ -202,7 +202,7 @@ Each spill file is written to the disk separately, their merging is performed on
 
 This is how it works:
 
-[![spark_sort_shuffle](https://0x0fff.com/wp-content/uploads/2015/08/spark_sort_shuffle-1024x459.png)](https://0x0fff.com/wp-content/uploads/2015/08/spark_sort_shuffle.png)
+![spark_sort_shuffle](./SparkShuffle的技术演进/spark_sort_shuffle.png)
 
 So regarding this shuffle:
 
@@ -238,7 +238,9 @@ Also you must understand that at the moment sorting with this shuffle is perform
 
 Here’s how it looks like:
 
-[![spark_tungsten_sort_shuffle](https://0x0fff.com/wp-content/uploads/2015/08/spark_tungsten_sort_shuffle-1024x457.png)](https://0x0fff.com/wp-content/uploads/2015/08/spark_tungsten_sort_shuffle.png)First for each spill of the data it sorts the described pointer array and outputs an indexed partition file, then it merges these partition files together into a single indexed output file.
+![spark_tungsten_sort_shuffle](./SparkShuffle的技术演进/spark_tungsten_sort_shuffle.png)
+
+First for each spill of the data it sorts the described pointer array and outputs an indexed partition file, then it merges these partition files together into a single indexed output file.
 
 Pros:
 
@@ -266,7 +268,7 @@ This is all what I wanted to say about Spark shuffles. It is a very interesting 
 
 与MapReduce计算框架一样，Spark的Shuffle实现大致如下图所示，在DAG阶段以shuffle为界，划分stage，上游stage做map task，每个map task将计算结果数据分成多份，每一份对应到下游stage的每个partition中，并将其临时写到磁盘，该过程叫做shuffle write；下游stage做reduce task，每个reduce task通过网络拉取上游stage中所有map task的指定分区结果数据，该过程叫做shuffle read，最后完成reduce的业务逻辑。举个栗子，假如上游stage有100个map task，下游stage有1000个reduce task，那么这100个map task中每个map task都会得到1000份数据，而1000个reduce task中的每个reduce task都会拉取上游100个map task对应的那份数据，即第一个reduce task会拉取所有map task结果数据的第一份，以此类推。
 
-[![spark-shuffle-overview](http://sharkdtu.com/images/spark-shuffle-overview.png)](http://sharkdtu.com/images/spark-shuffle-overview.png)
+![spark-shuffle-overview](./SparkShuffle的技术演进/spark-shuffle-overview.png)
 
 在map阶段，除了map的业务逻辑外，还有shuffle write的过程，这个过程涉及到序列化、磁盘IO等耗时操作；在reduce阶段，除了reduce的业务逻辑外，还有前面shuffle read过程，这个过程涉及到网络IO、反序列化等耗时操作。所以整个shuffle过程是极其昂贵的，spark在shuffle的实现上也做了很多优化改进，随着版本的迭代发布，spark shuffle的实现也逐步得到改进。下面详细介绍spark shuffle的实现演进过程。
 
@@ -274,13 +276,13 @@ This is all what I wanted to say about Spark shuffles. It is a very interesting 
 
 Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1版本时参考Hadoop MapReduce的实现开始引入Sort Shuffle，在1.5版本时开始Tungsten钨丝计划，引入UnSafe Shuffle优化内存及CPU的使用，在1.6中将Tungsten统一到Sort Shuffle中，实现自我感知选择最佳Shuffle方式，到最近的2.0版本，Hash Shuffle已被删除，所有Shuffle方式全部统一到Sort Shuffle一个实现中。下图是spark shuffle实现的一个版本演进。
 
-[![spark-shuffle-evolution](http://sharkdtu.com/images/spark-shuffle-evolution.png)](http://sharkdtu.com/images/spark-shuffle-evolution.png)
+![spark-shuffle-evolution](./SparkShuffle的技术演进/spark-shuffle-evolution.png)
 
 ### Hash Shuffle v1
 
 在spark-1.1版本以前，spark内部实现的是Hash Shuffle，其大致原理与前面基本原理介绍中提到的基本一样，如下图所示。
 
-[![spark-shuffle-v1](http://sharkdtu.com/images/spark-shuffle-v1.png)](http://sharkdtu.com/images/spark-shuffle-v1.png)
+![spark-shuffle-v1](./SparkShuffle的技术演进/spark-shuffle-v1.png)
 
 在map阶段(shuffle write)，每个map都会为下游stage的每个partition写一个临时文件，假如下游stage有1000个partition，那么每个map都会生成1000个临时文件，一般来说一个executor上会运行多个map task，这样下来，一个executor上会有非常多的临时文件，假如一个executor上运行M个map task，下游stage有N个partition，那么一个executor上会生成M*N个文件。另一方面，如果一个executor上有K个core，那么executor同时可运行K个task，这样一来，就会同时申请K*N个文件描述符，一旦partition数较多，势必会耗尽executor上的文件描述符，同时生成K*N个write handler也会带来大量内存的消耗。
 
@@ -292,7 +294,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 在上一节讲到每个map task都要生成N个partition文件，为了减少文件数，后面引进了，目的是减少单个executor上的文件数。如下图所示，一个executor上所有的map task生成的分区文件只有一份，即将所有的map task相同的分区文件合并，这样每个executor上最多只生成N个分区文件。
 
-[![spark-shuffle-v2](http://sharkdtu.com/images/spark-shuffle-v2.png)](http://sharkdtu.com/images/spark-shuffle-v2.png)
+![spark-shuffle-v2](./SparkShuffle的技术演进/spark-shuffle-v2.png)
 
 表面上看是减少了文件数，但是假如下游stage的分区数N很大，还是会在每个executor上生成N个文件，同样，如果一个executor上有K个core，还是会开K*N个writer handler，总体上来说基本没太解决问题。对于shuffle read阶段跟v1版一样没改进，仍然容易导致OOM。
 
@@ -300,7 +302,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 针对上述Hash Shuffle的弊端，在spark 1.1.0版本中引入Sort Shuffle，它参考了Hadoop MapReduce中的shuffle实现，对记录进行排序来做shuffle，如下图所示。
 
-[![spark-shuffle-v3](http://sharkdtu.com/images/spark-shuffle-v3.png)](http://sharkdtu.com/images/spark-shuffle-v3.png)
+![spark-shuffle-v3](./SparkShuffle的技术演进/spark-shuffle-v3.png)
 
 在map阶段(shuffle write)，会按照partition id以及key对记录进行排序，将所有partition的数据写在同一个文件中，该文件中的记录首先是按照partition id排序一个一个分区的顺序排列，每个partition内部是按照key进行排序存放，map task运行期间会顺序写每个partition的数据，并通过一个索引文件记录每个partition的大小和偏移量。这样一来，每个map task一次只开两个文件描述符，一个写数据，一个写索引，大大减轻了Hash Shuffle大量文件描述符的问题，即使一个executor有K个core，那么最多一次性开K*2个文件描述符。
 
