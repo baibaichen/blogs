@@ -3,8 +3,7 @@
 当用户应用`new SparkContext`后，集群就会为在**Worker**上分配**executor**，那么这个过程是什么呢？本文以Standalone的Cluster为例，详细的阐述这个过程。序列图如下：
 
 ![20141004000118824](Executor分配详解\20141004000118824.png)
-
-
+<p align="center"><img src="Executor分配详解\20141004000118824.png" alt="20141004000118824"></p>
 ## 1. SparkContext创建`TaskScheduler`和`DAGScheduler`
  `SparkContext`是用户应用和Spark集群的交换的主要接口，用户应用一般首先要创建它。如果你使用**SparkShell**，你不必自己显式去创建它，系统会自动创建一个名字为sc的`SparkContext`的实例。创建`SparkContext`的实例，主要的工作除了设置一些conf，比如executor使用到的memory的大小。如果系统的配置文件有，那么就读取该配置。否则则读取环境变量。如果都没有设置，那么取默认值为512M。当然了这个数值还是很保守的，特别是在内存已经没那么昂贵的今天。
 
