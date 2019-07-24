@@ -51,10 +51,10 @@ case class EventTimeWatermarkExec {
 ==计算==
 可以使用`Expression.apply(Row)`方法计算表达式的结果。
 
-![表达式体系](https://g.gravizo.com/source/custom_mark10?https://raw.githubusercontent.com/baibaichen/blogs/master/Spark/Internal/basic_algo.md)
+![表达式体系](https://g.gravizo.com/source/custom_mark00?https://raw.githubusercontent.com/baibaichen/blogs/master/Spark/Internal/basic_algo.md)
 <details> 
 <summary></summary>
-custom_mark10
+custom_mark00
 digraph G {
     node  [shape=box]
     rankdir = BT
@@ -68,24 +68,8 @@ digraph G {
     AttributeReference->Unevaluable[penwidth=3]
     Unevaluable->Expression [arrowhead=empty]
 }
-custom_mark10
+custom_mark00
 </details>
-
-<img src='https://g.gravizo.com/svg?
-digraph G {
-    node  [shape=box]
-    rankdir = BT
-    Alias->UnaryExpression->Expression [arrowhead=empty]
-    AttributeReference->Attribute->LeafExpression->Expression [arrowhead=empty]
-    Alias->NamedExpression [penwidth=3]
-    NamedExpression->Expression [arrowhead=empty]
-    Attribute->NamedExpression [penwidth=3]
-    Attribute->NullIntolerant [penwidth=3]
-    NullIntolerant->Expression [arrowhead=empty]
-    AttributeReference->Unevaluable[penwidth=3]
-    Unevaluable->Expression [arrowhead=empty]
-}
-'>
 
 ###  计算，代码生成
 
