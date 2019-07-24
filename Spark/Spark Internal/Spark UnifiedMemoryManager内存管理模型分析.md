@@ -9,7 +9,9 @@ Spark的内存使用，大体上可以分为两类：Execution内存和Storage�
 3. 对不需要Cache的Application的计算场景，只能使用很少一部分内存
 
 为了克服上述提到的问题，尽量提高Spark计算的通用性，降低内存调优难度，减少OOM导致的失败问题，从Spark 1.6版本开始，新增了UnifiedMemoryManager（统一内存管理）内存管理模型的实现。UnifiedMemoryManager依赖的一些组件类及其关系，如下类图所示：
-![UnifiedMemoryManager](Spark UnifiedMemoryManager内存管理模型分析/UnifiedMemoryManager.png)
+
+<img src="Spark UnifiedMemoryManager内存管理模型分析/UnifiedMemoryManager.png" alt="UnifiedMemoryManager" />
+
 从上图可以看出，最直接最核心的就是StorageMemoryPool 和ExecutionMemoryPool，它们实现了动态内存池（Memory Pool）的功能，能够动态调整Storage内存区与Execution内存区之间的Soft boundary，使内存管理更加灵活。下面我们从**内存布局**和**内存控制**两个方面，来分析UnifiedMemoryManager内存管理模型。
 
 **内存布局**
@@ -21,7 +23,9 @@ UnifiedMemoryManager是MemoryManager的一种实现，是基于StaticMemoryManag
 
 这种新的内存管理模型，在Storage内存区与Execution内存区之间抽象出一个**Soft boundary**，能够满足当某一个内存区中内存用量不足的时候，可以从另一个内存区中借用。我们可以理解为，上面Storage内存和Execution堆内存是受Spark管理的，而且每一个内存区是可以动态伸缩的。这样的好处是，当某一个内存区内存使用量达到初始分配值，如果不能够动态伸缩，不能在两类内存区之间进行动态调整（Borrow），或者如果某个Task计算的数据量很大超过限制，就会出现OOM异常导致Task执行失败。应该说，在一定程度上，UnifiedMemoryManager内存管理模型降低了发生OOM的概率。
 我们知道，在Spark Application提交以后，最终会在Worker上启动独立的Executor JVM，Task就运行在Executor里面。在一个Executor JVM内部，基于UnifiedMemoryManager这种内存管理模型，堆内存的布局如下图所示：
-![spark-unified-heap-memory-layout](Spark UnifiedMemoryManager内存管理模型分析/spark-unified-heap-memory-layout.png)
+
+<img src="Spark UnifiedMemoryManager内存管理模型分析/spark-unified-heap-memory-layout.png" alt="spark-unified-heap-memory-layout" />
+
 上图中，systemMemory是Executor JVM的全部堆内存，在全部堆内存基础上reservedMemory是预留内存，默认300M，则用于Spark计算使用堆内存大小默认是：
 
 ```scala
@@ -31,7 +35,9 @@ maxHeapMemory = (systemMemory - reservedMemory) * 0.6
 受Spark管理的堆内存，使用去除预留内存后的、剩余内存的百分比，可以通过参数`spark.memory.fraction`来配置，默认值是0.6。Executor JVM堆内存，去除预留的reservedMemory内存，默认剩下堆内存的60%用于execution和storage这两类堆内存，默认情况下，Execution和Storage内存区各占50%，这个也可以通过参数spark.memory.storageFraction来配置，默认值是0.5。比如，在所有参数使用默认值的情况下，我们的Executor JVM内存为指定为2G，那么Unified Memory大小为(1024 * 2 – 300) * 0.6 = 1048MB，其中，Execution和Storage内存区大小分别为1048 * 0.5 = 524MB。
 另外，还有一个用来保证Spark Application能够计算的最小Executor JVM内存大小限制，即为minSystemMemory = reservedMemory * 1.5 = 300 * 1.5 = 450MB，我们假设Executor JVM配置了这个默认最小限制值450MB，则受Spark管理的堆内存大小为(450 – 300) * 0.6 = 90MB，其中Execution和Storage内存大小分别为90 * 0.5 = 45MB，这种情况对一些小内存用量的Spark计算也能够很好的支持。
 上面，我们详细说明了受Spark管理的堆内存（OnHeap Memory）的布局，UnifiedMemoryManager也能够对非堆内存（OffHeap Memory）进行管理。Spark堆内存和非堆内存的布局，如下图所示：
-![spark-unified-memory-layout](Spark UnifiedMemoryManager内存管理模型分析/spark-unified-memory-layout.png)
+
+<img src="Spark UnifiedMemoryManager内存管理模型分析/spark-unified-memory-layout.png" alt="spark-unified-memory-layout" />
+
 通过上图可以看到，非堆内存（OffHeap Memory）默认大小配置值为0，表示不使用非堆内存，可以通过参数spark.memory.offHeap.size来设置非堆内存的大小。无论是对堆内存，还是对非堆内存，都分为Execution内存和Storage内存两部分，他们的分配大小比例通过参数spark.memory.storageFraction来控制，默认是0.5。
 
 **内存控制**
@@ -169,7 +175,7 @@ def maybeGrowExecutionPool(extraMemoryNeeded: Long): Unit = {
 }
 ```
 
-==需要说明的是，上面的`storagePool.poolSize`的大小可能大于**Storage pool**初始最大内存大小==，主要是通过借用**Execution pool**的内存导致的。这里，`storagePool.freeSpaceToShrinkPool()`方法会Shrink掉Storage pool可用内存，我们可以看下StorageMemoryPool中如何Shrink Storage内存，方法如下所示：
+需要说明的是，上面的`storagePool.poolSize`的大小可能大于**Storage pool**初始最大内存大小，主要是通过借用**Execution pool**的内存导致的。这里，`storagePool.freeSpaceToShrinkPool()`方法会Shrink掉Storage pool可用内存，我们可以看下StorageMemoryPool中如何Shrink Storage内存，方法如下所示：
 
 ```scala
 def freeSpaceToShrinkPool(spaceToFree: Long): Long = lock.synchronized {
@@ -195,7 +201,7 @@ def freeSpaceToShrinkPool(spaceToFree: Long): Long = lock.synchronized {
 MemoryStore如何evictBlocksToFreeSpace，可以查阅MemoryStore类源码，这里暂时不做说明。
 最后，我们说明ExecutionMemoryPool.acquireMemory()方法与ExecutionMemoryPool.releaseMemory()方法的实现。在说明方法实现逻辑之前，我们先说明一下Execution内存区内存分配的基本原则：
 
-**==如果有N个活跃（Active）的Task在运行，ExecutionMemoryPool需要保证每个Task在将中间结果数据Spill到磁盘之前，至少能够申请到当前Execution内存区对应的Pool中1/2N大小的内存量，至多是1/N大小的内存。这里N是动态变化的，因为可能有新的Task被启动，也有可能Task运行完成释放资源，所以ExecutionMemoryPool会持续跟踪ExecutionMemoryPool内部Task集合memoryForTask的变化，并不断地重新计算分配给每个Task的这两个内存量的值：1/2N和1/N。==**
+**如果有N个活跃（Active）的Task在运行，ExecutionMemoryPool需要保证每个Task在将中间结果数据Spill到磁盘之前，至少能够申请到当前Execution内存区对应的Pool中1/2N大小的内存量，至多是1/N大小的内存。这里N是动态变化的，因为可能有新的Task被启动，也有可能Task运行完成释放资源，所以ExecutionMemoryPool会持续跟踪ExecutionMemoryPool内部Task集合memoryForTask的变化，并不断地重新计算分配给每个Task的这两个内存量的值：1/2N和1/N。**
 
 为了代码紧凑清晰，我把ExecutionMemoryPool.acquireMemory()方法源码中不必要的注释去掉了，代码如下所示：
 
