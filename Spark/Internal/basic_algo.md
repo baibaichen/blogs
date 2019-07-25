@@ -38,7 +38,7 @@ case class EventTimeWatermarkExec {
 
 ## 表达式
 
-一组可用于表示关系表达式树的类。表达式库的一个关键目标，是为操纵关系运算符树的开发人员隐藏命名和作用域的细节。因此，除了标准的表达式之外，还定义了一种特殊类型的表达式，[[NamedExpression]]。
+一组可用于表示关系表达式树的类。表达式库的一个关键目标，是为操纵关系运算符树的开发人员隐藏命名和作用域的细节。因此，除了标准的表达式之外，还定义了一种特殊类型的表达式，`NamedExpression`。
 
 ==标准表达式==
 标准表达式库（例如，`Add`，`EqualTo`），聚合（例如，`SUM`，`COUNT`）和其他计算（例如`UDF`）。每个表达式的类型，都可以根据其子表达式的输出schema以确定其自身的输出schema。
@@ -58,6 +58,9 @@ custom_mark00
 digraph G {
     node  [shape=box]
     rankdir = BT
+    BoundReference[color=lightgrey style=filled]
+    AttributeReference[color=lightgrey style=filled]
+    Alias[color=lightgrey style=filled]
     Alias->UnaryExpression->Expression [arrowhead=empty]
     AttributeReference->Attribute->LeafExpression->Expression [arrowhead=empty]
     Alias->NamedExpression [penwidth=3]
@@ -67,6 +70,7 @@ digraph G {
     NullIntolerant->Expression [arrowhead=empty]
     AttributeReference->Unevaluable[penwidth=3]
     Unevaluable->Expression [arrowhead=empty]
+    BoundReference->LeafExpression[arrowhead=empty]
 }
 custom_mark00
 </details>
@@ -75,8 +79,92 @@ custom_mark00
 
 [Spark Catalyst的实现分析](https://github.com/ColZer/DigAndBuried/blob/master/spark/spark-catalyst.md#spark-catalyst的实现分析)
 
-1. Attribute
-2. BoundReference
+
+``` scala
+// BucketedReadSuite
+//...
+    val getBucketId = UnsafeProjection.create(
+        HashPartitioning(attrs, 8).partitionIdExpression :: Nil, // 1.
+          output)  // 2.
+```
+1. 上述代码**1**处，是一个`Expression`
+2. 上述代码**2**处，output 输入的schema
+3. 真正生成代码之前，需要将1和2 转换成`BoundReference`，`BoundReference`指向输入元组中的特定槽，允许更有效地检索实际值。 见下面的代码**3**处：
+
+    ```scala
+    def create(exprs: Seq[Expression], inputSchema: Seq[Attribute]): UnsafeProjection = {
+      create(toBoundExprs(exprs, inputSchema))  // 3
+    }
+    ```
+
+生成的java代码如下：
+```java
+public java.lang.Object generate(Object[] references) {
+	return new SpecificUnsafeProjection(references);
+}
+
+class SpecificUnsafeProjection
+ extends org.apache.spark.sql.catalyst.expressions.UnsafeProjection {
+
+	private Object[] references;
+	private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter[] mutableStateArray_0 = 
+	new org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter[1];
+
+	public SpecificUnsafeProjection(Object[] references) {
+		this.references = references;
+		mutableStateArray_0[0] = new org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter(1, 0);
+	}
+	public void initialize(int partitionIndex) {}
+
+	// Scala.Function1 need this
+	public java.lang.Object apply(java.lang.Object row) {
+		return apply((InternalRow) row);
+	}
+
+	public UnsafeRow apply(InternalRow i) {
+
+		mutableStateArray_0[0].reset();
+		mutableStateArray_0[0].zeroOutNullBytes();
+
+		boolean isNull_0 = false;
+		int value_0 = -1;
+
+		if (8 == 0) {
+			isNull_0 = true;
+		} else {
+			int value_1 = 42;
+			boolean isNull_2 = i.isNullAt(0);
+			int value_2 = isNull_2 ?-1 : (i.getInt(0));
+			if (!isNull_2) {
+				value_1 = org.apache.spark.unsafe.hash.Murmur3_x86_32.hashInt(value_2, value_1);
+			}
+			boolean isNull_3 = i.isNullAt(1);
+			UTF8String value_3 = isNull_3 ?null : (i.getUTF8String(1));
+			if (!isNull_3) {
+				value_1 = 
+				org.apache.spark.unsafe.hash.Murmur3_x86_32.hashUnsafeBytes(
+					value_3.getBaseObject(), value_3.getBaseOffset(), value_3.numBytes(), value_1);
+			}
+			int remainder_0 = value_1 % 8;
+			if (remainder_0 < 0) {
+				value_0=(remainder_0 + 8) % 8;
+			} else {
+				value_0=remainder_0;
+			}
+		}
+
+		if (isNull_0) {
+			mutableStateArray_0[0].setNullAt(0);
+		} else {
+			mutableStateArray_0[0].write(0, value_0);
+		}
+		return (mutableStateArray_0[0].getRow());
+	}
+}
+```
+
+
+
 
 
 
