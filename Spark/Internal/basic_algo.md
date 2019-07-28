@@ -1,5 +1,9 @@
 # 基本算法
 
+参考
+
+1. https://www.jianshu.com/p/a3c1add7466d
+
 ## 闭包变量如何传递？
 
 看下面的代码
@@ -75,7 +79,52 @@ digraph G {
 custom_mark00
 </details>
 
-###  计算，代码生成
+<img src='https://g.gravizo.com/svg?
+digraph G {
+    node  [shape=box]
+    rankdir = BT
+    Last[color=lightgrey style=filled]
+    HyperLogLogPlusPlus[color=lightgrey style=filled]
+    TypedAggregateExpression[color=chartreuse style=filled]
+    Serializable[color=chartreuse style=filled]
+    Unevaluable[color=chartreuse style=filled]
+    CodegenFallback[color=chartreuse style=filled]
+    {rank=same Expression Serializable}
+    {rank=same AggregateFunction AggregateExpression}
+    {rank=same DeclarativeAggregate ImperativeAggregate TypedAggregateExpression}
+    AggregateExpression->Expression [arrowhead=empty]
+    AggregateExpression->Unevaluable[penwidth=3]
+    AggregateExpression->AggregateFunction [dir=both arrowtail = diamond label="aggregateFunction"]
+    AggregateFunction->Expression [arrowhead=empty]
+    Unevaluable->Expression [arrowhead=empty]
+    CodegenFallback->Expression [arrowhead=empty]
+    DeclarativeAggregate->AggregateFunction[arrowhead=empty]
+    ImperativeAggregate->AggregateFunction[arrowhead=empty]
+    TypedAggregateExpression->AggregateFunction[arrowhead=empty]
+    DeclarativeAggregate->Serializable[penwidth=3]
+    DeclarativeAggregate->Unevaluable[penwidth=3]
+    ImperativeAggregate->CodegenFallback[penwidth=3]
+    Last->DeclarativeAggregate[arrowhead=empty]
+    HyperLogLogPlusPlus->ImperativeAggregate[arrowhead=empty]
+}
+'>
+
+###  代码生成
+
+代码生成分为两部分，一部分是最基本的表达式代码生成，另一部分称为全阶段代码生成，用来将多个处理器逻辑整合到单个代码模块中。
+
+代码生成的实现中`CodegenContext`可以算是最重要的类，`CodegenContext`作为代码生成的上下文，记录了将要生成的代码中的各种元素，包括变量、函数等。如图9.22所示，可以将`CodegenContext`中的元素分为几个大的类别。
+
+1. **变量相关**
+   1. RDD partition 相关
+   2. 引用
+2. 函数
+3. 数据类型
+4. 工具函数
+
+----
+
+https://github.com/apache/spark/pull/10735 whole stage gen
 
 [Spark Catalyst的实现分析](https://github.com/ColZer/DigAndBuried/blob/master/spark/spark-catalyst.md#spark-catalyst的实现分析)
 
