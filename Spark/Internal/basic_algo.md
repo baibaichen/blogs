@@ -113,6 +113,8 @@ digraph G {
 
 代码生成分为两部分，一部分是最基本的表达式代码生成，另一部分称为全阶段代码生成，用来将多个处理器逻辑整合到单个代码模块中。
 
+https://databricks.com/blog/2016/05/23/apache-spark-as-a-compiler-joining-a-billion-rows-per-second-on-a-laptop.html
+
 代码生成的实现中`CodegenContext`可以算是最重要的类，`CodegenContext`作为代码生成的上下文，记录了将要生成的代码中的各种元素，包括变量、函数等。如图9.22所示，可以将`CodegenContext`中的元素分为几个大的类别。
 
 1. **变量相关**

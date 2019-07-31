@@ -574,8 +574,8 @@ StreamingExecutionRelation     StreamingRelationExec
 3. 2016 6 [DEEP DIVE: APACHE SPARK MEMORY MANAGEMENT](https://spark-summit.org/2016/events/deep-dive-apache-spark-memory-management/)
     [Video](https://www.youtube.com/watch?v=dPHrykZL8Cg)  [Slide](http://www.slideshare.net/databricks/deep-dive-memory-management-in-apache-spark)
 
-
 # Spark Architecture: Shuffle
+
 [Reference](https://0x0fff.com/spark-architecture-shuffle/) [31 Replies](https://0x0fff.com/spark-architecture-shuffle/#comments)
 
 This is my second article about Apache Spark architecture and today I will be more specific and tell you about the shuffle, one of the most interesting topics in the overall Spark design. The previous part was mostly about general Spark architecture and its memory management. It can be [accessed here](https://0x0fff.com/spark-architecture/). The next one is about Spark memory management and it [is available here](https://0x0fff.com/spark-memory-management/).

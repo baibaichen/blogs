@@ -224,3 +224,9 @@ TaskSetManager首先会统计成功的Task数，当成功的Task数超过75%(可
 ## 结语
 
 本文详细阐述了Spark的任务调度，着重讨论Spark on Yarn的部署调度，剖析了从应用程序提交到运行的全过程。Spark Schedule算是Spark中的一个大模块，它负责任务下发与监控等，基本上扮演了Spark大脑的角色。了解Spark Schedule有助于帮助我们清楚地认识Spark应用程序的运行轨迹，同时在我们实现其他系统时，也可以借鉴Spark的实现。
+
+
+
+# DAGScheduler划分stage源码解析
+
+https://cloud.tencent.com/developer/article/1327891

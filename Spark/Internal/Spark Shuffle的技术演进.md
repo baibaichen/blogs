@@ -22,8 +22,8 @@
   2. Reduce side combine
   3. Sort (if needed)
 
-Write阶段发生于`ShuffleMapTask`对该Stage的最后一个RDD完成了map端的计算之后，首先会判断是否需要对计算结果进行聚合，然后将最终结果按照不同的reduce端进行区分，写入当前节点的本地磁盘。
-Read阶段开始于reduce端的任务读取ShuffledRDD之时，首先通过远程或本地数据拉取获得Write阶段各个节点中属于当前任务的数据，根据数据的Key进行聚合，然后判断是否需要排序，最后生成新的RDD。
+**Write**阶段发生于`ShuffleMapTask`对该Stage的最后一个RDD完成了map端的计算之后，首先会判断是否需要对计算结果进行聚合，然后将最终结果按照不同的reduce端进行区分，写入当前节点的本地磁盘。
+**Read**阶段开始于reduce端的任务读取`ShuffledRDD`之时，首先通过远程或本地数据拉取获得Write阶段各个节点中属于当前任务的数据，根据数据的Key进行聚合，然后判断是否需要排序，最后生成新的RDD。
 
 #### Spark Shuffle具体实现的演进
 
@@ -58,7 +58,7 @@ Read阶段开始于reduce端的任务读取ShuffledRDD之时，首先通过远�
   - UnsafeShuffleManager[合并](https://github.com/apache/spark/commit/f6d06adf05afa9c5386dc2396c94e7a98730289f)到SortShuffleManager
   - HashShuffleReader 重命名为BlockStoreShuffleReader，Sort Based Shuffle和Hash Based Shuffle仍共用ShuffleReader。
 - `Spark 2.0` **Hash Based Shuffle退出历史舞台**
-  从此Spark只有Sort Based Shuffle。
+  从此Spark只有**Sort Based Shuffle**。
 
 #### Spark Shuffle源码结构
 
@@ -66,7 +66,7 @@ Read阶段开始于reduce端的任务读取ShuffledRDD之时，首先通过远�
 
 - Shuffle Write
 
-  - ShuffleWriter的入口链路
+  - **ShuffleWriter**的入口链路
 
     ```
     org.apache.spark.scheduler.ShuffleMapTask#runTask
@@ -182,9 +182,9 @@ If the record order on the reduce side is not enforced, then the “reducer” w
 
 ## Sort Shuffle
 
-Starting Spark 1.2.0, this is the default shuffle algorithm used by Spark (**spark.shuffle.manager***= sort*). In general, this is an attempt to implement the shuffle logic similar to the one used by [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/). With hash shuffle you output one separate file for each of the “reducers”, while with sort shuffle you’re doing a smarted thing: you output a single file ordered by “reducer” id and indexed, this way you can easily fetch the chunk of the data related to “reducer x” by just getting information about the position of related data block in the file and doing a single fseek before fread. But of course for small amount of “reducers” it is obvious that hashing to separate files would work faster than sorting, so the sort shuffle has a “fallback” plan: when the amount of “reducers” is smaller than “**spark.shuffle.sort.bypassMergeThreshold**” (200 by default) we use the “fallback” plan with hashing the data to separate files and then joining these files together in a single file. This logic is implemented in a separate class [BypassMergeSortShuffleWriter](https://github.com/apache/spark/blob/master/core/src/main/java/org/apache/spark/shuffle/sort/BypassMergeSortShuffleWriter.java).
+Starting Spark 1.2.0, this is the default shuffle algorithm used by Spark (**spark.shuffle.manager**= *sort*). In general, this is an attempt to implement the shuffle logic similar to the one used by [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/). With hash shuffle you output one separate file for each of the “reducers”, **while with sort shuffle you’re doing a smarted thing: you output a single file ordered by “reducer” id and indexed, this way you can easily fetch the chunk of the data related to “reducer x” by just getting information about the position of related data block in the file** and doing a single fseek before fread. But of course for small amount of “reducers” it is obvious that hashing to separate files would work faster than sorting, so the sort shuffle has a “fallback” plan: when the amount of “reducers” is smaller than “**spark.shuffle.sort.bypassMergeThreshold**” (200 by default) we use the “fallback” plan with hashing the data to separate files and then joining these files together in a single file. This logic is implemented in a separate class [BypassMergeSortShuffleWriter](https://github.com/apache/spark/blob/master/core/src/main/java/org/apache/spark/shuffle/sort/BypassMergeSortShuffleWriter.java).
 
-The funny thing about this implementation is that it sorts the data on the “map” side, but does not merge the results of this sort on “reduce” side – in case the ordering of data is needed it just re-sorts the data. Cloudera has put itself in a fun position with this idea: [Improving Sort Performance in Apache Spark: It’s a Double](http://blog.cloudera.com/blog/2015/01/improving-sort-performance-in-apache-spark-its-a-double/). They started a process of implementing the logic that takes advantage of pre-sorted outputs of “mappers” to merge them together on the “reduce” side instead of resorting. As you might know, sorting in Spark on reduce side is done using [TimSort](https://en.wikipedia.org/wiki/Timsort), and this is a wonderful sorting algorithm which in fact by itself takes advantage of pre-sorted inputs (by calculating minruns and then merging them together). A bit of math here, you can skip if you’d like to. Complexity of merging **M** sorted arrays of **N** elements each is **O(MNlogM)** when we use the most efficient way to do it, using Min Heap. With TimSort, we make a pass through the data to find MinRuns and then merge them together pair-by-pair. It is obvious that it would identify **M** MinRuns. First **M/2** merges would result in **M/2** sorted groups, next **M/4** merges would give **M/4**sorted groups and so on, so its quite straightforward that the complexity of all these merges would be **O(MNlogM)** in the very end. Same complexity as the direct merge! The difference here is only in constants, and constants depend on implementation. So [the patch by Cloudera engineers](https://issues.apache.org/jira/browse/SPARK-2926) has been pending on its approval for already one year, and unlikely it would be approved without the push from Cloudera management, because performance impact of this thing is very minimal or even none, you can see this in JIRA ticket discussion. Maybe they would workaround it by introducing separate shuffle implementation instead of “improving” the main one, we’ll see this soon.
+**The funny thing about this implementation is that it sorts the data on the “map” side, but does not merge the results of this sort on “reduce” side – in case the ordering of data is needed it just re-sorts the data.** Cloudera has put itself in a fun position with this idea: [Improving Sort Performance in Apache Spark: It’s a Double](http://blog.cloudera.com/blog/2015/01/improving-sort-performance-in-apache-spark-its-a-double/). They started a process of implementing the logic that takes advantage of pre-sorted outputs of “mappers” to merge them together on the “reduce” side instead of resorting. As you might know, sorting in Spark on reduce side is done using [TimSort](https://en.wikipedia.org/wiki/Timsort), and this is a wonderful sorting algorithm which in fact by itself takes advantage of pre-sorted inputs (by calculating minruns and then merging them together). A bit of math here, you can skip if you’d like to. Complexity of merging **M** sorted arrays of **N** elements each is **O(MNlogM)** when we use the most efficient way to do it, using Min Heap. With TimSort, we make a pass through the data to find MinRuns and then merge them together pair-by-pair. It is obvious that it would identify **M** MinRuns. First **M/2** merges would result in **M/2** sorted groups, next **M/4** merges would give **M/4**sorted groups and so on, so its quite straightforward that the complexity of all these merges would be **O(MNlogM)** in the very end. Same complexity as the direct merge! The difference here is only in constants, and constants depend on implementation. So [the patch by Cloudera engineers](https://issues.apache.org/jira/browse/SPARK-2926) has been pending on its approval for already one year, and unlikely it would be approved without the push from Cloudera management, because performance impact of this thing is very minimal or even none, you can see this in JIRA ticket discussion. Maybe they would workaround it by introducing separate shuffle implementation instead of “improving” the main one, we’ll see this soon.
 
 Fine with this. What if you don’t have enough memory to store the whole “map” output? You might need to spill intermediate data to the disk. Parameter **spark.shuffle.spill** is responsible for enabling/disabling spilling, and by default spilling is enabled. If you would disable it and there is not enough memory to store the “map” output, you would simply get OOM error, so be careful with this.
 
@@ -218,7 +218,7 @@ Cons:
 
 ## Unsafe Shuffle or Tungsten Sort
 
-Can be enabled with setting **spark.shuffle.manager*** = tungsten-sort* in Spark 1.4.0+. This code is the part of [project “Tungsten”](https://issues.apache.org/jira/browse/SPARK-7075). The idea is [described here](https://issues.apache.org/jira/browse/SPARK-7081), and it is pretty interesting. The optimizations implemented in this shuffle are:
+Can be enabled with setting **spark.shuffle.manager** = *tungsten-sort* in Spark 1.4.0+. This code is the part of [project “Tungsten”](https://issues.apache.org/jira/browse/SPARK-7075). The idea is [described here](https://issues.apache.org/jira/browse/SPARK-7081), and it is pretty interesting. The optimizations implemented in this shuffle are:
 
 1. Operate directly on serialized binary data without the need to deserialize it. It uses unsafe (sun.misc.Unsafe) memory copy functions to directly copy the data itself, which works fine for serialized data as in fact it is just a byte array
 2. Uses special cache-efficient sorter [ShuffleExternalSorter](https://github.com/apache/spark/blob/master/core/src/main/java/org/apache/spark/shuffle/sort/ShuffleExternalSorter.java) that sorts arrays of compressed record pointers and partition ids. By using only 8 bytes of space per record in the sorting array, it works more efficienly with CPU cache
@@ -292,7 +292,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 ### Hash Shuffle v2
 
-在上一节讲到每个map task都要生成N个partition文件，为了减少文件数，后面引进了，目的是减少单个executor上的文件数。如下图所示，一个executor上所有的map task生成的分区文件只有一份，即将所有的map task相同的分区文件合并，这样每个executor上最多只生成N个分区文件。
+在上一节讲到每个map task都要生成N个partition文件，为了减少文件数，后面引进了，目的是减少单个executor上的文件数。如下图所示，一个executor上所有的map task生成的分区文件只有一份，即将所有的map task相同的分区文件合并，**这样每个executor上最多只生成N个分区文件**。
 
 ![spark-shuffle-v2](./SparkShuffle的技术演进/spark-shuffle-v2.png)
 
@@ -304,7 +304,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 ![spark-shuffle-v3](./SparkShuffle的技术演进/spark-shuffle-v3.png)
 
-在map阶段(shuffle write)，会按照partition id以及key对记录进行排序，将所有partition的数据写在同一个文件中，该文件中的记录首先是按照partition id排序一个一个分区的顺序排列，每个partition内部是按照key进行排序存放，map task运行期间会顺序写每个partition的数据，并通过一个索引文件记录每个partition的大小和偏移量。这样一来，每个map task一次只开两个文件描述符，一个写数据，一个写索引，大大减轻了Hash Shuffle大量文件描述符的问题，即使一个executor有K个core，那么最多一次性开K*2个文件描述符。
+在map阶段(shuffle write)，会按照partition id以及key对记录进行排序，将所有partition的数据写在同一个文件中，该文件中的记录首先是按照partition id排序一个一个分区的顺序排列，每个partition内部是按照key进行排序存放，map task运行期间会顺序写每个partition的数据，并通过一个索引文件记录每个partition的大小和偏移量。这样一来，每个map task一次只开两个文件描述符，一个写数据，一个写索引，大大减轻了Hash Shuffle大量文件描述符的问题，即使**一个executor有K个core，那么最多一次性开K*2个文件描述符**。
 
 在reduce阶段(shuffle read)，reduce task拉取数据做combine时不再是采用`HashMap`，而是采用`ExternalAppendOnlyMap`，该数据结构在做combine时，如果内存不足，会刷写磁盘，很大程度的保证了鲁棒性，避免大数据情况下的OOM。
 
@@ -318,7 +318,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 ### Sort Shuffle v2
 
-从spark-1.6.0开始，把Sort Shuffle和Unsafe Shuffle全部统一到Sort Shuffle中，如果检测到满足Unsafe Shuffle条件会自动采用Unsafe Shuffle，否则采用Sort Shuffle。从spark-2.0.0开始，spark把Hash Shuffle移除，可以说目前spark-2.0中只有一种Shuffle，即为Sort Shuffle。
+从spark-1.6.0开始，把Sort Shuffle和Unsafe Shuffle全部统一到Sort Shuffle中，如果检测到满足Unsafe Shuffle条件会自动采用Unsafe Shuffle，否则采用Sort Shuffle。从spark-2.0.0开始，spark把Hash Shuffle移除，可以说目前spark-2.0中只有一种Shuffle，即为**Sort Shuffle**。
 
 ## Spark Shuffle相关调优
 
