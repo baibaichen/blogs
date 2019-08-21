@@ -33,9 +33,13 @@
 ---
 ## 4. ROARING BITMAP
 
-For a detailed presentation of the original Roaring model, we refer the interested reader to Chambi et al. [7]. We summarize the main points and focus on the new algorithms and their implementations.
+> For a detailed presentation of the original Roaring model, we refer the interested reader to Chambi et al. [7]. We summarize the main points and focus on the new algorithms and their implementations.
 
-Roaring bitmaps are used to represent sets of 32-bit unsigned integers. At a high level, a Roaring bitmap implementation is a key-value data structure where each key-value pair represents the set S of all 32-bit integers that share the same most significant 16 bits. The key is made of the shared 16 bits, whereas the value is a container storing the remaining 16 least significant bits for each member of S. No container ever uses much more than 8 kB of memory. Thus, several such small containers fit in the L1 CPU cache of most processors: the last Intel desktop processor to have less than 64 kB of total (data and code) L1 cache was the P6 created in 1995, whereas most mobile processors have 32 kB (e.g., NVidia, Qualcomm) or 64 kB (e.g., Apple) of total L1 cache.
+有关原始Roaring模型的详细介绍，请感兴趣的读者参阅Chambi等人的论文[7]。 这里总结了要点，并重点关注新算法及其实现。
+
+> Roaring bitmaps are used to represent sets of 32-bit unsigned integers. At a high level, a Roaring bitmap implementation is a key-value data structure where each key-value pair represents the set S of all 32-bit integers that share the same most significant 16 bits. The key is made of the shared 16 bits, whereas the value is a container storing the remaining 16 least significant bits for each member of S. No container ever uses much more than 8 kB of memory. Thus, several such small containers fit in the L1 CPU cache of most processors: the last Intel desktop processor to have less than 64 kB of total (data and code) L1 cache was the P6 created in 1995, whereas most mobile processors have 32 kB (e.g., NVidia, Qualcomm) or 64 kB (e.g., Apple) of total L1 cache.
+
+Roaring位图用于表示**32位无符号整数**的集合。在高层，Roaring位图实现了一个键值数据结构，每个**键值对**（key-value）表示**共享相同最高16位**的**所有32位整数的集合S**。**键**（key）由共享的16位组成，而**值**（value）是一个容器，用于存储S中每个成员剩下的16个最低有效位。任何容器都不会使用超过**8KB**的内存。因此，几个这样的小容器适合大多数CPU的**L1缓存**，**最后一个L1缓存的总和（数据和代码）小于64 KB的英特尔台式机处理器是1995年的P6**，而大多数移动处理器的L1缓存总和有**32KB**（例如NVidia，Qualcomm）或**64KB**（例如Apple）。
 
 In our actual implementation, the key-value store is implemented as two arrays: an array of packed 16-bit values representing the keys and an array of containers. The arrays expand dynamically in a standard manner when there are insertions. Alternatively, we could use a tree structure for faster insertions, but we expect Roaring bitmaps to be immutable for most of the life of an application. An array minimizes storage.
 
