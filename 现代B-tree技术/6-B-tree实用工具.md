@@ -45,9 +45,6 @@
 - 用于创建索引的命令通常有许多选项，例如关于压缩的选项、为后续更新留下多少空闲空间的选项、以及临时空间的选项（用于排序索引数据）。
 
 ### 6.2 索引删除
-
----
-
 删除索引可能看起来相当简单，但由于各种原因，可能不是这样。例如，如果索引删除是较大事务的一部分，那么这个事务是否会阻止其他所有事务访问表，即使索引删除事务可能已中止？索引删除是否可以在线，即是否可以并发查询和更新表？再举一例，如果一个表同时具有主索引（非冗余）和一些二级索引（通过搜索键指向主索引中的记录），那么当主索引被删除时需要多少工作量？ 也许主索引仅释放分支节点，保留的叶节点变成成立堆文件，重建二级索引需要多长时间？同样，索引是否可以在线删除？
 
 最后，索引可能非常大，更新分配信息（例如，空闲空间映射）可能需要相当长的时间。这种情况下，“即时”删除索引可能只是在适当的目录（**catalog**）记录中声明索引已**过时**。这有点类似于幻影记录，不过幻影指示符仅与其出现的记录有关，而**过时指示符**与目录记录所代表的整个索引有关。此外，幻影记录可在其创建之后很久就才被删除，但应该尽快释放索引空间，因为这可能涉及大量的存储空间。即使在释放此空间之前或过程中，系统发生崩溃，在成功重启之后，也应该快速继续该过程。需要适当的恢复日志记录，精心设计可最大限度地减少日志量，即使在尝试恢复时重复崩溃，也可确保成功。
@@ -57,17 +54,66 @@
 - 索引删除可能很复杂，特别是如果必须创建一些结构作为响应。 
 - 通过延迟更新**管理可用空间的数据结构**，可以即时删除索引。其他许多实用工具可以使用这个执行模型，但是索引删除似乎是最明显的候选者。
 
+### 6.3 索引重建
+There are a variety of reasons for rebuilding an existing index, and some systems require rebuilding an index when an efficient defragmentation would be more appropriate, in particular if index rebuilding can be online or incremental.
+
+Rebuilding a primary index might be required if the search keys in the primary index are not unique and new values are desired in the artificial field that ensure unique references. Moving a table with physical record identifiers similarly modifies all references. Note that both operations require that all secondary indexes be rebuilt in order to reflect modified reference values.
+
+Rebuilding all secondary indexes is also required when the primary index changes, i.e., when the set of key columns in the primary index changes. If merely their sequence changes, it is not strictly required that new references be assigned and the secondary indexes rebuild. Updating all existing secondary indexes might be slower than rebuilding the indexes, partially because updates require full information in the recovery log whereas rebuilding indexes can employ non-logged index creation (allocation-only logging).
+
+> ==TODO：== Fig.6.4
+
+Figure 6.4 illustrates a query execution plan for rebuilding a table’s primary index and subsequently its three secondary indexes. The scan captures the data from the current primary index or heap file. The sort prepares filling the new primary index. The spool operation retains in temporary storage only those columns required for the secondary indexes. The spool operation can be omitted if it is less expensive to scan the new primary index repeatedly than to write and re-read the spool data. Alternatively, the individual sort operations following the spool operation can serve the purpose of the spool operation, as discussed earlier in connection with Figure 6.4.
+
+- An index may be rebuild after a corruption (due to faulty software or hardware) or when defragmentation is desired but removing and rebuilding the index is faster.
+- When a primary index is rebuilt, the secondary indexes usually must be rebuilt, too. Various optimizations apply to this operation, including some that are usually not exploited for standard query processing. 
+
+### 6.4 批量插入
+
+Bulk insertion, also known as incremental load, roll-in, or information capture, is a very frequent operation in many databases, in particular data warehouses, data marts, and other databases holding information about events or activities (such as sales transactions) rather than states (such as account balances). Performance and scalability of bulk insertions sometimes decides among competing vendors when the time windows for nightly database maintenance or for the initial proof-of-concept implementation are short.
+
+Any analysis of performance or bandwidth of bulk insertions must distinguish between instant bandwidth and sustained bandwidth, and between online and oﬄine load operations. The first difference is due to deferred maintenance of materialized views, indexes, statistics such as histograms, etc. For example, partitioned B-trees [43] enable high instant load bandwidth (basically, appending to a B-tree at disk write speed). Eventually, however, query performance deteriorates with additional partitions in each B-tree and requires reorganization by merging partitions; such reorganization must be considered when determining the load bandwidth that can be sustained indefinitely.
+
+ The second difference focuses on the ability to serve applications with queries and updates during the load operation. For example, some database vendors for some of their releases recommended dropping all indexes prior to a large bulk insertion, say insertions larger than 1% of the existing table size. This was due to the poor performance of index insertions; rebuilding all indexes for 101% of the prior table size can be faster than insertions equal to 1% of the table size.
+
+Techniques optimized for efficient bulk insertions into B-trees can be divided into two groups. Both groups rely on some form of buffering to delay B-tree maintenance and to gain some economy of scale. The first group focuses on the structure of B-trees and buffers insertions in branch nodes [74]. Thus, B-tree nodes are very large, are limited to a small fan-out, or require additional storage “on the side.” The second group exploits B-trees without modifications to their structure, either by employing multiple B-trees [100] or by creating partitions within a single B-tree by means of an artificial leading key field [43]. In all cases, pages or partitions with active insertions are retained in the buffer pool. The relative performance of the various methods, in particular in sustained bandwidth, has not yet been investigated experimentally. Some simple calculations below highlight the main effects on load bandwidth.
+
+> ==TODO：== Fig.6.5
+
+Figure 6.5 illustrates a B-tree node that buffers insertions, e.g., a root node or a branch node. There are two separator keys (11 and 47), three pointers to child nodes within the same B-tree, and a set of buffered insertions with each child pointer. In a secondary index, index entries contain a key value and reference to a record in the primary index of the table, indicated by “ref” here. In other words, each buffered insertion is a future leaf entry. The set of buffered insertions for the middle child is much smaller than the one for the left child, perhaps due to skew in the workload or a recent propagation of insertions to the middle child. The set of changes buffered for the right child includes not only insertions but also a deletion (key value 72). Buffering deletions is viable only in secondary indexes, after a prior update of a primary index has ensured that the value to be deleted indeed must exist in the secondary index.
+
+The essence of partitioned B-trees is to maintain partitions within a single B-tree, by means of an artificial leading key field, and to reorganize and optimize such a B-tree online using, effectively, the merge step well known from external merge sort. This key field probably should be an integer of 2 or 4 bytes. By default, the same single value appears in all records in a B-tree, and most of the techniques for partitioned B-trees rely on exploiting multiple alternative values, temporarily in most cases and permanently for a few techniques. If a table or view in a relational database has multiple indexes, each index has its own artificial leading key field. The values in these fields are not coordinated or propagated among the indexes. In other words, each artificial leading key field is internal to a single B-tree, such that each B-tree can be reorganized and optimized independently of all others. If a table or index is horizontally partitioned and represented in multiple B-trees, the artificial leading key field should be defined separately for each partition.
+
+> ==TODO：== Fig.6.6
+
+Figure 6.6 illustrates how the artificial leading key field divides the records in a B-tree into partitions. Within each partition, the records are sorted, indexed, and searchable by the user-defined key just as in a standard B-tree. In this example partition 0 might be the main partition whereas partitions 3 and 4 contain recent insertions, appended to the B-tree as new partitions after in-memory sorting. The last partition might remain in the buffer pool, where it can absorb random insertions very efficiently. When its size exceeds the available buffer pool, a new partition is started and the prior one is written from the buffer pool to disk, either by an explicit request or on demand during standard page replacement in the buffer pool. Alternatively, an explicit sort operation may sort a large set of insertions and then append one or multiple partitions. The explicit sort really only performs run generation, appending runs as partitions to the partitioned B-tree.
+
+The initial load operation should copy the newly inserted records or the newly filled pages into the recovery log such that the new database contents is guaranteed even in the event of a media or system failure. Reorganization of the B-tree can avoid logging the contents, and thus log only the structural changes in the B-tree index, by careful write ordering. Specifically, pages on which records or pointers have been removed may over-write their earlier versions in their old location only after new copies of the records have been written in their new location. Minimal logging enabled by careful write ordering has been described for other forms of B-tree reorganization [44, 89, 130] but it also applies to merging in partitioned B-trees after bulk insertion by appending new partitions.
+
+For some example bandwidth calculations, consider bulk insertion into a table with a primary index and three secondary indexes, all stored on a single disk supporting 200 read–write operations per second (100 read–write pairs) and 100 MB/s read–write bandwidth (assuming large units of I/O and thus negligible access latency). In this example calculation, record sizes are 1 KB in the primary index and 0.02 KB in secondary indexes, including overheads for page and record headers, free space, etc. For simplicity, let us assume a warm buffer pool such that only leaf pages require I/O. The baseline plan relies on random insertions into 4 indexes, each requiring one read and one write operation. 8 I/Os per inserted row enable 25 row insertions per second into this table. The sustained insertion bandwidth is 25 *×*1 KB = 25 KB/s = 0.025 MB/s per disk drive. This is both the instant and the sustained insertion bandwidth.
+
+For the plan relying on index removal and re-creation after insertion, assume index removal is practically instant. With no indexes present, the instant insertion bandwidth is equal to the disk write bandwidth. After growing the table size by 1%, index creation must scan 101 times the insertion volume, then write 106% of that data volume to run files for the 4 indexes (sharing run generation when sorting for the secondary indexes), and finally merge those runs into indexes: for a given amount of data added, the I/O volume is 1 + 101 *×*(1 + 3 *×*1*.*06) = 423 times that amount; at 100 MB/s, this permits 100/423 MB/s = 0.236 MB/s sustained insertion bandwidth. While this might seem poor compared to 100 MB/s, it is about ten times faster than random insertions, so it is not surprising that vendors have recommended this scheme.
+
+For a B-tree implementation that buffers insertions at each branch node, assume buffer space in each node for 10 times more insertions than child pointers in the node. Propagation upon overflow focuses on the child with the most pending insertions; let us assume that 20 records can be propagated on average. Thus, only every 20th record insertion forces reading and writing a B-tree leaf, or 1/20 of a read–write pair per record insertion. On the other hand, B-tree nodes with buffer are much larger and thus each record insertion might require reading and writing both a leaf node and its parent, in which case each record insertion forces 2*/*20 = 1*/*10 of a read–write pair. In the example table with a primary index and three secondary indexes, i.e., 4 B-trees in total, these assumptions lead to 4/10 of a read–write pair per inserted record. The assumed disk hardware with 100 read–write pairs per second thus support 250 record insertion per second or 0.250 MB/s sustained insertion bandwidth. In addition to the slight bandwidth improvement when compared to the prior method, this technique retains and maintains the original B-tree indexes and permits query processing throughout the load process.
+
+ With the assumed disk hardware, partitioned B-trees permit 100 MB/s instant insertion bandwidth, i.e., purely appending new partitions sorted in the in-memory workspace using quicksort or replacement selection. B-tree optimization, i.e., a single merge level in a partitioned B-tree that reads and writes partitions, can process 50 MB/s. If reorganization is invoked when the added partitions reach 33% of the size of the master partition, adding a given amount of data requires an equal amount of initial writing plus 4 times this amount for reorganization (reading and writing). 9 amounts of I/O for each amount of data produce a sustained insertion bandwidth of 11 MB/s for a single B-tree. For the example table with a primary index and three secondary indexes, this bandwidth must be divided among all indexes, giving 11 MB/s *÷*(1 + 3*×*0*.*02) KB = 10 MB/s sustained insertion bandwidth. This is more than an order of magnitude faster than the other techniques for bulk loading. In addition, query processing remains possible throughout initial capture of new information and during B-tree reorganization. A multi-level merge scheme might increase this bandwidth further because the master partition may be reorganized less often yet the number of existing partitions can remain small.
+
+In addition to traditional databases, B-tree indexes can also be exploited for data streams. If only recent data items are to be retained in the index, both bulk insertion techniques and bulk deletion techniques are required. Therefore, indexing streams is discussed in the next section.
+
+- Efficiency of bulk insertions (also known as load, roll-in, or information capture) is crucial for database operations. 
+- Efficiency of index maintenance is so poor in some implementations that indexes are removed prior to large load operations. Various techniques have been published and implemented to speed up bulk insertions into B-tree indexes. Their sustained insertion bandwidths differ by orders of magnitude. 
 
 
 
 
 
 
- 
 
- 
 
- 
+
+
+
+
 
 
 
