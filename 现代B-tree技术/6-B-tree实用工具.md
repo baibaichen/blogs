@@ -48,16 +48,14 @@
 
 ---
 
-Index removal might appear to be fairly trivial, but it might not be, for a variety of reasons. For example, if index removal can be part of a larger transaction, does this transaction prevent all other transactions from accessing the table, even if the index removal transaction might yet abort? Can index removal be online, i.e., may concurrent queries and updates be enabled for the table? For another example, if a table has both a primary (non-redundant) index plus some secondary indexes (that point to records in the primary index by means of a search key), how much effort is required when the primary index is dropped? Perhaps the leaves of the primary index may become a heap and merely the branch nodes are freed, but how long does it take to rebuild the secondary indexes? Again, can index removal be online?
+删除索引可能看起来相当简单，但由于各种原因，可能不是这样。例如，如果索引删除是较大事务的一部分，那么这个事务是否会阻止其他所有事务访问表，即使索引删除事务可能已中止？索引删除是否可以在线，即是否可以并发查询和更新表？再举一例，如果一个表同时具有主索引（非冗余）和一些二级索引（通过搜索键指向主索引中的记录），那么当主索引被删除时需要多少工作量？ 也许主索引仅释放分支节点，保留的叶节点变成成立堆文件，重建二级索引需要多长时间？同样，索引是否可以在线删除？
 
-Finally, an index may be very large and updates to the allocation information (e.g., free space map) may take considerable time. In that case, an “instant” removal of the index might merely declare the index obsolete in the appropriate catalog records. This is somewhat similar to a ghost record, except that a ghost indicator pertains only to the record in which it occurs whereas this obsolescence indicator pertains to the entire index represented by the catalog record. Moreover, whereas a ghost record might be removed long after its creation, space of a dropped index ought to be freed as soon as possible, since a substantial amount of storage space may be involved. Even if a system crash occurs before or during the process of freeing this space, the process ought to continue quickly after a successful restart. Suitable log records in the recovery log are required, with a careful design that minimizes logging volume but also ensures success even in the event of crashes during repeated attempts of recovery.
+最后，索引可能非常大，更新分配信息（例如，空闲空间映射）可能需要相当长的时间。这种情况下，“即时”删除索引可能只是在适当的目录（**catalog**）记录中声明索引已**过时**。这有点类似于幻影记录，不过幻影指示符仅与其出现的记录有关，而**过时指示符**与目录记录所代表的整个索引有关。此外，幻影记录可在其创建之后很久就才被删除，但应该尽快释放索引空间，因为这可能涉及大量的存储空间。即使在释放此空间之前或过程中，系统发生崩溃，在成功重启之后，也应该快速继续该过程。需要适当的恢复日志记录，精心设计可最大限度地减少日志量，即使在尝试恢复时重复崩溃，也可确保成功。
 
-An alternative to the obsolescence indicator in the catalog record, an in-memory data structure may represent the deferred work. Note that this data structure is part of the server state (in memory), not of the database state (on disk). Thus, this data structure works well unless the server crashes prior to completion of the deferred work. For this eventuality, both creation and final removal of the data structure should be logged in the recovery log. Thus, this alternative design does not save logging effort. Moreover, both designs require that intermediate state be support both during normal processing and during recovery after a possible crash and the subsequent recovery.                  
+作为目录记录中的**过时指示符**的替代，可用内存数据结构表示延迟的删除工作。请注意，此数据结构是服务器状态（内存中）的一部分，而不是数据库状态（磁盘上）的一部分。因此，只要服务器在延迟工作完成之前不崩溃，此数据结构就有效。 对于这种可能性，应该在恢复日志中记录数据结构的创建和最终删除。 因此，这种替代设计不会节省日志工作量。此外，在正常处理期间、==可能发生崩溃后的恢复期间==以及==随后的恢复期间==，这两种设计都要求支持中间状态。        
 
-- Index removal can be complex, in particular if some structures must be created in response. 
-- Index removal can in instantaneous by delaying updates of the data structure used for management of free space. Many other utilities could use this execution model but index removal seems to be the most obvious candidate. 
-
-
+- 索引删除可能很复杂，特别是如果必须创建一些结构作为响应。 
+- 通过延迟更新**管理可用空间的数据结构**，可以即时删除索引。其他许多实用工具可以使用这个执行模型，但是索引删除似乎是最明显的候选者。
 
 
 
