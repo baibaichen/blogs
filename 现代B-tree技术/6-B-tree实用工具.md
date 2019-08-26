@@ -190,23 +190,23 @@ In-page invariants are easy to validate once a page is in the buffer pool but ex
 
 > ==TODO：== Fig.6.9
 
-Figure 6.9 shows a B-tree with neighboring leaf nodes with no shared parent but instead a shared grandparent, i.e., cousin nodes *d*and *e*. Shaded areas represent records and their keys; two keys are different (equal) if their shading is different (equal). Efficient verification of keys and pointers among cousin nodes *d*and *e*does not have an immediate or obvious efficient solution in a traditional B-tree implementation. The potential problem is that there is no easy way to verify that all keys  in leaf page *d*are indeed smaller than the separator key in root page a and that all keys in leaf page *e*are indeed larger than the separator key in root page *a*. Correct key relationships between neighbors (*b−c*and *d−e*) and between parents and children (*a−b, a−c, b−d, c−e*) do not guarantee correct key relationships across skipped levels (*a−d, a−e*).
+Figure 6.9 shows a B-tree with neighboring leaf nodes with no shared parent but instead a shared grandparent, i.e., cousin nodes *d*and *e*. Shaded areas represent records and their keys; two keys are different (equal) if their shading is different (equal). Efficient verification of keys and pointers among cousin nodes *d*and *e*does not have an immediate or obvious efficient solution in a traditional B-tree implementation. **The potential problem is that there is no easy way to verify that all keys  in leaf page *d*are indeed smaller than the separator key in root page a and that all keys in leaf page *e*are indeed larger than the separator key in root page *a*.** Correct key relationships between neighbors (*b−c*and *d−e*) and between parents and children (*a−b, a−c, b−d, c−e*) do not guarantee correct key relationships across skipped levels (*a−d, a−e*).
 
 
 > ==TODO：== Fig.6.10
 
-Figure 6.10 shows how fence keys enable a simple solution for the cousin problem in B-tree verification, even if fence keys were originally motivated by write-optimized B-trees [44]. The essential difference to traditional B-tree designs is that page splits not only post a separator key to the parent page but also retain copies of this separator key as high and low “fence keys” in the two post-split sibling pages. Note that separators and thus fence keys can be very short due to prefix and suffix truncation [10]. These fence keys take the role of sibling pointers, replacing the traditional page identifiers with search keys. Fence keys speed up defragmentation by eliminating all but one page identifier that must be updated when a page moves, namely the child pointer in the parent node. Fence keys also assist key range locking since they are key values that can be locked. In that sense, they are similar to traditional ghost records, except that fence keys are not subject to ghost cleanup.
+Figure 6.10 shows how fence keys enable a simple solution for the cousin problem in B-tree verification, even if fence keys were originally motivated by write-optimized B-trees [44]. **The essential difference to traditional B-tree designs is that page splits not only post a separator key to the parent page but also retain copies of this separator key as high and low “fence keys” in the two post-split sibling pages.** Note that separators and thus fence keys can be very short due to prefix and suffix truncation [10]. These fence keys take the role of sibling pointers, replacing the traditional page identifiers with search keys. Fence keys speed up defragmentation by eliminating all but one page identifier that must be updated when a page moves, namely the child pointer in the parent node. Fence keys also assist key range locking since they are key values that can be locked. In that sense, they are similar to traditional ghost records, except that fence keys are not subject to ghost cleanup.
 
 The important benefit here is that verification is simplified and the cousin problem can readily be solved, including “second cousins,” “third cousins,” etc. in B-trees with additional levels. In Figure 6.10, the following four pairs of facts can be derived about the key marked by horizontal shading, each pair derived independently from two pages.
 
-  1. From page *a*, the fact that *b*is a level-1 page, and its high fence key
-  2. From page *a*, the fact that *c*is a level-1 page, and its low fence key 
-  3. From page *b*, the fact that *b*is a level-1 page, and its high fence key; this matches fact 1 above 
-  4. From page *b*, the fact that *d*is a leaf page, and its high fence key 
-  5. From page *c*, the fact that *c*is a level-1 page, and its low fence key; this matches fact 2 above 
-  6.  From page *c*, the fact that *e*is a leaf page, and its low fence key 
-  7. From page *d*, the fact that *d*is a leaf page, and its high fence key; this matches fact 4 above 
-  8. From page *e*, the fact that *e*is a leaf page, and its low fence key; this matches fact 6 above
+  1. From page *a*, the fact that *b* is a level-1 page, and its high fence key
+  2. From page *a*, the fact that *c* is a level-1 page, and its low fence key 
+  3. From page *b*, the fact that *b* is a level-1 page, and its high fence key; this matches fact 1 above 
+  4. From page *b*, the fact that *d* is a leaf page, and its high fence key 
+  5. From page *c*, the fact that *c* is a level-1 page, and its low fence key; this matches fact 2 above 
+  6.  From page *c*, the fact that *e* is a leaf page, and its low fence key 
+  7. From page *d*, the fact that *d* is a leaf page, and its high fence key; this matches fact 4 above 
+  8. From page *e*, the fact that *e* is a leaf page, and its low fence key; this matches fact 6 above
 
 No match is required between cousin pages *d*and *e*. Their fence keys are equal due to transitivity among the other comparisons. In fact, matching facts derived from pages *d*and *e*could not include page identifiers, because these pages do not carry the other’s page identifiers. At best, the following facts could be derived, although they are implied by the ones above and thus do not contribute to the quality of B-tree verification:
 
@@ -223,7 +223,7 @@ Fence keys also extend local online verification techniques [80]. In traditional
 
 For example, two root-to-leaf searches in the index shown in Figure 6.10 may end in leaf nodes *d*and *e*. Assume that these two root-to-leaf passes occur in separate transactions. Those two searches can verify correct fence keys along the entire seam. In the B-tree that employs neighbor pointers rather than fence keys as shown in Figure 6.9, the same two root-to-leaf searches could verify that entries in leaf nodes*d*and *e*are indeed smaller and larger than the separator key in the root node but they cannot verify that the pointers between cousin nodes *d*and *e*are mutual and consistent.
 
-B-tree verification by extracting and matching facts applies not only to traditional B-trees but also to Blink-trees and their transitional states. Immediately after a node split, the parent node is not yet updated in Blink-tree and thus generates the facts as above. The newly allocated page is a normal page and also generates the facts as above. The page recently split is the only one with special information, namely a neighbor pointer. Thus, a page with a neighbor pointer indicating a recent split not yet reflected in the parent must trigger derivation of some special facts. Since this old node provides the appropriate “parent facts” for the new node, the old node could be called a “foster parent” if one wants to continue the metaphor of parent, child, ancestor, etc.
+B-tree verification by extracting and matching facts applies not only to traditional B-trees but also to B^link^-trees and their transitional states. Immediately after a node split, the parent node is not yet updated in B^link^-tree and thus generates the facts as above. The newly allocated page is a normal page and also generates the facts as above. The page recently split is the only one with special information, namely a neighbor pointer. Thus, a page with a neighbor pointer indicating a recent split not yet reflected in the parent must trigger derivation of some special facts. Since this old node provides the appropriate “parent facts” for the new node, the old node could be called a “foster parent” if one wants to continue the metaphor of parent, child, ancestor, etc.
 
 > ==TODO：== Fig.6.11
 
@@ -231,12 +231,14 @@ Figure 6.11 illustrates such a case, with node *b*recently split. The fact about
 
 In addition to verification of a B-tree structure, each individual page must be verified prior to extraction of facts, and multiple B-tree indexes may need to be matched against one another, e.g., a secondary index against the appropriate identifier in the primary index. In-page verification is fairly straightforward, although it might be surprising how many details are worth validating. Matching multiple indexes against one another is very similar to a join operation and all standard join algorithms can be employed. Alternatively, a bitmap can be used, with a miniscule probability of two errors masking each other and with a second pass required if the bitmap indicates that an error exists.
 
-Automatic repair of B-tree indexes is not well studied. Techniques may rely on dropping and rebuilding an entire index, replaying the recovery log for just one page, or adjusting a page to match its related pages. A systematic study of repair algorithms, their capabilities, and their performance would be useful for the entire industry.
+> Automatic repair of B-tree indexes is not well studied. Techniques may rely on dropping and rebuilding an entire index, replaying the recovery log for just one page, or adjusting a page to match its related pages. A systematic study of repair algorithms, their capabilities, and their performance would be useful for the entire industry.
 
-- Verification of B-tree indexes protects against software and hardware faults. All commercial database systems provide such utilities. 
-- B-trees can be verified by a single index-order scan, which may be expensive due to fragmentation.
-- Verification based on a disk-order scan requires aggregation of facts extracted from pages. A bit vector filter can speed the process but, in case an inconsistency is found, cannot identify the inconsistency precisely (due to possible hash collisions). 
-- Query execution may (as a side effect) verify all B-tree invariants if nodes carry fence keys rather than neighbor pointers. 
+B-tree索引的自动修复还没有得到很好的研究。技术上可能依赖于删除和重建整个索引、仅为一个页面重做恢复日志或调整页面以匹配其相关页面。系统研究修复算法、它们的能力和性能将对整个行业有用。
+
+- B-tree索引的验证可防止软件和硬件故障。 所有商业数据库系统都提供此类工具
+- 可以通过单个索引顺序扫描来验证B-tree，由于碎片化因而代价可能高昂。
+- 基于磁盘顺序扫描的验证需要汇总从页面提取的事实。位向量过滤器可以加速该过程，但是如果发现不一致，则不能精确地识别不一致性（由于可能的散列冲突）。
+- 如果节点携带**fence键**而不是**邻居指针**，则查询执行（作为副作用）可以验证B-tree所有的不变式。
 
 ### 6.8 小结
 
