@@ -114,31 +114,35 @@
 
 ### 6.5 批量删除
 
-Bulk deletion, also known as purging, roll-out, or information de-staging, can employ some of the techniques invented for bulk inser-tion. For example, one technique for deletion simply inserts anti-matter records with the fastest bulk insertion technique, leaving it to queries or a subsequent reorganization to remove records and reclaim storage space.
+批量删除（也称为清除，==**滚出**==或信息删除）可以采用一些用于批量插入的技术。 例如，一种删除技术只是使用最快的批量插入技术插入==**反物质**==（anti-matter）记录，留给查询或后续重组时删除，并回收存储空间。
 
-Partitioned B-trees permit reorganization prior to the actual dele-tion. In the first and preparatory step, records to be deleted are moved from the main “source” partition to a dedicated “victim” partition. In the second and final step, this dedicated partition is deleted very effi-ciently, mostly be simply de-allocation of leaf nodes and appropriate repair of internal B-tree nodes. Note that the first step can be incre-mental, rely entirely only system transactions, and can run prior to the time when the information truly should vanish from the database.
+分区B-tree允许在实际删除之前进行重组。 第一步（准备步骤），要删除的记录从主“源”分区移动到专用的“受害者”分区。 第二步（最后一步），非常高效地删除这个专用分区，主要是简单地释放叶节点，以及适当地修复B-tree的内部节点。请注意，第一步可以是增量的，完全只依赖于**系统事务**，并且可以在信息真正应该从数据库中消失之前运行。
 
 > ==TODO：== Fig.6.7
 
-Figure 6.7 shows the intermediate state of a partitioned B-tree after preparation for bulk deletion. The B-tree entries to be deleted have all been moved from the main partition into a separate parti-tion such that their actual deletion and removal can de-allocate entire leaf pages rather than remove individual records distributed in all leaf pages. If multiple future deletions can be anticipated, e.g., daily purge of out-of-date information, multiple victim partitions can be populated at the same time.
+图6.7显示了批量删除分区B-tree，第一步之后的中间状态。 要删除的B-tree数据已全部从主分区移动到单独的分区中，这样它们的实际删除只是释放整个叶节点，而不是删除分布在所有叶页中的单个记录。如果可以预期将来会有多个删除，例如，每日清除过时信息，则可以同时生成多个==**受害者**==分区。
 
-The log volume during bulk deletion in partitioned B-trees can be optimized in multiple ways. First, the initial reorganization (“un-merging”) into one or more victim partitions can employ the same techniques as merging based on careful write ordering. Second, after the victim partitions have been written back to the database, turning multi-ple valid records into ghost records can be described in a single short log record. Third, erasing ghost records does not require contents logging if the log records for removal and commit are merged, as described earlier. Fourth, de-allocation of entire B-tree nodes (pages) can employ simi-lar techniques turning separator keys into ghost records. If the victim partitions are so small that they can remain in the buffer pool until their final deletion, committed deletion of pages in a victim partition permits writing back dirty pages in the source partitions.
+可以有多种方式优化分区B-tree批量删除期间的日志量。第一，初始重组（“**un-merge**”）到一个或多个受害者分区，**<u>基于仔细写入顺序的合并</u>**的技术可以用到这。**第二**，将受害者分区写回数据库之后，可以在一个简短的日志记录中，描述将多个有效记录转换为幻影记录。**第三**，如前所述，如果合并删除和提交的日志记录，删除幻影时则不需要记录其内容。**第四**，释放整个B-tree节点（页面）可以采用类似技术，将分隔键转换为幻影记录。==<u>如果受害者分区太小，以至于它们可以保留在缓冲池中，直到最后删除为止，那么受害者分区中提交的删除页面允许将脏页写回源分区中</u>==。
 
-Techniques for bulk insertion and bulk deletion together enable indexing of data streams. Data streaming and near-real-time data processing can benefit from many database techniques, perhaps adapted, e.g., from demand-driven execution to data-driven execution [22]. Most stream management systems do not provide persistent indexes for stream contents, however, because the naive or traditional index maintenance techniques would slow down processing rates too much.
+批量插入和批量删除的技术一起实现了数据流的索引。数据流和近实时数据处理可受益于许多数据库技术，可能是经过调整的，==<u>例如从需求驱动的执行到数据驱动的执行</u>==[22]。然而，大多数流管理系统不提供流内容的持久化索引，因为原始或传统的索引维护技术会大大降低处理速度。
 
-With high-bandwidth insertions (appending partitions sorted in memory), index optimization (merging runs), partition splitting (by prospective deletion date), and deletions (by cutting entire partitions), B-tree indexes on streams can be maintained even on permanent storage. For example, if a disk drive can move data at 100 MB/s, new data can be appended, recent partitions merged, imminently obsolete partitions split from the main partition, and truly obsolete partitions cut at about 20 MB/s sustained. If initial or intermediate partitions are placed on particularly efficient storage, e.g., flash devices or nonvolatile RAM, or if devices are arranged in arrays, the system bandwidth can be much higher.
+通过高带宽插入（附加内存中排好序的分区）、索引优化（合并有序文件）、分区拆分（按预定的删除日期）和删除（通过剪切整个分区），流上的B树索引甚至可以在永久存储上维护。例如，如果磁盘驱动器以100 MB/s的速度移动数据，则可以追加新数据，合并最近的分区，从主分区拆分即将过时的分区，并持续以约20 MB/s的速度切断真正过时的分区。如果初始或中间分区放置在特别有效的存储器上，例如闪存设备或非易失性RAM，或者如果设备排列在阵列中，则系统带宽可以高得多。
 
-A stream with multiple independent indexes enables efficient insertion of new data and concurrent removal of obsolete data even if multiple indexes require constant maintenance. In that case, synchronizing all required activities imposes some overhead. Nonetheless, the example disk drive can absorb and purge index entries (for all indexes together) at 20 MB/s.
+即使多个索引需要持续维护，具有多个独立索引的流也可以有效插入新数据并同时删除过时数据。 在这种情况下，同步所有必需的活动会产生一些开销。 尽管如此，（对于所有索引）也可以20 MB/s在示例磁盘驱动器上吸收和清除索引条目。
 
-Similar techniques enable staging data in multiple levels of a storage hierarchy, e.g., in-memory storage, flash devices, performance-optimized “enterprise” disks and capacity-optimized “consumer” disks. Disk storage may differ not only in the drive technology but also in the approach to redundancy and failure resilience. For example, performance is optimized with a RAID-1 “mirroring” configuration whereas cost-per-capacity is optimized with a RAID-5 “striped redundancy” configuration or a RAID-6 “dual redundancy” configuration. Note that RAID-5 and -6 can equal each other in cost-per-capacity because the latter can tolerate dual failures and thus can be employed in larger disk arrays.
+类似的技术可用在多层存储结构上分别占存数据。例如内存存储、闪存设备、性能优化的“企业”磁盘和容量优化的“消费者”磁盘。磁盘存储不仅在驱动器技术上有所不同，而且在冗余和故障恢复方法上也有所不同。例如，使用RAID-1“镜像”配置优化性能，而使用RAID-5“条带冗余”配置或RAID-6“双冗余”配置优化每个容量的成本。请注意，RAID-5和-6的每容量成本可以相等，因为后者可以承受双重故障，因此可以用于更大的磁盘阵列。
 
-- Bulk deletion is less important than bulk insertion; nonetheless, various optimizations can affect bandwidth by orders of magnitude. 
-- Indexing data streams requires techniques from both bulk insertion and bulk deletion.
+- 批量删除不如批量插入重要；尽管如此，各种优化可以按数量级影响带宽。
+- 索引数据流需要批量插入和批量删除的技术。
 
 ### 6.6 碎片整理
-Defragmentation in file systems usually means placing blocks physically together that belong to the same file; in database B-trees, defragmentation encompasses a few more considerations. These considerations apply to individual B-tree nodes or pages, to the B-tree structure, and to separator keys. In many cases, defragmentation logic can be invoked when some or all affected pages are in the buffer pool due to normal workload processing, resulting in incremental and online defragmentation or reorganization [130].
+文件系统中的碎片整理通常意味着将属于同一文件的块物理地放在一起；在数据库B-tree中，碎片整理还包含一些其他注意事项。这些注意事项适用于单个B-tree节点或页面，B-tree结构和分隔符键。 许多情况下，由于正常的工作负载处理，当一些或所有受影响的页面位于缓冲池中时，可以调用碎片整理逻辑，从而启动增量和在线碎片整理或重组[130]。
 
 For each node, defragmentation includes free space consolidation within each page for efficient future insertions, removal of ghost records (unless currently locked by user transactions), and optimization of in-page data compression (e.g., de-duplication of field values). The B-tree structure might be optimized by defragmentation for balanced space utilization, free space as discussed above in the context of B-tree creation, shorter separator keys (suffix truncation), and better prefix truncation on each page.
+
+对于每个节点，碎片整理包括在每个页面内进行可用空间合并，以便将来高效地插入、删除虚影记录（除非当前被用户事务锁定）以及优化页面内数据压缩（例如，字段值的重复数据消除）。可以通过碎片整理来优化B-树结构，以实现平衡的空间利用率、在创建B-树的上下文中如上所述的可用空间、更短的分隔键（后缀截断）和更好的每页前缀截断。
+
+对于每个节点，碎片整理包括每个页面内的空闲空间合并，以便有效地在将来插入，移除重影记录（除非当前由用户事务锁定），以及页内数据压缩的优化（例如，字段值的重复数据删除）。 B树结构可以通过碎片整理来优化平衡空间利用，如上面在B树创建的上下文中讨论的自由空间，更短的分隔符键（后缀截断）以及每页上更好的前缀截断。
 
 B-tree defragmentation can proceed in key order or in independent key ranges, which also creates an opportunity for parallelism. The key ranges for each task can be determined a priori or dynamically. For example, when system load increases, a defragmentation task can commit its changes instantaneously, pause, and resume later. Note that defragmentation does not change the contents of a B-tree, only its representation. Therefore, the defragmentation task does not need to acquire locks. It must, of course, acquire latches to protect in-memory data structures such as page images in the buffer pool.
 
