@@ -1,0 +1,13 @@
+# Alluxio: A Virtual Distributed File System
+
+##  Chapter 1 Introduction
+
+The world is entering the data revolution era, along with the advancements of the Internet, Artificial Intelligence, mobile devices, autonomous driving, and Internet of Things (IoT).We are generating, collecting, storing, managing, and analyzing zettabytes of data, and the amount of data is growing exponentially [1]. The data revolution is changing how every industry operates.
+
+Organizations and companies are leveraging tremendous amounts of data to create value. People use data to make decisions or facilitate the decision-making process. Data has already become business critical in many companies, and life critical in certain cases. For example, Internet companies use data to provide better targeted advertisements and user experiences. Financial institutions process data to detect potential fraud in real time. Manufacturing powerhouses study data to track, understand, and better design locomotive and airplane engines. Autonomous cars depend on data to function and to ensure the safety of passengers. 
+
+The data revolution has exposed tremendous challenges and opportunities in distributed computer systems. Thanks to the pioneers in both industry and academia over the past two decades, we have seen significant innovation in distributed computation frameworks and distributed storage systems.
+
+In the computation layer, the ecosystem started from the MapReduce framework [50], and grew to many different general and specialized systems. For example, new computation frameworks include: Apache spark [146] for general data processing, Apache Storm [124] and Apache Samza [118] for stream processing, Apache Mahout [22] and H2O [71] for machine learning, Tensorflow [92] and Caffe [81] for deep learning, and Presto [110] and Apache Drill [13] for SQL workloads. Users have access to more than a hundred popular frameworks for various workloads and the number is growing.
+
+In the storage layer, the ecosystem grew from the HDFS [121] to a variety of choices as well. Storage systems have also become more diverse, such as file systems [119, 96, 134, 60, 33, 67, 112], object stores [137, 125], blob stores [99, 36], key-value systems [51, 95, 115, 86, 40, 10, 59], NoSQL databases [17, 11], etc. Examples of storage systems include: Amazon S3 [6], Google Cloud Storage (GCS) [66], Azure Blob Store [97], Swift [125], Ceph [137], GlusterFS [65], and EMC Elastic Cloud Storage (ECS) [54]. In the meantime, many of these storage systems are backed by technology giants, such as Amazon, Alibaba, EMC, Google, Huawei, HPE, IBM, Microsoft, and Tencent. Given the fast growing data size, more vendors are attracted and entering this ecosystem with new storage solutions.
