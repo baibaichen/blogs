@@ -1,4 +1,4 @@
-#Mac os 环境设置
+# Mac os 环境设置
 
 1. 办公工具【由 self service 安装】
 

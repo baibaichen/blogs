@@ -1,4 +1,4 @@
-#环境设置
+# 环境设置
 
 ## 系统
 
@@ -39,6 +39,7 @@ https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590
 ## 快捷键
 
 - [x] [Home 和 End key](https://www.jvandemo.com/how-to-fix-home-and-end-keys-on-mac-os-x/)
+- [x] 外置键盘上将F1、F2等用作标准功能键<img src="./img/Keyboard_shortcuts_func.png" alt="image-20191029151157387" style="zoom: 50%;" />
 
 ### IntelliJ IDEA 
 
@@ -49,10 +50,14 @@ https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590
 
 #### 几个重要对的快捷键
 
-| 功能                           | 快捷键 |
-| ------------------------------ | ------ |
-| Move Caret to Previous Word^1^ | ⌃→     |
-| Move Caret to Next Word^1^     | ⌃←     |
-|                                |        |
+| 功能                           | 设置的快捷键 | 老的快捷键 |
+| ------------------------------ | ------------ | ---------- |
+| Move Caret to Previous Word^1^ | ⌃←           |            |
+| Move Caret to Next Word^1^     | ⌃→           |            |
+| Select Previous Tab            | ⌃⌥←          | ⌥←         |
+| Select Next Tab                | ⌃⌥→          | ⌥→         |
+| Back                           | ⌥←           | ⌃⌥←        |
+| Forward                        | ⌥→           | ⌃⌥→        |
+|                                |              |            |
 
 1. 和系统有冲突，需要在系统中禁止<img src="./img/Keyboard_shortcuts.png" alt="image-20191029141526294" style="zoom: 50%;" />
