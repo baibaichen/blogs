@@ -18,7 +18,7 @@
 
 ## 开发
 
-https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590
+> 参考：[开发环境搭建](https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590)
 
 - [x] [Iterm2](https://www.iterm2.com/)
   - [x] 配置 see https://blog.biezhi.me/2018/11/build-a-beautiful-mac-terminal-environment.html
@@ -29,7 +29,13 @@ https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590
   - [x] 私有repo要使用[使用 SSH 连接到 GitHub](https://help.github.com/cn/github/authenticating-to-github/connecting-to-github-with-ssh)
 - [x] [jdk 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)，注：jdk8 已经无法用brew 安装
 - [x] [Home-brew](https://brew.sh/)
-  - [x] MVN `brew install maven`mvn
+  - [x] MVN `brew install maven`
+  - [x] sbt `brew install sbt`，安装最新的版本
+  - [ ] npm `brew install npm`
+  - [ ] Protobuf `brew install protobuf`
+  - [x] Thrift
+    - [x] `brew install thrift@0.9`，安装0.9，地址在`/usr/local/opt/thrift@0.9/bin/thrift`
+    - [x]  `brew install thrift`，安装最新的版本 ，0.12
 - [x] Spark build
   - [x] `mvn -Pyarn -Phadoop-2.7 -Dhadoop.version=2.7.3 -Phive -Phive-thriftserver -DskipTests clean package`注：**spark 2.4.4 OK**
   - [ ] master 分支 编译有问题（后续再跟进下）
@@ -50,14 +56,21 @@ https://olapio.atlassian.net/wiki/spaces/PD/pages/2883590
 
 #### 几个重要对的快捷键
 
-| 功能                           | 设置的快捷键 | 老的快捷键 |
-| ------------------------------ | ------------ | ---------- |
-| Move Caret to Previous Word^1^ | ⌃←           |            |
-| Move Caret to Next Word^1^     | ⌃→           |            |
-| Select Previous Tab            | ⌃⌥←          | ⌥←         |
-| Select Next Tab                | ⌃⌥→          | ⌥→         |
-| Back                           | ⌥←           | ⌃⌥←        |
-| Forward                        | ⌥→           | ⌃⌥→        |
-|                                |              |            |
+|      | 功能                           | 设置的快捷键 | 老的快捷键 |
+| ---- | ------------------------------ | ------------ | ---------- |
+| Y    | Move Caret to Previous Word^1^ | ⌃←           |            |
+| Y    | Move Caret to Next Word^1^     | ⌃→           |            |
+| Y    | Select Previous Tab            | ⌃⌥←          | ⌥←         |
+| Y    | Select Next Tab                | ⌃⌥→          | ⌥→         |
+| Y    | Back                           | ⌥←           | ⌃⌥←        |
+| Y    | Forward                        | ⌥→           | ⌃⌥→        |
+| Y    | Copy                           | ⌘C           | ⌃C         |
+| Y    | Paste                          | ⌘V           | ⌃V         |
+| Y    | Cut                            | ⌘X           | ⌃X         |
+|      | Save All                       | ⌘S           | ⌃S         |
+| Y    | Undo                           | ⌘Z           | ⌃Z         |
+| Y    | Redo                           | ⌘Y，⌘⇧Z      | ⌃Y，⌃⇧Z    |
+| Y    | Find in Path^2^                | ⌃⇧F          |            |
 
 1. 和系统有冲突，需要在系统中禁止<img src="./img/Keyboard_shortcuts.png" alt="image-20191029141526294" style="zoom: 50%;" />
+2. 和搜狗拼音有冲突，需要禁止<img src="./img/sogu_shortcuts.png" alt="image-20191030122347750" style="zoom:33%;" />
