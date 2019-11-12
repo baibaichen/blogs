@@ -521,13 +521,7 @@ testData3.groupBy('a).agg(count('b))
    def lift[A,B](f: A => B): Option[A] => Option[B] = (o: Option[A]) => o.map(f)
    ```
    
-7. xcd
-
-8. 
-
-    
-
-    
+7. 参见[向可变长参数传数组](https://www.cnblogs.com/mustone/p/5711937.html)时，使用`_*`转义数组
 
 ### Spark中的例子
 
