@@ -266,6 +266,321 @@ There are better options out there! I'll get into some of them in following post
 
 No tool is perfect, but all of the above are a damn sight better at identifying where CPU time is being spent.
 
+# The Pros and Cons of AsyncGetCallTrace Profilers
+
+So, going on from my [whingy post on safepoint bias](http://psy-lob-saw.blogspot.co.za/2016/02/why-most-sampling-java-profilers-are.html), where does one go to get their profiling kicks? One option would be to use an OpenJDK internal API call `AsyncGetCallTrace` to facilitate non-safepoint collection of stack traces.
+
+AsyncGetCallTrace is NOT official JVM API. It's not a comforting place to be for profiler writers, and was only implemented on OpenJDK/Oracle JVMs originally (Zing has recently started supporting AGCT to enable support for Solaris Studio and other profilers, I will write a separate post on Studio). It's original use case was for Solaris Studio, and it provides the following API (see [forte.cpp](http://hg.openjdk.java.net/jdk8/jdk8/hotspot/file/tip/src/share/vm/prims/forte.cpp), the name is a left over from the Forte Analyzer days). Here's what the API adds up to:
+
+```cpp
+typedef struct {
+  jint lineno;         // BCI in the source file
+  jmethodID method_id; // method executed in this frame
+} ASGCT_CallFrame;
+
+typedef struct {
+  JNIEnv *env_id   //Env where trace was recorded
+  jint num_frames; // number of frames in this trace
+  ASGCT_CallFrame *frames;
+} ASGCT_CallTrace; 
+
+void AsyncGetCallTrace(ASGCT_CallTrace *trace, // pre-allocated trace to fill
+                       jint depth,             // max number of frames to walk up the stack
+                       void* ucontext)         // signal context
+```
+
+Simple right? You give it a `ucontext` and it fills in the trace with call frames (or it gets the hose again).
+
+## A Lightweight Honest Profiler
+
+The 'async' in the name refers to the fact that AGCT is safe to call in a signal handler. This is mighty handy in a profiling API as it means you can implement your profiler as follows:
+
+1. In a JVMTI agent, register a signal handler for signal X.
+2. [Setup a timer](http://man7.org/linux/man-pages/man2/setitimer.2.html), triggering the signal X at the desired sample frequency. Honest Profiler is using the **ITIMER_PROF** option, which means we'll get signalled based on CPU time. The signal will be sent to the process and one of the running threads will end up being interrupted and calling into our signal handler. Note that this assumes the OS will distribute the signals fairly between threads so we will get a fair sample of all running threads.
+3. From signal handler, call AGCT: Note that the interrupted thread (picked at 'random' from the threads currently executing on CPU) is now running your signal handler. The thread is NOT AT A SAFEPOINT. It may not be a Java thread at all.
+4. Persist the call trace: Note that when running in a signal handler only 'async' code is legal to run. This means for instance that any blocking code is forbidden, including malloc and IO.
+5. WIN!
+
+The `ucontext` ingredient is the very same context handed to you by the signal handler (your signal handler is a callback of the signature *handle(int signum, siginfo_t \*info, void \*context)*). From it AGCT will dig up the instruction/frame/stack pointer values at the time of the interrupt and do it's best to find out where the hell you landed.
+
+This exact approach was followed by Jeremy Manson, who explained the infrastructure and [open sourced a basic profiler](https://code.google.com/archive/p/lightweight-java-profiler/) (in a proof of concept, non commital sort of way). His great series of posts on the matter:
+
+- [Profiling with JVMTI/JVMPI, SIGPROF and AsyncGetCallTrace](http://jeremymanson.blogspot.co.za/2007/05/profiling-with-jvmtijvmpi-sigprof-and.html)
+- [More about profiling with SIGPROF](http://jeremymanson.blogspot.co.za/2007/06/more-about-profiling-with-sigprof.html)
+- [More thoughts on SIGPROF, JVMTI and stack traces](http://jeremymanson.blogspot.co.za/2007/06/more-thoughts-on-sigprof-jvmti-and.html)
+- [Why Many Profilers have Serious Problems (More on Profiling with Signals)](http://jeremymanson.blogspot.co.za/2010/07/why-many-profilers-have-serious.html)
+
+The same code was then picked up by Richard Warburton and further improved and stabilized in [Honest-Profiler](https://github.com/RichardWarburton/honest-profiler) (to which I have made some contributions). Honest Profiler is an effort to make that initial prototype production ready, and compliment it with some tooling to make the whole thing usable. The serialization in a signal handler issue is resolved by using a lock-free MPSC ring-buffer of pre-allocated call trace structs (pointing to preallocated call frame arrays). A post-processing thread then reads the call traces, collects some extra info (like converting BCI to line number, jmethodIds into class names/file names etc) and writes to a log file. See the projects wiki for more details.
+
+The log file is parsed offline (i.e. by some other process, on another machine, at some other time. Note that you can process the file while the JVM is still profiling, you need not wait for it to terminate.) to give you the hot methods/call tree breakdown. I'm going to use Honest-Profiler in this post, so if you want to try this out at home you're going to have to go and [build it](https://github.com/RichardWarburton/honest-profiler/wiki/How-to-build) to experiment locally (works on [OpenJDK](http://openjdk.java.net/)/[Zulu](https://www.azul.com/products/zulu/) 6/7/8 + [Oracle JVM](http://www.oracle.com/technetwork/java/javase/downloads/index.html)s + recent [Zing](https://www.azul.com/products/zing/) builds). I'll do some comparisons for the same experiments with JMC, you'll need an Oracle JVM (1.7u40 and later) to try that out.
+
+## What Does AGCT Do?
+
+By API we can say AGCT is a mapping between instruction/frame/stack pointer and a call trace. The call trace is an array of Java call frames (jmethodId, BCI). To produce this mapping the following process is followed:
+
+1. Make sure thread is in 'walkable' state, in particular not when:
+
+2. - Thread is not a Java thread.
+   - GC is active
+   - New/uninitialized/just about to die. I.e. threads that are either before or after having Java code running on them are of no interest.
+   - During a deopt
+
+3. Find the current/last Java frame (as in actual frame on the stack, revisit Operating Systems 101 for definitions of stacks and frames):
+
+4. - The instruction pointer (commonly referred to as the PC - Program Counter) is used to look up a matching Java method (compiled/interpreter). The current PC is provided by the signal context.
+   - If the PC is not in a Java method we need to find the last Java method calling into native code.
+   - Failure is an option! we may be in an 'unwalkable' frame for all sorts of reasons... This is quite complex and if you must know I urge you to get comfy and dive into the maze of relevant code. Trying to qualify the top frame is where most of the complexity is for AGCT.
+
+5. Once we have a top frame we can fill the call trace. To do this we must convert the real frame and PC into:
+
+6. - Compiled call frames: The PC landed on a compiled method, find the BCI (Byte Code Index) and record it and the jMethodId
+   - Virtual call frames: The PC landed on an instruction from a compiled inlined method, record the methods/BCIs all the way up to the framing compiled method
+   - Interpreted call frames
+   - From a compiled/interpreted method we need to walk to the calling frame and repeat until we make it to the root of the Java call trace (or record enough call frames, whichever comes first)
+
+7. WIN!
+
+Much like medication list of potential side effects, the error code list supported by a function can be very telling. AGCT supports the following reasons for not returning a call trace:
+
+```cpp
+enum {
+  ticks_no_Java_frame         =  0, // new thread
+  ticks_no_class_load         = -1, // jmethodIds are not available
+  ticks_GC_active             = -2, // GC action
+  ticks_unknown_not_Java      = -3, // ¯\_(ツ)_/¯
+  ticks_not_walkable_not_Java = -4, // ¯\_(ツ)_/¯
+  ticks_unknown_Java          = -5, // ¯\_(ツ)_/¯
+  ticks_not_walkable_Java     = -6, // ¯\_(ツ)_/¯
+  ticks_unknown_state         = -7, // ¯\_(ツ)_/¯
+  ticks_thread_exit           = -8, // dying thread
+  ticks_deopt                 = -9, // mid-deopting code
+  ticks_safepoint             = -10 // ¯\_(ツ)_/¯
+}; 
+```
+
+While this data is reported from AGCT, it is often missing from the reports based on it. More on that later.
+
+## The Good News!
+
+So, looking at the bright side, we can now see between safepoint polls!!! How awesome is that? Lets see exactly how awesome by running the benchmarks which we could not measure correctly with the safepoint biased profiler in the previous post.
+
+**Note**: Honest-Profiler reports (t X,s Y) which reflect the total % of stack trace samples containing this method+line vs. the self % of samples in which this method+line is the leaf. The output is sorted by self.:
+
+```java
+public class SafepointProfiling {
+  @Param("1000")
+  int size;
+  byte[] buffer;
+  byte[] dst;
+  boolean result;
+
+  @Setup
+  public final void setup() {
+    buffer = new byte[size];
+    dst = new byte[size];
+  }
+  
+  @Benchmark
+  public void meSoHotInline() {
+    byte b = 0;
+    for (int i = 0; i < size; i++) {
+      b += buffer[i];
+    }
+    result = b == 1;
+  }
+/*  
+# Benchmark: safepoint.profiling.SafepointProfiling.meSoHotInline
+JMH Stack profiler:
+ 99.6%  99.8% meSoHotInline_avgt_jmhStub:165
+
+Honest Profiler:
+ (t 98.7,s 98.7) meSoHotInline @ (bci=12,line=18)
+ (t  0.8,s  0.8) meSoHotInline_avgt_jmhStub @ (bci=27,line=165)
+*/
+  @Benchmark
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  public void meSoHotNoInline() {
+    byte b = 0;
+    for (int i = 0; i < size; i++) {
+      b += buffer[i]; 
+    }
+    result = b == 1;
+  }
+/*
+# Benchmark: safepoint.profiling.SafepointProfiling.meSoHotNoInline
+JMH Stack profiler:
+ 99.4%  99.6% meSoHotNoInline_avgt_jmhStub:163
+
+Honest Profiler:
+ (t 98.9,s 98.9) meSoHotNoInline @ (bci=12,line=36)
+ (t  0.4,s  0.4) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+ (t  0.2,s  0.2) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t  0.1,s  0.1) meSoHotNoInline_avgt_jmhStub @ (bci=27,line=165)
+ (t 99.0,s  0.1) meSoHotNoInline_avgt_jmhStub @ (bci=14,line=163)
+}*/
+```
+
+Sweet! Honest Profiler is naming the right methods as the hot methods, and nailing the right lines where the work is happening.
+
+Let's try the copy benchmark, this time comparing the Honest-Profiler result with the JMC result:
+
+```java
+ @Benchmark
+  public void copy() {
+    byte b = 0;
+    for (int i = 0; i < buffer.length; i++) {
+      dst[i] = buffer[i];
+    }
+    result = dst[buffer.length-1] == 1;
+  }
+/*
+# Honest-Profiler reports:
+ (t 41.6,s 41.6) copy @ (bci=22,line=5)
+ (t 33.3,s 33.3) copy @ (bci=23,line=4)
+ (t  9.7,s  9.7) copy @ (bci=21,line=4)
+ (t  8.5,s  8.5) copy @ (bci=8 ,line=4)
+ (t  2.3,s  2.3) copy @ (bci=11,line=5)
+# JMC reports:
+Stack Trace                         |Samples| Percentage(%)
+copy              line: 7   bci: 41 | 3,819 | 96.88
+copy_avgt_jmhStub line: 165 bci: 27 |   122 |  3.095
+
+# JMC reports with -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints:
+Stack Trace                         |Samples| Percentage(%)
+copy              line: 5   bci: 22 | 1,662 | 42.204
+copy              line: 4   bci: 23 | 1,341 | 34.053
+copy              line: 5   bci: 21 |   381 |  9.675
+copy              line: 4   bci:  8 |   324 |  8.228
+copy              line: 5   bci: 11 |    98 |  2.489
+*/
+```
+
+Note the difference in reporting switching on the "-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints" flags makes to JMC. Honest-Profiler now ([recent change](https://github.com/RichardWarburton/honest-profiler/pull/133), hot off the press) causes the flag to be on without requiring user intervention, but JMC does not currently do that (this is understandable when attaching after the process started, but should perhaps be default if the process is started with recording on).
+
+Further experimentation and validation exercises for the young and enthusiastic:
+
+- Compare the Honest-Profiler results with JFR/JMC results on larger applications. What's different? Why do you think it's different?
+- Run with -XX:+PrintGCApplicationStoppedTime to see no extra safepoints are caused by the profiling (test with profiler on/off).
+- The extra-studious of y'all can profile the other cases discussed in previous post to see they similarly get resolved.
+
+While this is a step forward, we still got some issues here... 
+
+## Collection errors: Runtime Stubs
+
+As we can see from the list of errors, any number of events can result in a failed sample. A particularly nasty type of failed sample is when you hit a runtime generated routine which AGCT fails to climb out of. Let see what happens when we don't roll our own array copy:
+
+```java
+@Benchmark
+  public int systemArrayCopy() {
+    System.arraycopy(buffer, 0, dst, 0, buffer.length);
+    return dst[buffer.length-1];
+  }
+/*
+# Flat Profile (by line):
+ (t 62.9,s 62.9) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t 19.5,s 19.5) systemArrayCopy_avgt_jmhStub @ (bci=29,line=165)
+ (t 2.7,s 2.7) systemArrayCopy @ (bci=15,line=3)
+ (t 2.1,s 2.1) systemArrayCopy @ (bci=26,line=4)
+ (t 1.9,s 1.9) systemArrayCopy @ (bci=29,line=4)
+ */
+```
+
+Now, this great unknown marker is a recent addition to Honest-Profiler, which increases it's honesty about failed samples. It indicates that for 62.9% of all samples, AGCT could not figure out what was happening and returned *ticks_unknown_java*. Given that there's very little code under test here we can deduce the missing samples all fall within System.arrayCopy (you can pick a larger array size to further prove the point, or use a native profiler for comparison).
+
+Profiling the same benchmarks under JMC will not report failed samples, and the profiler will divide the remaining samples as if the failed samples never happened. Here's the JMC profile for systemArrayCopy:
+
+```bash
+Number of samples(over 60 seconds) : 2617
+Method::Line                              Samples   %
+systemArrayCopy_avgt_jmhStub(...) :: 165    1,729   66.043
+systemArrayCopy()                 ::  41      331   12.643
+systemArrayCopy()                 ::  42      208    7.945
+systemArrayCopy_avgt_jmhStub(...) :: 166       93    3.552
+systemArrayCopy_avgt_jmhStub(...) :: 163       88    3.361
+```
+
+JMC is reporting a low number of samples (the total is sort of available in the tree view as the number of samples in the root), but without knowing what the expected number of samples should be this is very easy to miss. This is particularly true for larger and noisier samples from real applications collected over longer period of time.
+
+Is this phenomena isolated to System.arrayCopy? Not at all, here's crc32 and adler32 as a further comparison:
+
+```java
+@Benchmark
+  public long adler32(){
+    adler.update(buffer);
+    return adler.getValue();
+  }
+/*
+# Benchmark (size)  Mode  Cnt     Score   Error  Units
+  adler32     1000  avgt   50  1003.068 ± 4.994  ns/op
+
+# Flat Profile (by line):
+  (t 98.9,s 98.9) java.util.zip.Adler32::updateBytes @ (bci=-3,line=-100)
+  (t  0.3,s  0.3) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+  (t  0.1,s  0.1) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+  (t  0.1,s  0.1) adler32_avgt_jmhStub @ (bci=32,line=165)
+  (t  0.1,s  0.1) adler32 @ (bci=5,line=3)
+*/	
+  @Benchmark
+  public long crc32(){
+    crc.update(buffer);
+    return crc.getValue();
+  }
+/*
+# Benchmark (size)  Mode  Cnt    Score   Error  Units
+  crc32       1000  avgt   50  134.341 ± 0.698  ns/op
+
+# Flat Profile (by line):
+ (t 96.7,s 96.7) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t  1.4,s  0.6) crc32_avgt_jmhStub @ (bci=19,line=163)
+ (t  0.3,s  0.3) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+ (t  0.3,s  0.3) crc32_avgt_jmhStub @ (bci=29,line=165)
+ */
+```
+
+What do Crc32 and System.arrayCopy have in common? They are both JVM intrinsics, replacing a method call (Java/native don't really matter, though in this case both are native) with a combination of inlined code and a call to a JVM runtime generated method. This method call is not guarded the same way a normal call into native methods is and thus the AGCT stack walking is broken.
+
+Why is this important? The reason these methods are worth making into intrinsics is because they are sufficiently important bottlenecks in common applications. Intrinsics are like tombstones for past performance issues in this sense, and while the result is faster than before, the cost is unlikely to be completely gone.
+
+Why did I pick CRC32? because I recently spent some time profiling Cassandra. Version 2 of Cassandra uses adler32 for checksum, while version 3 uses crc32. As we can see from the results above, it's potentially a good choice, but if you were to profile Cassandra 3 it would look better than it actually is because all the checksum samples are unprofilable. Profiling with a native profiler will confirm that the checksum cost is still a prominent element of the profile (of the particular setup/benchmark I was running).
+
+**AGCT profilers are blind to runtime stubs (some or all, this may get fixed in future releases...). Failed samples are an indication of such a blind spot.**
+
+Exercise to the reader:
+
+- Construct a benchmark with heavy GC activity and profile. The CPU spent on GC will be absent from you JMC profile, and should show as *ticks_GC_active* in your Honest-Profiler profile.
+- Construct a benchmark with heavy compiler activity and profile. As above look for compilation CPU. There's no compilation error code, but you should see allot of *ticks_unknown_not_Java* which indicate a non-Java thread has been interrupted ([this is a conflated error code, we'll be fixing it soon](https://github.com/RichardWarburton/honest-profiler/issues/138)).
+- Extra points! Construct a benchmark which is spending significant time deoptimising and look for the *ticks_deopt* error in your Honest-Profiler profile.
+
+## Blind Spot: Sleeping code
+
+Since sleeping code doesn't actually consume CPU it will not appear in the profile. This can be confusing if you are used to the JVisualVM style reporting where all stacks are reported including WAITING (or sometimes RUNNING Unsafe.park). Profiling sleeping or blocked code is not something these profilers cover. I mention this not because they promise to do this and somehow fail to deliver, but because it's a common pitfall. For Honest-Profiler [this feature](https://github.com/RichardWarburton/honest-profiler/issues/126) should help highlight mostly off-CPU applications as such by comparing expected and actual samples (the delta is signals which were not delivered to the process as it was not running).
+
+## Error Margin: Skidding + inlining
+
+I'll dive deeper into this one another time, since other profilers share this issue. In essence the problem is that instruction profiling is not accurate and we can often encounter a skid effect when sampling the PC(program counter). This in effect means the instruction reported can be a number of instructions after the instruction where the time is spent. Since AsyncGetCallTrace relies on PC sampling to resolve the method and code line we get the same inaccuracy reflected through the layer of mapping (PC -> BCI -> LOC) but where on the assembly level we deal with a single blob of instructions where the proximity is meaningful, in converting back to Java we have perhaps slipped from one inlined method to the next and the culprit is no longer in a line of code nearby.
+
+To be continued...
+
+### Summary: What is it good for?
+
+AsyncGetCallTrace is a step up from GetStackTraces as it operates at lower overheads and does not suffer from safepoint bias. It does require some mental model adjustments:
+
+1. -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints : if this is not on you are still hobbled by the resolution of the debug data. This is different from safepoint bias, since you actually can sample anywhere, but the translation from PC to BCI kills you. I've not seen these flags result in measurable overhead, so I'm not convinced the default value is right here, but for now this is how it is. Honest-Profiler takes care of this for you, with JMC you'll need to add it to your command line.
+2. Each sample is for a **single, on CPU, thread:** This is very different from the GetStackTraces approach which sampled all threads. It means you are getting less traces per sample, and are completely blind to sleeping/starved threads. Because the overhead is that much lower you can compensate by sampling more frequently, or over longer periods of time. **This is a good thing**, sampling all the threads at every sample is a very problematic proposition given the number of threads can be very large.
+
+`AsyncGetCallTrace` is great for profiling most 'normal' Java code, where hotspots are in your Java code, or rather in the assembly code they result in. This seems to hold in the face of most optimizations to reasonable accuracy (but may on occasion be off by quite a bit...).
+
+`AsyncGetCallTrace` is of limited use when:
+
+1. Large numbers of samples fail: This can mean the application is spending it's time in GC/Deopts/Runtime code. Watch for failures. I think currently honest-profiler offers better visibility on this, but I'm sure the good folks of JMC can take a hint.
+2. Performance issue is hard to glean from the Java code. E.g. see the [issue discussed in a previous post using JMH perfasm](http://psy-lob-saw.blogspot.com/2015/07/jmh-perfasm.html) (false sharing on the class id in an object header making the conditional inlining of an interface call very expensive). 
+3. Due to instruction skid/compilation/available debug information the wrong Java line is blamed. This is potentially very confusing in the presence of inlining and code motion.
+
+Using Honest-Profiler you can now profile Open/Oracle JDK6/7/8 applications on Linux and OS X. You can also use it to profile Zing applications on recent Zing builds (version 15.05.0.0 and later, all JDKs). Honest-Profiler is lovely, but I would caution readers that it is not in wide use, may contain bugs, and should be used with care. It's a useful tool, but I'm not sure I'd unleash it on my production systems just yet ;-).
+JMC/JFR is available on Oracle JVMs only from JDK7u40, but works on Linux, OS X, Windows and Solaris (JFR only). JMC/JFR is free for development purposes, but requires a licence to use in production. Note that JFR collects a wealth of performance data which is beyond the scope of this post, I whole heartedly recommend you give it a go.
+
+A big thank you to all the kind reviewers: [JP Bempel](https://twitter.com/jpbempel), [Doug Lawrie](https://twitter.com/switchology), [Marcus Hirt](https://twitter.com/hirt) and [Richard Warburton](https://twitter.com/RichardWarburto), any remaining errors will be deducted from their bonuses directly.
+
 ----
 
 # 糟糕
