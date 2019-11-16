@@ -1049,6 +1049,96 @@ copy              line: 5   bci: 11 |    98 |  2.489
 
 虽然这是一个进步，但我们仍然有一些问题... 
 
+## Collection errors: Runtime Stubs
+
+As we can see from the list of errors, any number of events can result in a failed sample. A particularly nasty type of failed sample is when you hit a runtime generated routine which AGCT fails to climb out of. Let see what happens when we don't roll our own array copy:
+
+```java
+@Benchmark
+  public int systemArrayCopy() {
+    System.arraycopy(buffer, 0, dst, 0, buffer.length);
+    return dst[buffer.length-1];
+  }
+/*
+# Flat Profile (by line):
+ (t 62.9,s 62.9) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t 19.5,s 19.5) systemArrayCopy_avgt_jmhStub @ (bci=29,line=165)
+ (t 2.7,s 2.7) systemArrayCopy @ (bci=15,line=3)
+ (t 2.1,s 2.1) systemArrayCopy @ (bci=26,line=4)
+ (t 1.9,s 1.9) systemArrayCopy @ (bci=29,line=4)
+ */
+```
+
+Now, this great unknown marker is a recent addition to Honest-Profiler, which increases it's honesty about failed samples. It indicates that for 62.9% of all samples, AGCT could not figure out what was happening and returned *ticks_unknown_java*. Given that there's very little code under test here we can deduce the missing samples all fall within System.arrayCopy (you can pick a larger array size to further prove the point, or use a native profiler for comparison).
+
+Profiling the same benchmarks under JMC will not report failed samples, and the profiler will divide the remaining samples as if the failed samples never happened. Here's the JMC profile for systemArrayCopy:
+
+```bash
+Number of samples(over 60 seconds) : 2617
+Method::Line                              Samples   %
+systemArrayCopy_avgt_jmhStub(...) :: 165    1,729   66.043
+systemArrayCopy()                 ::  41      331   12.643
+systemArrayCopy()                 ::  42      208    7.945
+systemArrayCopy_avgt_jmhStub(...) :: 166       93    3.552
+systemArrayCopy_avgt_jmhStub(...) :: 163       88    3.361
+```
+
+JMC is reporting a low number of samples (the total is sort of available in the tree view as the number of samples in the root), but without knowing what the expected number of samples should be this is very easy to miss. This is particularly true for larger and noisier samples from real applications collected over longer period of time.
+
+Is this phenomena isolated to System.arrayCopy? Not at all, here's crc32 and adler32 as a further comparison:
+
+```java
+@Benchmark
+  public long adler32(){
+    adler.update(buffer);
+    return adler.getValue();
+  }
+/*
+# Benchmark (size)  Mode  Cnt     Score   Error  Units
+  adler32     1000  avgt   50  1003.068 ± 4.994  ns/op
+
+# Flat Profile (by line):
+  (t 98.9,s 98.9) java.util.zip.Adler32::updateBytes @ (bci=-3,line=-100)
+  (t  0.3,s  0.3) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+  (t  0.1,s  0.1) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+  (t  0.1,s  0.1) adler32_avgt_jmhStub @ (bci=32,line=165)
+  (t  0.1,s  0.1) adler32 @ (bci=5,line=3)
+*/	
+  @Benchmark
+  public long crc32(){
+    crc.update(buffer);
+    return crc.getValue();
+  }
+/*
+# Benchmark (size)  Mode  Cnt    Score   Error  Units
+  crc32       1000  avgt   50  134.341 ± 0.698  ns/op
+
+# Flat Profile (by line):
+ (t 96.7,s 96.7) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t  1.4,s  0.6) crc32_avgt_jmhStub @ (bci=19,line=163)
+ (t  0.3,s  0.3) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+ (t  0.3,s  0.3) crc32_avgt_jmhStub @ (bci=29,line=165)
+ */
+```
+
+What do Crc32 and System.arrayCopy have in common? They are both JVM intrinsics, replacing a method call (Java/native don't really matter, though in this case both are native) with a combination of inlined code and a call to a JVM runtime generated method. This method call is not guarded the same way a normal call into native methods is and thus the AGCT stack walking is broken.
+
+Why is this important? The reason these methods are worth making into intrinsics is because they are sufficiently important bottlenecks in common applications. Intrinsics are like tombstones for past performance issues in this sense, and while the result is faster than before, the cost is unlikely to be completely gone.
+
+Why did I pick CRC32? because I recently spent some time profiling Cassandra. Version 2 of Cassandra uses adler32 for checksum, while version 3 uses crc32. As we can see from the results above, it's potentially a good choice, but if you were to profile Cassandra 3 it would look better than it actually is because all the checksum samples are unprofilable. Profiling with a native profiler will confirm that the checksum cost is still a prominent element of the profile (of the particular setup/benchmark I was running).
+
+**AGCT profilers are blind to runtime stubs (some or all, this may get fixed in future releases...). Failed samples are an indication of such a blind spot.**
+
+Exercise to the reader:
+
+- Construct a benchmark with heavy GC activity and profile. The CPU spent on GC will be absent from you JMC profile, and should show as *ticks_GC_active* in your Honest-Profiler profile.
+- Construct a benchmark with heavy compiler activity and profile. As above look for compilation CPU. There's no compilation error code, but you should see allot of *ticks_unknown_not_Java* which indicate a non-Java thread has been interrupted ([this is a conflated error code, we'll be fixing it soon](https://github.com/RichardWarburton/honest-profiler/issues/138)).
+- Extra points! Construct a benchmark which is spending significant time deoptimising and look for the *ticks_deopt* error in your Honest-Profiler profile.
+
+## 盲点：休眠的代码
+
+由于休眠代码实际上并不消耗CPU，因此无法 profile 它们。如果您习惯于JVisualVM，它报告所有线程的堆栈，包括等待（或有时运行`Unsafe.park`）的线程，这可能会让您困惑。这些Profiler无法分析正在休眠或阻塞的代码。我提到这一点，是因为这是一个常见的陷阱，而非一个他们承诺要实现这个功能，但不知何故还未实现。对于Honest-Profiler，此[功能](https://github.com/RichardWarburton/honest-profiler/issues/126)应该有助于比较预期样本和实际样本，来突出显示没有利用CPU的应用（delta是由于进程正在休眠，而未传递到该进程的信号）。
+
 ## 误差率：滑动+内联
 
 我还会再次深入探讨这个问题，因为其他Profiler也有同样的问题。本质问题是指令分析不准确，在对程序计数器（PC）进行采样时，我们经常会遇到<u>滑动效应</u>。这实际上意味着所报告的指令早真正耗时的指令后面，可能隔着好多条指令。因为`AsyncGetCallTrace`依赖于**PC采样**来解析方法和代码行，通过映射（PC->BCI->LOC）得到同样的不精确性，但在汇编层面上，处理的是一组指令，接近性是有意义的，转换回Java时，我们可能已经从一个内联方法滑向另一个内联方法，而<u>罪魁祸首</u>（热点代码）已经不在附近的代码行中了。
