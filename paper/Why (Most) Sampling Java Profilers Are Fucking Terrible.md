@@ -1,4 +1,4 @@
-# Why (Most) Sampling Java Profilers Are Fucking Terrible（他妈的太糟糕了）
+# Why (Most) Sampling Java Profilers Are Fucking Terrible
 
 This post builds on the basis of a [previous post on safepoints](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html). If you've not read it you might feel lost and confused. If you have read it, and still feel lost and confused, and you are certain this feeling is related to the matter at hand (as opposed to an existential crisis), please ask away. So, now that we've established what safepoints are, and that:
 
@@ -561,7 +561,7 @@ I'll dive deeper into this one another time, since other profilers share this is
 
 To be continued...
 
-### Summary: What is it good for?
+## Summary: What is it good for?
 
 AsyncGetCallTrace is a step up from GetStackTraces as it operates at lower overheads and does not suffer from safepoint bias. It does require some mental model adjustments:
 
@@ -583,7 +583,7 @@ A big thank you to all the kind reviewers: [JP Bempel](https://twitter.com/jpbem
 
 ----
 
-# 糟糕
+# 为啥大多数Java采样分析器不好用
 
 本文建立在[上一篇关于安全点的](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html)基础上。如果没读过，可能会感到迷茫和困惑。如果已读过，但仍感到迷茫和困惑，并且确定这种感觉与手头的事情有关（而不是与存在的危机相对），继续往下看吧。 那么，既然我们已经确定了什么是安全点，那么：
 
@@ -832,7 +832,22 @@ public void meSoHotInline_avgt_jmhStub(InfraControl control, RawResults result, 
 
 ## 小结：有什么好处？
 
-## 参考
+如上所述，对于应用程序中哪里是热点代码，安全点采样分析器可能没有准确的概念。这使得对“正在运行”线程的<u>派生观察</u>非常令人怀疑，但至少是这些线程的正确观察。这并不意味着它们是完全无用的，有时我们需要的只是一个正确方向的提示，以便进行一些好的分析，但这里可能会浪费大量时间。虽然对在[解释器中运行的代码]()进行采样，不会受到安全点偏差的影响，但这并不是很有用，因为热点代码很快就会被编译。如果热点代码正在解释器中运行，其实你有比安全点偏差更重要的事要做...
+
+阻塞线程的堆栈跟踪是准确的，因此“等待”分析对于发现阻塞代码非常有用。如果阻塞方法是性能问题的根源，那么这将是一个方便的观察。
+
+还有更好的选择！我将在以下文章中介绍其中一些：
+
+- Java Misson Control
+- Solaris Studio
+- [Honest-Profiler](https://github.com/jvm-profiling-tools/honest-profiler)
+- Perf + perf-map-agent（或[perfasm](http://psy-lob-saw.blogspot.com/2015/07/jmh-perfasm.html)，如果在JMH测试你的代码）
+
+没有哪种工具是完美的，但是上述这些工具都可以更好地识别CPU时间。
+
+# AsyncGetCallTrace分析器的优缺点
+
+# 我的参考
 
 1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
 

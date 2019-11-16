@@ -1,0 +1,149 @@
+# 什么是即时编译（JIT）！？OpenJDK HotSpot VM 剖析
+
+## Key takeaways （重点）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Applications can select an appropriate JIT compiler to produce near-machine level performance optimizations.<br/>Tiered compilation consists of five levels of compilation.<br/>Tiered compilation provides great startup performance and guides further levels of compilation to provide high performance optimizations.<br/>JVM switches provide diagnostic information about the JIT compilation.<br/>Optimizations like Intrinsics and Vectorization further enhance performance. | 应用程序可以选择一个适当的即时编译器来进行接近机器级的性能优化。<br/>分层编译由五层编译构成。<br/>分层编译提供了极好的启动性能，并指导编译的下一层编译器提供高性能优化。<br/>提供即时编译相关诊断信息的 JVM 开关。<br/>像内联化和向量化之类的优化进一步增强了性能。 |
+| The OpenJDK HotSpot Java Virtual Machine, fondly known as the Java VM or the JVM, consists of two principal components: the execution engine and the runtime. The Java VM and Java APIs comprise the Java Runtime Environment, also known as the JRE. | OpenJDK HotSpot Java Virtual Machine 被人亲切地称为 Java 虚拟机或 JVM，由两个主要组件构成：执行引擎和运行时。JVM 和 Java API 组成 Java 运行环境，也称为 JRE。 |
+| In this article we will explore the execution engine particularly the just-in-time (JIT) compilation, as well as runtime optimizations in OpenJDK HotSpot VM. | 在本文中，我们将探讨执行引擎，特别是即时编译，以及 OpenJDK HotSpot VM 的运行时优化。 |
+
+![img](https://res.infoq.com/articles/OpenJDK-HotSpot-What-the-JIT/en/resources/1fig1.jpg)
+
+## Java VM’s Execution Engine and Runtime（JVM 的执行引擎和运行时）
+
+![img](https://static001.infoq.cn/resource/image/8a/0a/8a0a9038e3ff7e1bc6ccefd95018400a.jpg)
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| The execution engine consists of two major components: the garbage collector, (which reclaims garbage objects and provides automatic memory/heap management) and the JIT compiler (which converts bytecode to executable machine code). In OpenJDK 8, the “[tiered compiler](http://docs.oracle.com/javase/8/docs/technotes/guides/vm/performance-enhancements-7.html#tieredcompilation)” is the default server compiler. HotSpot users can still select the non-tiered server compiler (also known as “C2”) by disabling the tiered compiler (`-XX:-TieredCompilation`). We will learn more about these compilers shortly. | 执行引擎由两个主要组件构成：垃圾回收器（它回收垃圾对象并提供自动的内存或堆管理））以及即时编译器（它把字节码转换为可执行的机器码）。在 OpenJDK 8 中，“[分层的编译器](http://docs.oracle.com/javase/8/docs/technotes/guides/vm/performance-enhancements-7.html#tieredcompilation)”是默认的服务端编译器。HotSpot 也可以通过禁用分层的编译器（`-XX:-TieredCompilation`）仍然选择不分层的服务端编译器（也称为“C2”）。我们接下来将了解这些编译器的更多内容。 |
+| The Java VM’s runtime handles class loading, bytecode verification and other important functions as shown below. One of these functions is ”interpretation” and we will be talking more about it shortly. You can read more about Java VM’s runtime [here](http://openjdk.java.net/groups/hotspot/docs/RuntimeOverview.html). | JVM 的运行时掌控着类的加载、字节码的验证和其他以下列出的重要功能。其中一个功能是“解释”，我们将马上对其进行深入地探讨。你可以点击[此处](http://openjdk.java.net/groups/hotspot/docs/RuntimeOverview.html)了解JVM 运行时的更多内容。 |
+
+![img](https://static001.infoq.cn/resource/image/1b/0e/1b603ff71fb1c98d654b8d0565318b0e.png)
+
+## Adaptive JIT and Runtime Optimizations（自适应的即时编译和运行时优化）
+
+|E      |  C   |
+| ---- | ---- |
+| The JVM system is the backend helper for Java’s write once, run anywhere capability. Once a Java program is compiled into bytecode, it can be executed by a JVM instance. | JVM 系统为 Java 的“一次编写，随处运行”的能力提供背后的支撑。一个 Java 程序一旦编译成字节码就可以通过 JVM 实例运行了。 |
+| <u>OpenJDK HotSpot VM converts bytecode into machine executable code by “mixed-mode” execution</u>. With “mixed-mode”, the first step is interpretation, which converts bytecode into assembly code using a description table. This pre-defined table, also known as the “template table”, has assembly code for each bytecode instruction. | <u>OpenJDK HotSpot VM 转换字节码为可通过“混合模式”执行的可执行的机器码</u>。使用“混合模式”，第一步是解释，它使用一个描述表把字节码转换为汇编码。这是个预定义的表，也称为“模版表”，针对每个字节码指令都有对应的汇编码。 |
+| Interpretation begins at JVM startup, and is the slowest form of bytecode execution. Java bytecode is platform independent, but interpretation and compilation into machine executable code are definitely dependent on the platform. In-order to get faster, efficient (and adaptive to the underlying platform) machine code generation, the runtime kicks off just-in-time compilation, <u>i.e. JIT compilation</u>. JIT compilation is an adaptive optimization for methods that are proven to be performance critical. **In order to determine these performance-critical methods, the JVM continually monitors the code for the following critical metrics**: | 解释在 JVM 启动时开始，是字节码最慢的执行形式。Java 字节码是平台无关的，由它解释编译成可执行的机器码，这种机器码肯定是平台相关的。为了更快更有效（并适应潜在的平台）地生成机器码，运行时会启动即时编译器，<u>例如即时编译器</u>。即时编译器是一个自适应优化器，针对已证明为性能关键的方法予以优化。**为了确定这些性能关键的方法，JVM 会针对以下关键指标持续监控这些代码**： |
+| 1. **Method ==entry== counts** - assigns a call counter to every method.<br>2. Loop back branches (commonly known as loop back-edge) counts - assigns a counter to every loop that has executed. | 1. **方法==进入==计数**，为每个方法分配一个调用计数器。<br>2. 循环分支（一般称为循环边）计数，为每个已执行的循环分配一个计数器。 |
+| <u>A particular method is considered performance critical when its method entry and loop-back edge-counters cross a compilation threshold (-`XX:CompileThreshold`) set by the runtime</u>. The runtime uses these metrics to determine whether to compile the performance critical methods themselves or their callees. Similarly, a loop is considered performance critical if the loop-back branch counter exceeds a predetermined threshold (based on the compilation threshold). When the loop back-edge counter crosses its threshold, then only that loop is compiled. **The compiler optimization for loop-backs is called on-stack replacement (OSR), since the JVM replaces the compiled code *<u>on stack</u>***. | <u>如果一个具体方法的方法进入计数和循环边计数超过了由运行时设定的编译临界值，则认定它为性能关键的方法</u>。运行时使用这些指标来判定这些方法本身或其调用者是否是性能关键的方法。同样，如果一个循环的循环分支计数超过了之前已经指定的临界值（基于编译临界值），那么也会认定它为性能关键的。如果循环边计数超过它的临界值，那么只有那个循环是编译过的。**针对循环的编译优化被称为栈上替换（OSR），因为 JVM 是在<u>栈上</u>替换编译的代码的**。 |
+| OpenJDK HotSpot VM has two different compilers, each with its own compilation thresholds: | OpenJDK HotSpot VM 有两个不同的编译器，每个都有它自己的编译临界值： |
+| 1. The client or C1 compiler has a low compilation threshold of 1,500, to help reduce startup times.<br>2. The server or C2 compiler has a high compilation threshold of 10,000, which helps generate highly optimized code for performance critical methods that are determined to be in the critical execution path of the application. | 1. 客户端或 C1 编译器，它的编译临界值比较低，只是 1500，这有助于减少启动时间。<br/>2. 服务端或 C2 编译器，它的编译临界值比较高，达到了 10000，这有助于针对性能关键的方法生成高度优化的代码，这些方法由应用的关键执行路径来判定是否属于性能关键方法。 |
+
+## Five Levels of Tiered Compilation（分层编译的五个层次）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| With the introduction of tiered compilation, OpenJDK HotSpot VM users can benefit from improved startup times with the server compiler. | 通过引进分层编译，OpenJDK HotSpot VM 用户可以通过使用服务端编译器改进启动时间获得好处。 |
+| **Tiered compilation has five tiers of optimization**. It starts in tier-0, the interpreter tier, where <u>instrumentation</u> provides information on the performance critical methods. *Soon enough the tier 1 level, the simple C1 (client) compiler, optimizes the code. At tier 1, there is no profiling information.* <u>Next comes tier 2, where only a few methods are compiled (again by the client compiler). At tier 2, for those few methods, profiling information is gathered for entry-counters and loop-back branches</u>. Tier 3 would then see all the methods getting compiled by the client compiler with full profiling information, and finally tier 4 would avail itself of C2, the server compiler. | **分层编译有五个编译层次**。在第 0 层（解释层）启动，<u>仪表</u>在这一层提供了性能关键方法的信息。*很快就会到达第 1 层，简单的 C1（客户端）编译器，它来优化这段代码。在第一层没有性能优化的信息。*<u>下面来到第 2 层，在此只有少数方法是编译过的（再提一下是通过客户端编译器）。在第 2 层，为这些少数方法针对进入次数和循环分支收集性能分析信息</u>。第 3 层将会看到由客户端编译器编译的所有方法及其全部性能优化信息，最后的第 4 层只对 C2 自身有效，是服务端编译器。 |
+
+## Tiered Compilation and Effects on Code Cache（分层编译器以及代码缓存的效果）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| When compiling with the client compiler (tier 2 onwards), the code is profiled by the client compiler during startup, when the critical execution paths are still warming up. This helps produce better profiled information than interpreted code. The compiled code resides in a cache known as the “code cache”. A code cache has a fixed size, and when full, the Java VM will cease method compilation. | 当使用客户端编译（第 2 层之前）时，代码在启动期间通过客户端编译器予以优化，此时关键执行路径保持预热。这有助于生成比解释型代码更好的性能优化信息。编译的代码存在在一个称为“代码缓存”的缓存里。代码缓存有固定的大小，如果满了，JVM 将停止方法编译。 |
+| Tiered compilation has its own set of thresholds for every level e.g.`-XX:Tier3MinInvocationThreshold, -XX:Tier3CompileThreshold, -XX:Tier3BackEdgeThreshold`. The minimum invocation threshold at tier 3 is 100 invocations. Compared to the non-tiered C1 threshold of 1,500 you can see that tiered compilation occurs much more frequently, generating a lot more profiled information for client compiled methods. Therefore the code cache for tiered compilation must be a lot larger than code cache for non-tiered, and so the default code cache size for tiered compilation in OpenJDK 8 is 240MB as opposed to the non-tiered default of 48MB. | 分层编译可以针对每一层设定它自己的临界值，比如 -XX:Tier3MinInvocationThreshold, -XX:Tier3CompileThreshold, -XX:Tier3BackEdgeThreshold。第三层最低调用临界值为 100。而未分层的 C1 的临界值为 1500，与之对比你会发现会非常频繁地发生分层编译，针对客户端编译的方法生成了更多的性能分析信息。于是用于分层编译的代码缓存必须要比用于不分层的代码缓存大得多，所以在 OpenJDK 中用于分层编译的代码缓存默认大小为 240MB，而用于不分层的代码缓存大小默认只有 48MB。 |
+| The Java VM will provide warning signs in case the code cache is full. Users are encouraged to increase the code cache size by using the `–XX:ReservedCodeCacheSize` option. | 如果代码缓存满了，JVM 将给出警告标识，鼓励用户使用 `–XX:ReservedCodeCacheSize` 选项去增加代码缓存的大小。 |
+
+## Understanding Compilation（理解编译）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| In order to visualize what methods get compiled and when, OpenJDK HotSpot VM provides a very useful command line option called `-XX:+PrintCompilation` that reports when the code cache becomes full and when the compilation stops.<br>Let’s look at some examples: | 为了可视化什么方法会在何时得到编译，OpenJDK HotSpot VM 提供了一个非常有用的命令行选项，叫做 -XX:+PrintCompilation，它会报告什么时候代码缓存满了，以及什么时候编译停止了。<br>举例如下： |
+
+```java
+567  693 % !   3       org.h2.command.dml.Insert::insertRows @ 76 (513 bytes)
+656  797  n    0       java.lang.Object::clone (native)  
+779  835  s	   4       java.lang.StringBuffer::append (13 bytes)
+```
+
+输出格式为：
+
+> 格式化：
+>
+> | `timestamp` | `compilation-id` | `flags` | `tiered-compilation-level` | `class:method` | `<@ osr_bci>` | `code-size` | `<deoptimization>` |
+> | ----------- | ---------------- | ------- | -------------------------- | -------------- | ------------- | ----------- | ---------------- |
+> |             |                  |         |                            |                |               |             |                  |
+
+```java
+timestamp compilation-id flags tiered-compilation-level class:method <@ osr_bci> code-size <deoptimization>
+````
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| where,<br/>`timestamp` is the time from Java VM start<br/>`compilation-id` is an internal reference id | 在此，<br/>`timestamp`（时间戳） 是 JVM 开始启动到此时的时间<br/>`compilation-id`（编译器 id） 是内部的引用 id |
+| `flags` could be one of the following:<br/>      `%`: is_osr_method (@ sign indicates bytecode index for OSR methods)<br/>      `s`: is_synchronized<br/>      `!`: has_exception_handler<br/>      `b`: is_blocking<br/>      `n`: is_native | `flags`（标记） 可以是以下其中一种：<br/>       `%`: is_osr_method (是否 osr 方法 @ 针对 OSR 方法表明字节码)<br/>      `s`: is_synchronized（是否同步的）<br/>      `!`: has_exception_handler（有异常处理器）<br/>      `b`: is_blocking（是否堵塞）<br/>      `n`: is_native（是否原生） |
+| `tiered-compilation` indicated the compilation tier when tiered compilation is enabled | ``（分层的编译器） 表示当开启了分层编译时的编译层            |
+| `Method` will have the method name usually in the `ClassName::method` format | Method（方法） 将用以下格式表示类和方法 类名:: 方法          |
+| `@osr_bci` is the bytecode index at which the OSR happened   | @osr_bci（osr 字节码索引） 是 OSR 中的字节码索引             |
+| `code-size` is the total bytecode size                       | code-size（代码大小） 字节码总大小                           |
+| `deoptimization` indicated if a method was de-optimized and made `not entrant` or `zombie` (More on this in section titled ‘Dynamic De-optimization’). | deoptimization（逆优化）表示一个方法是否是逆优化，以及不会被调用或是僵尸方法（更多详细内容请见“动态逆优化”一节）。 |
+| Based on the above key, we can tell that <br />`567 693 % ! 3 org.h2.command.dml.Insert::insertRows @ 76 (513 bytes)` | 基于以上关键字，我们可以断定例子中<br />`567 693 % ! 3 org.h2.command.dml.Insert::insertRows @ 76 (513 bytes)` |
+| line 1 of our example had a timestamp of 567, compilation-ide of 693. The method had an exception handler as indicated by ‘!’. We can also tell that the tiered compilation level was at 3 and it was an OSR method (as indicated by ‘%’) with bytecode index of 76. The total bytecode size was 513 bytes. Please note 513 is the bytecode size and not the compiled code size. | 第一行的 timestamp 是 567，compilation-ide 是 693。该方法有个以“！”标明的异常处理器。我们还能断定分层编译处于第 3 层，它是一个 OSR 方法（以“%”标识的），字节码索引为 76。字节码总大小为 513 个字节。请注意 513 个字节是字节码的大小而不是编译码的大小。 |
+| Line 2 of our example shows that<br />`656 797  n 0 java.lang.Object::clone (native)`<br />the JVM facilitated a native method call and line 3 of our example<br />`779 835 s 4 java.lang.StringBuffer::append (13 bytes)`<br />shows that the method was compiled at tier 4 and is synchronized. | 示例的第 2 行显示：<br />`656 797  n 0 java.lang.Object::clone (native)`<br />JVM 使一个原生方法更容易调用，第 3 行是：<br />`779 835 s 4 java.lang.StringBuffer::append (13 bytes)`<br />显示这个方法是在第 4 层编译的且是同步的。 |
+
+## Dynamic De-optimization（动态逆优化）
+
+```java
+573  704 2 org.h2.table.Table::fireAfterRow (17 bytes)
+7963 2223 4 org.h2.table.Table::fireAfterRow (17 bytes)
+7964  704 2 org.h2.table.Table::fireAfterRow (17 bytes) made not entrant
+33547 704 2 org.h2.table.Table::fireAfterRow (17 bytes) made zombie
+```
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| We know that Java does dynamic class loading, and the Java VM checks the inter-dependencies at every dynamic class load. When a previously optimized method is no longer relevant, OpenJDK HotSpot VM will perform dynamic de-optimization of that method. Adaptive optimization aids in dynamic de-optimization; in other words, a dynamically de-optimized code would revert/move to its previous/new compiled level as shown in the following example. (Note: This is the output generated when `PrintCompilation` is enabled on the command line): | 我们知道 Java 会做动态类加载，JVM 在每次动态类加载时检查内部依赖。当不再需要一个之前优化过的方法时，OpenJDK HotSpot VM 将执行该方法的动态逆优化。自适应优化有助于动态逆优化，换句话说，一个动态逆优化的代码应恢复到它之前编译层，或者转到新的编译层，如下图所示。（注意：当在命令行中开启 `PrintCompilation` 时会输出如下信息）： |
+| This output show that at timestamp 7963,`fireAfterRow`is tiered compiled at level 4. Right after that at timestamp 7964, the previous compilation of`fireAfterRow`at level 2 is made not entrant. And after a while, the`fireAfterRow`is made zombie; that is, the previous code is reclaimed. | 这个输出显示 timestamp 为 7963，`fireAfterRow` 是在第 4 层编译的。之后的 timestamp 是 7964，之前在第 2 层编译的 `fireAfterRow` 没有进入。然后过了一会儿，`fireAfterRow` 标记为僵尸，也就是说，之前的代码被回收了。 |
+
+## Understanding Inlining（理解内联）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| One of the biggest advantages of adaptive optimization is the ability to inline performance critical methods. This helps in avoiding the method invocation overhead for these critical methods, by replacing the invocations by actual method bodies. There are a lot of “tuning” options for inlining, based on size and invocation thresholds, and Inlining has been thoroughly studied and optimized to very near its maximum potential. | 自适应优化的最大一个好处是有能力内联性能关键的方法。通过把调用替换为实际的方法体，有助于规避调用这些关键方法的间接开销。针对内联有很多基于规模和调用临界值的“协调”选项，内联已经得到了充分地研究和优化，几乎已经挖掘出了最大的潜力。 |
+| If you want to spend time looking at the inlining decisions you can use a diagnostic Java VM option called `-XX:+PrintInlining`. *PrintInlining* can be a very useful tool to understand the decisions as shown in the following example: | 如果你想投入时间看一下内联决策，可以使用一个叫做 `-XX:+PrintInlining` 的 JVM 诊断选项。在理解决策时*PrintInlining*会提供很大的帮助，示例如下： |
+| Here you can see location of the inlining and total bytes inlined. Sometimes you see tags such as “`too big`” or “`callee is too large`”, which indicate that inlining didn’t happen because the thresholds were exceeded. The output on line 3 above shows an “`intrinsic`” tag, let’s learn more about intrinsics in the next section. | 在这里你能看到该内联的位置和被内联的总字节数。有时你看到如“too big”或“callee is too large”的标签，这表明因为已经超过临界值所以未进行内联。第 3 行的输出信息显示了一个“intrinsic”标签，让我们在下一节详细了解一下 intrinsics（内部函数）。 |
+
+```java
+@ 76 java.util.zip.Inflater::setInput (74 bytes) too big
+@ 80 java.io.BufferedInputStream::getBufIfOpen (21 bytes) inline (hot)
+@ 91 java.lang.System::arraycopy (0 bytes)   (intrinsic)
+@ 2  java.lang.ClassLoader::checkName (43 bytes) callee is too large
+```
+
+## Intrinsics（内部函数）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Usually the OpenJDK HotSpot VM JIT compiler would execute generated code for performance critical methods, but at times some methods have a very common pattern e.g. `java.lang.System::arraycopy` as shown in the *PrintInlining* output in the previous section. These methods can be hand-optimized to generate more performant, optimized code similar to having your native methods but without the overhead. These intrinsics can be effectively inlined just like the Java VM would inline regular methods. | 通常 OpenJDK HotSpot VM 即时编译器将执行为性能关键方法生成的代码，但有时有些方法有非常公共的模式，比如 `java.lang.System::arraycopy`，如前一节中*PrintInlining*输出的结果。这些方法可以得到手工优化从而形成更好的性能，优化的代码类似于拥有你的原生方法，但没有间接开销。这些内部函数可以高效地内联，就像 JVM 内联常规方法一样。 |
+
+## Vectorization（向量化）
+
+| E                                                            | C                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| When talking about intrinsics, I would like to highlight a common compiler optimization called vectorization. Vectorization can be applied wherever the underlying platform (processor) can handle special parallel computation/vector instructions known as “SIMD” instructions (single instruction, multiple data). SIMD instructions and “vectorization” help with data-level parallelism by operating on larger cache-line size (64 bytes) datasets. | 讨论内部函数的时候，我喜欢强调一个常用的编译优化，那就是向量化。向量化可用于任何潜在的平台（处理器），能处理特殊的并行计算或向量指令，比如“SIMD”指令（单指令、多数据）。SIMD 和“向量化”有助于在较大的缓存行规模（64 字节）数据量上进行数据层的并行操作。 |
+| HotSpot VM provides two different levels of vector support - <br />      1. Assembly stubs for counted inner loops;<br />      2. SuperWord Level Parallelism (SLP) support for auto-Vectorization. | HotSpot VM 提供了两种不同层次的向量支持：<br />   1. 为计数的内部循环配备桩；<br />   2. 针对自动向量化的超字级并行（SLP）支持。 |
+| In the first case, the assembly stubs can provide vector support for inner loops while working in the nested loop, and the inner loop can be optimized and replaced by vector instructions. This is similar to intrinsics. | 在第一种情况下，在内部循环的工作过程中配备的桩能为内部循环提供向量支持，而且这个内部循环可以通过向量指令进行优化和替换。这与内部函数是类似的。 |
+| The SLP support in HotSpot VM is based on [a paper from MIT Labs](http://groups.csail.mit.edu/cag/slp/SLP-PLDI-2000.pdf). Right now, HotSpot VM only optimizes a destination array with unrolled constants, as shown in the following example provided by Vladimir Kozlov, a senior member of Oracle Compiler Team who has contributed to various compiler optimization including auto-vectorization support:<br />`a[j] = b + c * z[i]`<br />So, after the above is unrolled, it can be auto-vectorized. | 在 HotSpot VM 中 SLP 支持的理论依据是[ MIT 实验室的一篇论文](http://groups.csail.mit.edu/cag/slp/SLP-PLDI-2000.pdf)。目前，HotSpot VM 只优化固定展开次数的目标数组，Vladimir Kozlov 举了以下一个示例，他是 Oracle 编译团队的资深成员，在各种编译器优化作出了杰出贡献，其中就包括自动向量化支持：<br />`a[j] = b + c * z[i]`<br />如上代码展开之后就可以被自动向量化了 |
+
+## Escape Analysis（逃逸分析）
+
+|                                                              |                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Escape analysis is another perk of adaptive optimization. Escape analysis (EA in short) takes the entire intermediate representation graph into consideration in order to determine if any allocations are ”:escaping”. That is, if any allocations are *not* one of the following: | 逃逸分析是自适应优化的另一个额外好处。为判定任何内存分配是否“逃逸”，逃逸分析（缩写为 EA）会将整个中间表示图考虑进来。也就是说，任意内存分配是否不在下列之一： |
+| 1. stored to a static field or a nonstatic field of an external object; | 1. 存储到静态域或外部对象的非静态域；                        |
+| 2.returned from method;                                      | 2. 从方法中返回；                                            |
+| 3.passed as parameter to another method where it escapes     | 3. 作为参数传递到另一个逃逸的方法                            |
+| If the allocated object doesn’t escape, the compiled method and the object is not passed as a parameter, then the allocation can be removed and the field values can be stored in registers. And if the allocated object doesn’t escape the compiled method, but is passed as a parameter the Java VM can still remove locks associated with the object and use optimized compare instructions when comparing it to other objects. | 如果已分配的对象不是逃逸的，编译的方法和对象不作为参数传递，那么该内存分配就可以被移除了，这个域的值可以存储在寄存器中。如果已分配的对象未逃逸已编译的方法，但作为参数传递了，JVM 仍然可以移除与该对象有关联的锁，当用它比对其他对象时可以使用优化的比对指令。 |
+
+## Other Common Optimizations（其他常见的优化）
+
+|                                                              |                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| There are other OpenJDK HotSpot VM optimizations that come with adaptive JIT compilation: | 还有一些自适应即时编译器一起带来的一些其他的 OpenJDK HotSpot VM 优化： |
+| 1. **Range check elimination** - wherein the JVM doesn’t have to check for index out-of-bounds error if it can be assured that the array index never crosses its bounds. | 1. **范围检查消除**——如果能保证数组索引永远不会越界的话，那么在 JVM 中就不一定必须要检查索引的边界错误了 |
+| 2. **Loop unrolling** - helps with reducing the number of iterations by unrolling the loop. This aids in the JVM being able to apply other common optimizations (such as loop vectorization) wherever needed. | 2. **循环展开**——通过展开循环有助于减少迭代次数。这能使 JVM 有能力去应用其他常见的优化（比如循环向量化），无论哪里需要。 |
+
