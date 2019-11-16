@@ -319,26 +319,23 @@ The log file is parsed offline (i.e. by some other process, on another machine, 
 By API we can say AGCT is a mapping between instruction/frame/stack pointer and a call trace. The call trace is an array of Java call frames (jmethodId, BCI). To produce this mapping the following process is followed:
 
 1. Make sure thread is in 'walkable' state, in particular not when:
-
-2. - Thread is not a Java thread.
+   - Thread is not a Java thread.
    - GC is active
    - New/uninitialized/just about to die. I.e. threads that are either before or after having Java code running on them are of no interest.
    - During a deopt
 
-3. Find the current/last Java frame (as in actual frame on the stack, revisit Operating Systems 101 for definitions of stacks and frames):
-
-4. - The instruction pointer (commonly referred to as the PC - Program Counter) is used to look up a matching Java method (compiled/interpreter). The current PC is provided by the signal context.
+2. Find the current/last Java frame (as in actual frame on the stack, revisit Operating Systems 101 for definitions of stacks and frames):
+   - The instruction pointer (commonly referred to as the PC - Program Counter) is used to look up a matching Java method (compiled/interpreter). The current PC is provided by the signal context.
    - If the PC is not in a Java method we need to find the last Java method calling into native code.
    - Failure is an option! we may be in an 'unwalkable' frame for all sorts of reasons... This is quite complex and if you must know I urge you to get comfy and dive into the maze of relevant code. Trying to qualify the top frame is where most of the complexity is for AGCT.
 
-5. Once we have a top frame we can fill the call trace. To do this we must convert the real frame and PC into:
-
-6. - Compiled call frames: The PC landed on a compiled method, find the BCI (Byte Code Index) and record it and the jMethodId
-   - Virtual call frames: The PC landed on an instruction from a compiled inlined method, record the methods/BCIs all the way up to the framing compiled method
-   - Interpreted call frames
+3. Once we have a top frame we can fill the call trace. To do this we must convert the real frame and PC into:
+   - **Compiled call frames**: The PC landed on a compiled method, find the BCI (Byte Code Index) and record it and the jMethodId
+   - **Virtual call frames**: The PC landed on an instruction from a compiled inlined method, record the methods/BCIs all the way up to the framing compiled method
+   - **Interpreted call frames**
    - From a compiled/interpreted method we need to walk to the calling frame and repeat until we make it to the root of the Java call trace (or record enough call frames, whichever comes first)
 
-7. WIN!
+4. WIN!
 
 Much like medication list of potential side effects, the error code list supported by a function can be very telling. AGCT supports the following reasons for not returning a call trace:
 
@@ -846,6 +843,236 @@ public void meSoHotInline_avgt_jmhStub(InfraControl control, RawResults result, 
 没有哪种工具是完美的，但是上述这些工具都可以更好地识别CPU时间。
 
 # AsyncGetCallTrace分析器的优缺点
+
+那么，从我[絮絮叨叨地抱怨安全点偏差的帖子](http://psy-lob-saw.blogspot.co.za/2016/02/why-most-sampling-java-profilers-are.html)继续， 应该从那里获取分析结果呢？使用OpenJDK内部API `AsyncGetCallTrace`是一个选择，可<u>在非安全点</u>方便地收集堆栈跟踪信息。
+
+`AsyncGetCallTrace`不是官方JVM API。对Profiler编写者而言有点烦，它最初只在OpenJDK / Oracle JVM上实现（Zing最近开始支持**AGCT**，以支持Solaris Studio和其他Profiler，我将为Solaris Studio上撰写单独的文章）。 它最初用于Solaris Studio，并提供以下API（参见[forte.cpp](http://hg.openjdk.java.net/jdk8/jdk8/hotspot/file/tip/src/share/vm/prims/forte.cpp#l457)，这个名称是Forte Analyzer时代遗留下来的）。 以下是所有的API：
+
+```cpp
+typedef struct {
+  jint lineno;         // BCI in the source file
+  jmethodID method_id; // method executed in this frame
+} ASGCT_CallFrame;
+
+typedef struct {
+  JNIEnv *env_id   //Env where trace was recorded
+  jint num_frames; // number of frames in this trace
+  ASGCT_CallFrame *frames;
+} ASGCT_CallTrace; 
+
+void AsyncGetCallTrace(ASGCT_CallTrace *trace, // pre-allocated trace to fill
+                       jint depth,     // max number of frames to walk up the stack
+                       void* ucontext)         // signal context
+```
+
+简单吧？ 你传递一个`ucontext`，它用<u>调用帧</u>填充`trace`参数（**or it gets the hose again**）。
+
+## 轻量级的 Honest Profiler
+
+名称中的“异步”是指可以在**Signal Handler**（<u>信号处理程序</u>）中安全调用AGCT。 这在 <u>profiling</u> 时非常方便，因为这意味着可以按以下方式实现**Profiler**：
+
+1. 在JVMTI的代理中，为某个信号X注册一个信号处理程序。
+
+2. [设置一个定时器](http://man7.org/linux/man-pages/man2/setitimer.2.html)，以所需的采样频率触发信号X。Honest Profiler使用 **ITIMER_PROF** 选项，这意味着我们将根据CPU时间获得信号。信号将被发送到进程，其中一个正在运行的线程将被中断，并调用注册的信号处理程序。请注意，这假设操作系统将在线程之间公平地分配信号，所以在所有正在运行线程之间合平地采样。
+
+   > 注意：在多线程环境下，信号会随机地分发到该进程中某个正在运行地线程。
+
+3. 从信号处理程序中调用**AGCT**：请注意，被中断的线程（从当前在CPU上执行的线程中随机选取）将运行注册的信号处理程序。线程不在安全点。 它可能根本不是Java线程。
+
+4. 持久化<u>调用追踪</u>：请注意，在信号处理程序中运行时，只有“异步”代码才合法。例如，这意味着禁止任何阻塞代码，包括malloc和IO。
+
+5. WIN!
+
+`ucontext`参数就是信号处理程序传给你的（信号处理程序是一个回调，函数定义是`handle(int signum，siginfo_t * info，void  * context)`）。AGCT将在此挖掘出中断时的**指令/帧/堆栈指针值**，并尽最大努力找出您所处的位置。
+
+**Jeremy Manson**就是采用此种方法，他解释了基础架构，（以一种概念验证、非确定的方式）[开源了基础的Profiler](https://code.google.com/archive/p/lightweight-java-profiler/)，他在此问题上有一系列精彩文章：
+
+- [Profiling with JVMTI/JVMPI, SIGPROF and AsyncGetCallTrace](http://jeremymanson.blogspot.co.za/2007/05/profiling-with-jvmtijvmpi-sigprof-and.html)
+- [More about profiling with SIGPROF](http://jeremymanson.blogspot.co.za/2007/06/more-about-profiling-with-sigprof.html)
+- [More thoughts on SIGPROF, JVMTI and stack traces](http://jeremymanson.blogspot.co.za/2007/06/more-thoughts-on-sigprof-jvmti-and.html)
+- [Why Many Profilers have Serious Problems (More on Profiling with Signals)](http://jeremymanson.blogspot.co.za/2010/07/why-many-profilers-have-serious.html)
+
+然后，**Richard Warburton**基于相同的代码，进一步改进和稳定了 [Honest-Profiler](https://github.com/RichardWarburton/honest-profiler)（我对此做出了一些贡献）。Honest Profiler致力于成为一个最初的产品原型，并辅以一些使整个产品可用的工具。通过预先分配`ASGCT_CallTrace`，辅以无锁的**MPSC**环形缓冲区（即预先分配<u>调用帧数组</u>），解决了信号处理程序中的序列化问题。然后，在后续的线程中读取<u>调用追踪信息</u>，并收集一些额外的信息（如将**BCI**转换为行号，将**jmethodIds**转换为类名/文件名等）写入日志文件。更多详细信息请参见项目Wiki。
+
+> 1. MPSC：multi-producer, single consumer
+> 2. BCI：Byte Code Instrument
+
+离线分析日志文件，可获取细分的热点方法和相关调用树（即在另一个时间另一台机器上，由另一个进程来处理。请注意，也可在Profile JVM时处理该文件，无需等待它终止）。本文中，我将使用Honest-Profiler，如果你想尝试，则需要自己[构建](https://github.com/RichardWarburton/honest-profiler/wiki/How-to-build)（在 [OpenJDK](http://openjdk.java.net/)/[Zulu](https://www.azul.com/products/zulu/) 6/7/8 + [Oracle JVM](http://www.oracle.com/technetwork/java/javase/downloads/index.html)s + 最近的 [Zing](https://www.azul.com/products/zing/) 版本上好使）。我将用JMC来对比相同的实验，需要在Oracle JVM 1.7u40及更高版本上尝试。 
+
+## AGCT做啥？
+
+通过API，我们可以说**AGCT**是指令/帧/堆栈指针和**call trace**之间的映射。**call trace**是**Java调用帧**数组（jmethodId，BCI）。要生成此映射，执行以下过程：
+
+1. 确保线程处于“**可遍历**”状态，尤其不要处于以下状态：
+   - 不是Java线程。
+   - 正在GC
+   - 处于新建/未初始化/即将结束状态。即对运行Java代码之前或之后的线程不感兴趣
+   - 正在[逆向优化]()
+
+2. 查找当前/最后一个Java帧（与堆栈上的实际帧一样，请重新访问操作系统101以了解堆[栈和帧](https://www.quora.com/What-is-the-difference-between-a-stack-pointer-and-a-frame-pointer)的定义）：
+   - 指令指针（通常称为PC程序计数器）用于查找匹配（编译的/解释的）Java方法。当前PC由信号上下文提供（即`ucontext`）。
+   - 如果PC不在Java方法中，我们需要找到最后一个调用本机代码的Java方法。
+   - 失败是一种选择！由于种种原因，我们可能处于“无法遍历”的境地... 。这非常复杂，如果你一定要知道，我劝你深吸一口气，然后跳进相关代码的迷宫里。尝试确定**顶部帧**是**AGCT**最复杂的地方。
+
+3. 一旦有了**顶部帧**，我们就可以填充**call trace**结构。为此，我们必须将真实帧和PC转换为：
+   - **编译后的调用帧**：如果PC定位在<u>编译后的方法</u>，找到BCI（字节码索引）并记录它和对应的jMethodId
+   - **虚拟调用帧**：PC定位的指令在编译的内联方法中，记录方法/BCI一直记录到编译后的调用帧上
+   - **解释的调用帧**
+   - 我们需要从编译/解释的方法开始遍历调用帧，重复此操作，直到到达Java调用跟踪的根（或记录足够的调用帧，以先到者为准）
+
+4. WIN!
+
+Much like medication list of potential side effects, the error code list supported by a function can be very telling. AGCT supports the following reasons for not returning a call trace:
+
+与潜在副作用的药物列表非常相似，函数支持的错误代码列表可以很好地说明问题。**AGCT**无法返回**call trace**的原因如下：
+
+```cpp
+enum {
+  ticks_no_Java_frame         =  0, // new thread
+  ticks_no_class_load         = -1, // jmethodIds are not available
+  ticks_GC_active             = -2, // GC action
+  ticks_unknown_not_Java      = -3, // ¯\_(ツ)_/¯
+  ticks_not_walkable_not_Java = -4, // ¯\_(ツ)_/¯
+  ticks_unknown_Java          = -5, // ¯\_(ツ)_/¯
+  ticks_not_walkable_Java     = -6, // ¯\_(ツ)_/¯
+  ticks_unknown_state         = -7, // ¯\_(ツ)_/¯
+  ticks_thread_exit           = -8, // dying thread
+  ticks_deopt                 = -9, // mid-deopting code
+  ticks_safepoint             = -10 // ¯\_(ツ)_/¯
+}; 
+```
+
+虽然由AGCT报告这些数据，但基于这些数据的报告往往缺少这些数据。稍后再谈。
+
+## 好的方面！
+
+所以，从好的方面来看，我们现在可以在两次安全点轮询之间采样了！！！ 那有多棒？通过运行基准测试，让我们确切地看到它多么棒，这些基准测试是我们在上一篇文章中使用安全点偏差分析器无法正确测量的。
+
+**注**：Honest-Profiler 的报告（**t X**，**s Y**）反映了**t**：包含此代码行的堆栈样本的总百分比，与**s**：以该代码行自身作为顶层帧时，样本数占总样本数的百分比。 <u>输出按自身排序</u>：
+
+```java
+public class SafepointProfiling {
+  @Param("1000")
+  int size;
+  byte[] buffer;
+  byte[] dst;
+  boolean result;
+
+  @Setup
+  public final void setup() {
+    buffer = new byte[size];
+    dst = new byte[size];
+  }
+  
+  @Benchmark
+  public void meSoHotInline() {
+    byte b = 0;
+    for (int i = 0; i < size; i++) {
+      b += buffer[i];
+    }
+    result = b == 1;
+  }
+/*  
+# Benchmark: safepoint.profiling.SafepointProfiling.meSoHotInline
+JMH Stack profiler:
+ 99.6%  99.8% meSoHotInline_avgt_jmhStub:165
+
+Honest Profiler:
+ (t 98.7,s 98.7) meSoHotInline @ (bci=12,line=18)
+ (t  0.8,s  0.8) meSoHotInline_avgt_jmhStub @ (bci=27,line=165)
+*/
+  @Benchmark
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  public void meSoHotNoInline() {
+    byte b = 0;
+    for (int i = 0; i < size; i++) {
+      b += buffer[i]; 
+    }
+    result = b == 1;
+  }
+/*
+# Benchmark: safepoint.profiling.SafepointProfiling.meSoHotNoInline
+JMH Stack profiler:
+ 99.4%  99.6% meSoHotNoInline_avgt_jmhStub:163
+
+Honest Profiler:
+ (t 98.9,s 98.9) meSoHotNoInline @ (bci=12,line=36)
+ (t  0.4,s  0.4) AGCT::Unknown not Java[ERR=-3] @ (bci=-1,line=-100)
+ (t  0.2,s  0.2) AGCT::Unknown Java[ERR=-5] @ (bci=-1,line=-100)
+ (t  0.1,s  0.1) meSoHotNoInline_avgt_jmhStub @ (bci=27,line=165)
+ (t 99.0,s  0.1) meSoHotNoInline_avgt_jmhStub @ (bci=14,line=163)
+}*/
+```
+
+太好了！ Honest Profiler 正确定位了热点方法，标记的代码行就是工作发生的地方。
+
+让我们试试复制基准测试，这一次比较 Honest-Profiler 和 JMC：
+
+```java
+ @Benchmark
+  public void copy() {
+    byte b = 0;
+    for (int i = 0; i < buffer.length; i++) {
+      dst[i] = buffer[i];
+    }
+    result = dst[buffer.length-1] == 1;
+  }
+/*
+# Honest-Profiler reports:
+ (t 41.6,s 41.6) copy @ (bci=22,line=5)
+ (t 33.3,s 33.3) copy @ (bci=23,line=4)
+ (t  9.7,s  9.7) copy @ (bci=21,line=4)
+ (t  8.5,s  8.5) copy @ (bci=8 ,line=4)
+ (t  2.3,s  2.3) copy @ (bci=11,line=5)
+# JMC reports:
+Stack Trace                         |Samples| Percentage(%)
+copy              line: 7   bci: 41 | 3,819 | 96.88
+copy_avgt_jmhStub line: 165 bci: 27 |   122 |  3.095
+
+# JMC reports with -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints:
+Stack Trace                         |Samples| Percentage(%)
+copy              line: 5   bci: 22 | 1,662 | 42.204
+copy              line: 4   bci: 23 | 1,341 | 34.053
+copy              line: 5   bci: 21 |   381 |  9.675
+copy              line: 4   bci:  8 |   324 |  8.228
+copy              line: 5   bci: 11 |    98 |  2.489
+*/
+```
+
+注意`-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints`标志对JMC的影响。Honest Profiler（[最近的PR](https://github.com/RichardWarburton/honest-profiler/pull/133)，刚刚出来）无需用户干预就启用该标记，但JMC当前没这样做（attach进程时可以理解，但如果进程启动时开始Profile，则应该默认打开）。
+
+:面向年轻人和狂热者进一步的实验和验证：
+
+- 在更大的应用上，比较 Honest Profiler 和 JFR/JMC 的结果。有何不同？为什么你觉得不同？
+- 使用`-XX:+ PrintGCApplicationStoppedTime`运行，查看有没有引入额外的安全点（分别在**AGCT**启用和禁用的情况下测试）。
+- 特别好学的人可以分析一下前一篇文章中讨论过的其他案例，看看它们是否同样得到了解决。
+
+虽然这是一个进步，但我们仍然有一些问题... 
+
+## 误差率：滑动+内联
+
+我还会再次深入探讨这个问题，因为其他Profiler也有同样的问题。本质问题是指令分析不准确，在对程序计数器（PC）进行采样时，我们经常会遇到<u>滑动效应</u>。这实际上意味着所报告的指令早真正耗时的指令后面，可能隔着好多条指令。因为`AsyncGetCallTrace`依赖于**PC采样**来解析方法和代码行，通过映射（PC->BCI->LOC）得到同样的不精确性，但在汇编层面上，处理的是一组指令，接近性是有意义的，转换回Java时，我们可能已经从一个内联方法滑向另一个内联方法，而<u>罪魁祸首</u>（热点代码）已经不在附近的代码行中了。
+
+未完待续...
+
+## 小结：有什么好处？
+
+AsyncGetCallTrace比GetStackTraces有提高，因为它以较低的开销运行且不受安全点偏差的影响。但确实要调整一下思维模式（[mental model](https://www.zhihu.com/question/19940741)）：
+
+1. `-XX:+UnlockDiagnosticVMOptions` `-XX:+DebugNonSafepoints`：如果未启用，则调试数据的分辨率（解析）仍然困扰着您。这与安全点偏差不同，因为您实际上可以在任何地方采样，但是从PC到BCI的转换会搞死你。还没看到这些标志会带来不可忽视的开销，所以不相信默认值是对的，但现在就是这样。Honest-Profiler会为处理这个问题，JMC则需要你将其添加到命令行中。
+2. 每次采样**一个CPU线程**：这与对所有线程进行采样的`GetStackTraces`方法非常不同。这意味着每个样本获得的**trace**信息更少，并且完全不会采样睡眠/饥饿的线程。因为开销要低得多，所以可以通过更频繁或更长的时间进行采样来进行补偿。**这是一件好事**，鉴于线程数量可能很多，所以每次采样所有线程是一个非常有问题的任务。
+
+`AsyncGetCallTrace`非常适合分析大多数“普通” Java代码，其中热点在Java代码中，或者在它们导致的汇编代码中。似乎在大多数优化面前保持了合理的准确性（但有时可能会有相当大的偏差…）。
+
+`AsyncGetCallTrace`在以下情况下使用受到限制：
+
+1. 采样大量失败：这可能意味着应用程序将时间浪费在GC/Deopts/Runtime代码上。小心失败。 我认为Honest Profiler目前可以对此提供更好的可见性，但我也相信JMC的好伙伴可以帮忙。
+2. 从Java代码很难发现性能问题。例如，请参阅[上一篇文章，讨论使用JMH perfasm时遇到的问题](http://psy-lob-saw.blogspot.com/2015/07/JMH-perfasm.html)（错误共享对象头中`class id`，使得接口调用的<u>条件内联</u>非常昂贵）。
+3. 由于指令滑动/编译/可用的调试信息，导致归因到错误的Java代码行。在存在内联和代码移动的情况下，可能非常令人困惑。
+
+现在，可使用Honest-Profiler在Linux和OS X上分析Open / Oracle JDK6 / 7/8应用程序。还可以使用它在最新的Zing版本（15.05.0.0及更高版本的所有JDK）上分析Zing应用程序。Honest-Profiler不错，但我要提醒读者，它还没有广泛使用，可能包含错误，应谨慎使用。这是一个有用的工具，但不确定是否会在我的生产系统上使用它😉。JMC / JFR仅在JDK7u40上的Oracle JVM上可用，但在Linux，OS X，Windows和Solaris（仅JFR）上可用。 JMC / JFR出于开发目的是免费的，但需要许可证才能在生产中使用。注意，JFR收集了大量超出本文范围的性能数据，我衷心建议您尝试一下。
+
+非常感谢所有评论者：[JP Bempel](https://twitter.com/jpbempel), [Doug Lawrie](https://twitter.com/switchology), [Marcus Hirt](https://twitter.com/hirt) 和 [Richard Warburton](https://twitter.com/RichardWarburto), 任何剩余的错误将直接从他们的奖金中扣除。
 
 # 我的参考
 
