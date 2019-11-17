@@ -1,4 +1,9 @@
+> #### 背景
+>
+> 最近正好准备要做Benchmark相关的事，正好发现最新的[IntelliJ IDEA 2019.2开始有Profiling的功能](https://www.jetbrains.com/help/idea/cpu-profiler.html)，**貌似**可以不再用JProfiler，或者VisualVM做本地的Profiler。IDEA的这个功能实际是集成了[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)和[Java Flight Recorder](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)。从[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)这引出了安全点偏差的问题。
+
 [TOC]
+
 # Why (Most) Sampling Java Profilers Are Fucking Terrible
 
 This post builds on the basis of a [previous post on safepoints](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html). If you've not read it you might feel lost and confused. If you have read it, and still feel lost and confused, and you are certain this feeling is related to the matter at hand (as opposed to an existential crisis), please ask away. So, now that we've established what safepoints are, and that:
@@ -923,8 +928,6 @@ void AsyncGetCallTrace(ASGCT_CallTrace *trace, // pre-allocated trace to fill
 
 4. WIN!
 
-Much like medication list of potential side effects, the error code list supported by a function can be very telling. AGCT supports the following reasons for not returning a call trace:
-
 与潜在副作用的药物列表非常相似，函数支持的错误代码列表可以很好地说明问题。**AGCT**无法返回**call trace**的原因如下：
 
 ```cpp
@@ -1128,7 +1131,7 @@ JMC报告的样本数量很少（<u>在**树状视图**中总的数量与**根**
 
 为啥选**CRC32**？ 因为我最近花了一些时间分析**Cassandra**。2.0使用`adler32`进行校验和，3.0使用`crc32`。 从上面的结果可以看出，这可能是一个不错的选择，但是如果要分析Cassandra 3，它看起来会比实际情况要好，因为无法分析校验和的样本。使用native profiler将确认校验和的开销仍然不小（运行特定设置/基准测试的结果）。
 
-**AGCT profilers are blind to runtime stubs (some or all, this may get fixed in future releases...). Failed samples are an indication of such a blind spot.**
+**AGCT Profiler 对运行时存根视而不见（将来的版本中可能会部分或全部解决此问题……）。 失败的样本表明存在这种盲点。**
 
 留给读者的练习：
 
