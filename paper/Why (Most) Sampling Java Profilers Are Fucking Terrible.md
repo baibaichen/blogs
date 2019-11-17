@@ -1,3 +1,4 @@
+[TOC]
 # Why (Most) Sampling Java Profilers Are Fucking Terrible
 
 This post builds on the basis of a [previous post on safepoints](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html). If you've not read it you might feel lost and confused. If you have read it, and still feel lost and confused, and you are certain this feeling is related to the matter at hand (as opposed to an existential crisis), please ask away. So, now that we've established what safepoints are, and that:
@@ -534,7 +535,7 @@ Is this phenomena isolated to System.arrayCopy? Not at all, here's crc32 and adl
  */
 ```
 
-What do Crc32 and System.arrayCopy have in common? They are both JVM intrinsics, replacing a method call (Java/native don't really matter, though in this case both are native) with a combination of inlined code and a call to a JVM runtime generated method. This method call is not guarded the same way a normal call into native methods is and thus the AGCT stack walking is broken.
+What do Crc32 and System.arrayCopy have in common? They are both **<u>JVM intrinsics</u>**, replacing a method call (Java/native don't really matter, though in this case both are native) with a combination of inlined code and a call to a JVM runtime generated method. This method call is not guarded the same way a normal call into native methods is and thus the AGCT stack walking is broken.
 
 Why is this important? The reason these methods are worth making into intrinsics is because they are sufficiently important bottlenecks in common applications. Intrinsics are like tombstones for past performance issues in this sense, and while the result is faster than before, the cost is unlikely to be completely gone.
 
@@ -1049,9 +1050,9 @@ copy              line: 5   bci: 11 |    98 |  2.489
 
 虽然这是一个进步，但我们仍然有一些问题... 
 
-## Collection errors: Runtime Stubs
+## 收集错误：运行时存根（[Stub](https://www.zhihu.com/question/24844900)）
 
-As we can see from the list of errors, any number of events can result in a failed sample. A particularly nasty type of failed sample is when you hit a runtime generated routine which AGCT fails to climb out of. Let see what happens when we don't roll our own array copy:
+从错误列表中可以看出，任何数量的事件都可能导致采样失败。一种特别讨厌的失败类型是，**AGCT**无法搞定运行时生成的函数。让我们看看使用系统的数组复制函数时会发生什么:
 
 ```java
 @Benchmark
@@ -1069,9 +1070,9 @@ As we can see from the list of errors, any number of events can result in a fail
  */
 ```
 
-Now, this great unknown marker is a recent addition to Honest-Profiler, which increases it's honesty about failed samples. It indicates that for 62.9% of all samples, AGCT could not figure out what was happening and returned *ticks_unknown_java*. Given that there's very little code under test here we can deduce the missing samples all fall within System.arrayCopy (you can pick a larger array size to further prove the point, or use a native profiler for comparison).
+现在，这个重要的未知标记是Honest-Profiler的最新成员，更加坦诚地面对失败的样本。这表明，在62.9%的样本中，AGCT无法确定发生了什么，并返回了`ticks_unknown_java`。考虑到这里测试的代码很少，我们可以推断丢失的样本都属于`System.arraycopy`（您可以选择更大的数组来进一步证明这一点，或者使用**native Profiler**进行比较）。
 
-Profiling the same benchmarks under JMC will not report failed samples, and the profiler will divide the remaining samples as if the failed samples never happened. Here's the JMC profile for systemArrayCopy:
+用JMC分析相同的基准测试没有出现失败的样本，<u>并且分析器将划分剩余的样本，就好像失败的样本从未发生过一样</u>。以下是`System.arraycopy`的JMC分析结果：
 
 ```bash
 Number of samples(over 60 seconds) : 2617
@@ -1083,9 +1084,9 @@ systemArrayCopy_avgt_jmhStub(...) :: 166       93    3.552
 systemArrayCopy_avgt_jmhStub(...) :: 163       88    3.361
 ```
 
-JMC is reporting a low number of samples (the total is sort of available in the tree view as the number of samples in the root), but without knowing what the expected number of samples should be this is very easy to miss. This is particularly true for larger and noisier samples from real applications collected over longer period of time.
+JMC报告的样本数量很少（<u>在**树状视图**中总的数量与**根**中的样本数量相当</u>），但是如果不知道预期的样本数，很容易漏掉。对于实际应用长时间收集到的含有噪声的大量样本，尤其如此。
 
-Is this phenomena isolated to System.arrayCopy? Not at all, here's crc32 and adler32 as a further comparison:
+是否只有`System.arraycopy`这个现象？完全不是，下面进一步比较 `crc32` 和 `adler32`：
 
 ```java
 @Benchmark
@@ -1121,19 +1122,23 @@ Is this phenomena isolated to System.arrayCopy? Not at all, here's crc32 and adl
  */
 ```
 
-What do Crc32 and System.arrayCopy have in common? They are both JVM intrinsics, replacing a method call (Java/native don't really matter, though in this case both are native) with a combination of inlined code and a call to a JVM runtime generated method. This method call is not guarded the same way a normal call into native methods is and thus the AGCT stack walking is broken.
+`Crc32`和`System.arraycopy`有什么共同点？它们都是JVM**内置函数**，用内联代码和对JVM运行时生成的方法的调用，一起替换了原始的方法调用（是Java还是 **native 方法**并不重要，尽管在这种情况下都是**native 方法**）。此方法的调用保护方式与对 **native 方法**的常规调用不同，因此AGCT无法遍历堆栈。
 
-Why is this important? The reason these methods are worth making into intrinsics is because they are sufficiently important bottlenecks in common applications. Intrinsics are like tombstones for past performance issues in this sense, and while the result is faster than before, the cost is unlikely to be completely gone.
+为什么这很重要？ 这些方法之所以值得用内置函数的原因是，它们是常见应用程序中，足够重要的瓶颈。 从这个意义上说，内置函数就像过去性能问题的墓碑，尽管性能比以前更快，但成本却不可能完全消失。
 
-Why did I pick CRC32? because I recently spent some time profiling Cassandra. Version 2 of Cassandra uses adler32 for checksum, while version 3 uses crc32. As we can see from the results above, it's potentially a good choice, but if you were to profile Cassandra 3 it would look better than it actually is because all the checksum samples are unprofilable. Profiling with a native profiler will confirm that the checksum cost is still a prominent element of the profile (of the particular setup/benchmark I was running).
+为啥选**CRC32**？ 因为我最近花了一些时间分析**Cassandra**。2.0使用`adler32`进行校验和，3.0使用`crc32`。 从上面的结果可以看出，这可能是一个不错的选择，但是如果要分析Cassandra 3，它看起来会比实际情况要好，因为无法分析校验和的样本。使用native profiler将确认校验和的开销仍然不小（运行特定设置/基准测试的结果）。
 
 **AGCT profilers are blind to runtime stubs (some or all, this may get fixed in future releases...). Failed samples are an indication of such a blind spot.**
 
-Exercise to the reader:
+留给读者的练习：
 
-- Construct a benchmark with heavy GC activity and profile. The CPU spent on GC will be absent from you JMC profile, and should show as *ticks_GC_active* in your Honest-Profiler profile.
-- Construct a benchmark with heavy compiler activity and profile. As above look for compilation CPU. There's no compilation error code, but you should see allot of *ticks_unknown_not_Java* which indicate a non-Java thread has been interrupted ([this is a conflated error code, we'll be fixing it soon](https://github.com/RichardWarburton/honest-profiler/issues/138)).
-- Extra points! Construct a benchmark which is spending significant time deoptimising and look for the *ticks_deopt* error in your Honest-Profiler profile.
+- **构建一个具有大量GC活动的基准测试用于分析**。JMC 并没有显示CPU时间花在GC上，Honest-Profiler 应显示为`ticks_GC_active` 
+
+- **构建一个具有大量编译活动的基准测试用于分析**。和上面一样，CPU时间没有花在编译上。不存在和编译相关的错误码，但是你应该看到许多 `ticks_unknown_not_Java`，这表明非Java线程已被中断（[这是一个混合的错误码，我们将尽快修复](https://github.com/jvm-profiling-tools/honest-profiler/issues/138)）。
+
+  > 到今天（2019-11-17）仍未修复，尽快....
+
+- 加分！构建花费大量时间进行<u>逆优化</u>的基准程序，在 Honest-Profiler 的分析结果中查找`ticks_deopt`错误码。
 
 ## 盲点：休眠的代码
 
@@ -1171,3 +1176,9 @@ AsyncGetCallTrace比GetStackTraces有提高，因为它以较低的开销运行�
 2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
 
 3. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
+
+4. Stub
+
+   1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
+   
+   2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
