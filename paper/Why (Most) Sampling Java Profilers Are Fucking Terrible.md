@@ -1,20 +1,20 @@
-> #### 背景
->
-> 最近正好准备要做Benchmark相关的事，正好发现最新的[IntelliJ IDEA 2019.2开始有Profiling的功能](https://www.jetbrains.com/help/idea/cpu-profiler.html)，**貌似**可以不再用JProfiler，或者VisualVM做本地的Profiler。IDEA的这个功能实际是集成了[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)和[Java Flight Recorder](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)。从[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)这引出了安全点偏差的问题。
->
-> 1. 安全点相关的内容，[本文](#为啥大多数Java采样分析器不好用)
->    1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
->    2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
-> 2. Profiler 相关的内容，[本文](#AsyncGetCallTrace分析器的优缺点)
->    1. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
->    2. [什么是即时编译?](./什么是即时编译.md)
-> 3.  [如何读懂火焰图？](https://www.ruanyifeng.com/blog/2017/09/flame-graph.html)
->    1. [官方](http://www.brendangregg.com/flamegraphs.html)
-> 4. Stub
->
->    1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
->
->    2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
+# 背景
+
+最近正好准备要做Benchmark相关的事，正好发现最新的 [IntelliJ IDEA 2019.2开始有Profiling的功能](https://www.jetbrains.com/help/idea/cpu-profiler.html)，**貌似**可以不再用JProfiler，或者VisualVM做本地的Profiler。IDEA的这个功能实际是集成了[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)和[Java Flight Recorder](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)。从[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)这引出了安全点偏差的问题。
+
+1. 安全点相关的内容，[本文](#为啥大多数Java采样分析器不好用)
+   1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
+   2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
+2. Profiler 相关的内容，[本文](#AsyncGetCallTrace分析器的优缺点)
+   1. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
+   2. [什么是即时编译?](./什么是即时编译.md)
+3.  [如何读懂火焰图？](https://www.ruanyifeng.com/blog/2017/09/flame-graph.html)
+   1. [官方](http://www.brendangregg.com/flamegraphs.html)
+4. Stub
+
+   1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
+
+   2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
 
 [TOC]
 
@@ -849,7 +849,7 @@ public void meSoHotInline_avgt_jmhStub(InfraControl control, RawResults result, 
 
 ## 小结：有什么好处？
 
-如上所述，对于应用程序中哪里是热点代码，安全点采样分析器可能没有准确的概念。这使得对“正在运行”线程的<u>派生观察</u>非常令人怀疑，但至少是这些线程的正确观察。这并不意味着它们是完全无用的，有时我们需要的只是一个正确方向的提示，以便进行一些好的分析，但这里可能会浪费大量时间。虽然对在[解释器中运行的代码]()进行采样，不会受到安全点偏差的影响，但这并不是很有用，因为热点代码很快就会被编译。如果热点代码正在解释器中运行，其实你有比安全点偏差更重要的事要做...
+如上所述，对于应用程序中哪里是热点代码，安全点采样分析器可能没有准确的概念。这使得对“正在运行”线程的<u>派生观察</u>非常令人怀疑，但至少是这些线程的正确观察。这并不意味着它们是完全无用的，有时我们需要的只是一个正确方向的提示，以便进行一些好的分析，但这里可能会浪费大量时间。虽然对在[解释器中运行的代码](./什么是即时编译.md#分层编译的五个层次)进行采样，不会受到安全点偏差的影响，但这并不是很有用，因为热点代码很快就会被编译。如果热点代码正在解释器中运行，其实你有比安全点偏差更重要的事要做...
 
 阻塞线程的堆栈跟踪是准确的，因此“等待”分析对于发现阻塞代码非常有用。如果阻塞方法是性能问题的根源，那么这将是一个方便的观察。
 
@@ -927,7 +927,7 @@ void AsyncGetCallTrace(ASGCT_CallTrace *trace, // pre-allocated trace to fill
    - 不是Java线程。
    - 正在GC
    - 处于新建/未初始化/即将结束状态。即对运行Java代码之前或之后的线程不感兴趣
-   - 正在[逆向优化]()
+   - 正在[逆向优化](./什么是即时编译.md#动态逆优化)
 
 2. 查找当前/最后一个Java帧（与堆栈上的实际帧一样，请重新访问操作系统101以了解堆[栈和帧](https://www.quora.com/What-is-the-difference-between-a-stack-pointer-and-a-frame-pointer)的定义）：
    - 指令指针（通常称为PC程序计数器）用于查找匹配（编译的/解释的）Java方法。当前PC由信号上下文提供（即`ucontext`）。
@@ -1185,17 +1185,3 @@ AsyncGetCallTrace比GetStackTraces有提高，因为它以较低的开销运行�
 现在，可使用Honest-Profiler在Linux和OS X上分析Open / Oracle JDK6 / 7/8应用程序。还可以使用它在最新的Zing版本（15.05.0.0及更高版本的所有JDK）上分析Zing应用程序。Honest-Profiler不错，但我要提醒读者，它还没有广泛使用，可能包含错误，应谨慎使用。这是一个有用的工具，但不确定是否会在我的生产系统上使用它😉。JMC / JFR仅在JDK7u40上的Oracle JVM上可用，但在Linux，OS X，Windows和Solaris（仅JFR）上可用。 JMC / JFR出于开发目的是免费的，但需要许可证才能在生产中使用。注意，JFR收集了大量超出本文范围的性能数据，我衷心建议您尝试一下。
 
 非常感谢所有评论者：[JP Bempel](https://twitter.com/jpbempel), [Doug Lawrie](https://twitter.com/switchology), [Marcus Hirt](https://twitter.com/hirt) 和 [Richard Warburton](https://twitter.com/RichardWarburto), 任何剩余的错误将直接从他们的奖金中扣除。
-
-# 我的参考
-
-1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
-
-2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
-
-3. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
-
-4. Stub
-
-   1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
-   
-   2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
