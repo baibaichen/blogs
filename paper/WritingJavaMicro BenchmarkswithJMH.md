@@ -370,10 +370,135 @@ Many thanks to the great dudes who built this framework of whom I'm only familia
 
 ## JMH 简介
 
-JMH（Java微基准测试工具或<u>Juicy Munchy Hummus</u>，很难说，因为他们在网站上没有告诉您）是最新的微基准测试框架，出自那些致力于使**OpenJDK JVM**飞速发展的人们的工作室，它有望比大多数提供产品更高的准确性和更好的工具。
+JMH（==<u>Java微基准测试工具或Juicy Munchy Hummus，很难说，因为他们在网站上没有告诉你</u>==）是最新的微基准测试框架，出自那些致力于飞速发展**OpenJDK JVM**的人们，有望比大多数产品提供更高的准确性和更好的工具。
 
 源代码/项目主页位于[此处](http://openjdk.java.net/projects/code-tools/jmh/)，根据说明，当前需要在本地 build，才能将其安装于本地**maven**仓库中。之后就可在 ***maven*** 项目中依赖它，并开始工作。
 
 [这里](https://github.com/nitsanw/jmh-samples)是我将在本文中使用的项目，请随意拷贝粘贴到你的项目中。它是JMH示例项目的副本（参见下面关于示例当前状态的更新），但 build 出 **JMH jar**，并对maven进行了排序，这样您就可以直接克隆并运行，而无需在本地设置JMH。**就强调基准测试的复杂性而言，原始示例真金白银，请阅读！**命令行输出非常详细且信息丰富，所以要查看一下该工具背后隐藏的内容。
 
 原始示例的基础上，我添加了自己的示例，是框架的基础使用（非常基础），此处的目的是帮助您入门，而不是用细节淹没您，并让你感受到只需很少的努力就可以摆脱困境。开始...
+
+## It's fun to have fun, but you've got to know how
+
+For the sake of easy comparison and reference I'll use JMH to benchmark the same bit of code I benchmarked with a hand rolled framework [here](http://psy-lob-saw.blogspot.com/2012/12/encode-utf-8-string-to-bytebuffer-faster.html) and later on with Caliper [here](http://psy-lob-saw.blogspot.com/2013/01/using-caliper-for-writing-micro-benchmarks.html). We're benchmarking my novel way of encoding UTF-8 strings into ByteBuffers vs String.getBytes() vs best practice recommendation of using a CharsetEncoder. The benchmark compares the 3 methods by encoding a test set of UTF-8 strings samples.
+
+Here's what the benchmark looks like when using JMH:
+
+```java
+...
+@State(Scope.Thread)
+public class Utf8EncodingBenchmark  {
+	// experiment test input
+	private List<String> strings = new ArrayList<String>();
+
+	// CharsetEncoder helper buffers
+	private char[] chars;
+	private CharBuffer charBuffer;
+	private CharsetEncoder encoder;
+	
+	// My own encoder
+	private CustomUtf8Encoder customEncoder;
+	
+	// Destination buffer, the slayer
+	private ByteBuffer buffySummers;
+	
+	@Setup
+	public void init() {
+		boolean useDirectBuffer = Boolean
+		        .getBoolean("Utf8EncodingBenchmark.directBuffer");
+		InputStream testTextStream = null;
+		InputStreamReader inStreamReader = null;
+		BufferedReader buffReader = null;
+		try {
+			testTextStream = getClass().getResourceAsStream("/Utf8Samples.txt");
+			inStreamReader = new InputStreamReader(testTextStream, "UTF-8");
+			buffReader = new BufferedReader(inStreamReader);
+			String line;
+			while ((line = buffReader.readLine()) != null) {
+				strings.add(line);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			closeStream(testTextStream);
+			closeReader(inStreamReader);
+			closeReader(buffReader);
+		}
+	
+		if (useDirectBuffer) {
+			buffySummers = ByteBuffer.allocateDirect(4096);
+		} else {
+			buffySummers = ByteBuffer.allocate(4096);
+		}
+		chars = new char[4096];
+		charBuffer = CharBuffer.wrap(chars);
+		encoder = Charset.forName("UTF-8").newEncoder();
+		customEncoder = new CustomUtf8Encoder();
+	}
+	
+	private void closeStream(InputStream inStream) {
+		if (inStream != null) {
+			try {
+				inStream.close();
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
+	
+	private void closeReader(Reader buffReader) {
+		if (buffReader != null) {
+			try {
+				buffReader.close();
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
+	
+	@GenerateMicroBenchmark
+	public int customEncoder() {
+		int countBytes = 0;
+		for (int stringIndex = 0; stringIndex < strings.size(); stringIndex++) {
+			customEncoder.encodeString(strings.get(stringIndex), buffySummers);
+			countBytes += buffySummers.position();
+			buffySummers.clear();
+		}
+		return countBytes;
+	}
+	
+	@GenerateMicroBenchmark
+	public int stringGetBytes() throws UnsupportedEncodingException {
+		int countBytes = 0;
+		for (int stringIndex = 0; stringIndex < strings.size(); stringIndex++) {
+			buffySummers.put(strings.get(stringIndex).getBytes("UTF-8"));
+			countBytes += buffySummers.position();
+			buffySummers.clear();
+		}
+		return countBytes;
+	}
+	
+	@GenerateMicroBenchmark
+	public int charsetEncoder() throws UnsupportedEncodingException {
+		int countBytes = 0;
+		for (int stringIndex = 0; stringIndex < strings.size(); stringIndex++) {
+			String source = strings.get(stringIndex);
+			int length = source.length();
+			source.getChars(0, length, chars, 0);
+			charBuffer.position(0);
+			charBuffer.limit(length);
+			encoder.reset();
+			encoder.encode(charBuffer, buffySummers, true);
+			countBytes += buffySummers.position();
+			buffySummers.clear();
+		}
+		return countBytes;
+	}	
+}
+```
+
+We're using three JMH annotations here:
+
+1. **State** - This annotation tells JMH how to share benchmark object state. I'm using the Thread scope which means no sharing is desirable. There are 2 other scopes available **Group** (for sharing the state between a group of threads) and **Benchmark** (for sharing the state across all benchmark threads).
+2. **Setup** - Much like the JUnit counterpart the Setup annotation tells JMH this method needs to be called before it starts hammering my methods. Setup methods are executed appropriately for your chosen State scope.
+3. **GenerateMicroBenchmark** - Tells JMH to fry this method with onions.
