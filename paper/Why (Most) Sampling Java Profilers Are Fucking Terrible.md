@@ -5,16 +5,34 @@
 1. 安全点相关的内容，[本文](#为啥大多数Java采样分析器不好用)
    1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
    2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
+   
 2. Profiler 相关的内容，[本文](#AsyncGetCallTrace分析器的优缺点)
    1. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
    2. [什么是即时编译?](./什么是即时编译.md)
+   
 3.  [如何读懂火焰图？](https://www.ruanyifeng.com/blog/2017/09/flame-graph.html)
+  
    1. [官方](http://www.brendangregg.com/flamegraphs.html)
-4. Stub
+   
+4. [JMH，官方的网页没啥内容](http://openjdk.java.net/projects/code-tools/jmh/)，这是另一个重要的主题
 
-   1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
+   1. [JAVA 拾遗 — JMH 与 8 个测试陷阱](https://www.cnkirito.moe/java-jmh/)
 
-   2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
+   2. [JMH Resources](http://psy-lob-saw.blogspot.com/p/jmh-related-posts.html)
+
+      1. [Writing Java Micro Benchmarks with JMH: Juicy](http://psy-lob-saw.blogspot.com/2013/04/writing-java-micro-benchmarks-with-jmh.html)
+
+5. 其它知识点
+
+   1. Stub
+
+      1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
+      2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
+
+   2. 🀆 [About the dynamic de-optimization of HotSpot](https://stackoverflow.com/questions/20522870/about-the-dynamic-de-optimization-of-hotspot)
+   3. 🀆 [AsyncGetCallTrace 源码深度剖析](https://club.perfma.com/article/145902)
+
+   
 
 [TOC]
 
