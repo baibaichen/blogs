@@ -38,7 +38,7 @@ The source/project is [here](http://openjdk.java.net/projects/code-tools/jmh/) a
 
 I added my sample on top of the original samples, it is basic (very very basic) in it's use of the framework but the intention here is to help you get started, not drown you in detail, and give you a feel of how much you can get out of it for very little effort. Here goes...
 
-## It's fun to have fun, but you've got to know how
+## [It's fun to have fun, but you've got to know how](https://gretchenrubin.com/podcast-episode/a-little-happier-seuss-fun/)
 
 For the sake of easy comparison and reference I'll use JMH to benchmark the same bit of code I benchmarked with a hand rolled framework [here](http://psy-lob-saw.blogspot.com/2012/12/encode-utf-8-string-to-bytebuffer-faster.html) and later on with Caliper [here](http://psy-lob-saw.blogspot.com/2013/01/using-caliper-for-writing-micro-benchmarks.html). We're benchmarking my novel way of encoding UTF-8 strings into ByteBuffers vs String.getBytes() vs best practice recommendation of using a CharsetEncoder. The benchmark compares the 3 methods by encoding a test set of UTF-8 strings samples.
 
@@ -378,11 +378,11 @@ JMH（==<u>Java微基准测试工具或Juicy Munchy Hummus，很难说，因为�
 
 原始示例的基础上，我添加了自己的示例，是框架的基础使用（非常基础），此处的目的是帮助您入门，而不是用细节淹没您，并让你感受到只需很少的努力就可以摆脱困境。开始...
 
-## It's fun to have fun, but you've got to know how
+## 获得乐趣很爽，但要了解细节
 
-For the sake of easy comparison and reference I'll use JMH to benchmark the same bit of code I benchmarked with a hand rolled framework [here](http://psy-lob-saw.blogspot.com/2012/12/encode-utf-8-string-to-bytebuffer-faster.html) and later on with Caliper [here](http://psy-lob-saw.blogspot.com/2013/01/using-caliper-for-writing-micro-benchmarks.html). We're benchmarking my novel way of encoding UTF-8 strings into ByteBuffers vs String.getBytes() vs best practice recommendation of using a CharsetEncoder. The benchmark compares the 3 methods by encoding a test set of UTF-8 strings samples.
+为便于比较和参考，使用**JMH**对相同代码进行基准测试。在[这](http://psy-lob-saw.blogspot.com/2012/12/encode-utf-8-string-to-bytebuffer-faster.html)用手工打造的框架进行基准测试；在[这](http://psy-lob-saw.blogspot.com/2013/01/using-caliper-for-writing-micro-benchmarks.html)使用Caliper完成基准测试。将测三个方法，我的新方法即将UTF-8字符串编码成`ByteBuffers` 对比`String.getBytes()` 对比使用`CharsetEncoder`的最佳实践建议。基准测试通过对UTF-8字符串的测试集进行编码来比较这3种方法。
 
-Here's what the benchmark looks like when using JMH:
+下面是使用JMH时的基准测试代码：
 
 ```java
 ...
@@ -497,8 +497,74 @@ public class Utf8EncodingBenchmark  {
 }
 ```
 
-We're using three JMH annotations here:
+我们在这里使用三个**JMH注解**：
 
-1. **State** - This annotation tells JMH how to share benchmark object state. I'm using the Thread scope which means no sharing is desirable. There are 2 other scopes available **Group** (for sharing the state between a group of threads) and **Benchmark** (for sharing the state across all benchmark threads).
-2. **Setup** - Much like the JUnit counterpart the Setup annotation tells JMH this method needs to be called before it starts hammering my methods. Setup methods are executed appropriately for your chosen State scope.
-3. **GenerateMicroBenchmark** - Tells JMH to fry this method with onions.
+1. [`State`](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/State.java#l52) - 这个注释告诉JMH如何共享**基准测试对象状态**。这里使用[线程作用域](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/Scope.java#l70)，意味着不共享。还有另外两个作用域[**Group**](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/Scope.java#l57)（用于在一组线程之间共享状态）和[**Benchmark**](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/Scope.java#l42)（用于在所有基准线程之间共享状态）。
+
+2. [`Setup`](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/Setup.java#l48) - 就像JUnit的对等物一样，`Setup`注解告诉JMH，在开始测试我的方法之前，须先调用此方法。为所选的`State`作用域正确执行`Setup`方法。
+
+3. [`GenerateMicroBenchmark`](http://hg.openjdk.java.net/code-tools/jmh/file/c8f9f5b85cd9/jmh-core/src/main/java/org/openjdk/jmh/annotations/Benchmark.java#l69) - 告诉JMH使用前面的配置测试这个方法。
+
+   > **`GenerateMicroBenchmark`**   重命名为 `Benchmark`，参见[这](http://hg.openjdk.java.net/code-tools/jmh/log/7811fb328a4c/jmh-core/src/main/java/org/openjdk/jmh/annotations/Benchmark.java)。
+
+## A lot of good tricks, I will show them to you, your mother will not mind at all if I do很多好把戏，我会给你看的，你妈妈不会介意的
+
+To get our benchmarks going we need to run the generated microbenchmarks.jar. This is what we get:
+
+```bash
+$ java -DUtf8EncodingBenchmark.directBuffer=false -jar target/microbenchmarks.jar -wi 3 -i 3 ".*Utf8EncodingBenchmark.*"
+# Measurement Section
+# Runtime (per iteration): 5s
+# Iterations: 3
+# Thread counts (concurrent threads per iteration): [1, 1, 1]
+# Threads will synchronize iterations
+# Running: psy.lob.saw.utf8.generated.throughput.Utf8EncodingBenchmark.charsetEncoder
+# Warmup Iteration   1 (3s in 1 thread): 2.517 ops/msec
+# Warmup Iteration   2 (3s in 1 thread): 2.405 ops/msec
+# Warmup Iteration   3 (3s in 1 thread): 2.598 ops/msec
+Iteration   1 (5s in 1 thread): 2.579 ops/msec
+Iteration   2 (5s in 1 thread): 2.618 ops/msec
+Iteration   3 (5s in 1 thread): 2.595 ops/msec
+
+Run result "charsetEncoder": 2.597 ±(95%) 0.048 ±(99%) 0.110 ops/msec
+Run statistics "charsetEncoder": min = 2.579, avg = 2.597, max = 2.618, stdev = 0.019
+Run confidence intervals "charsetEncoder": 95% [2.549, 2.645], 99% [2.487, 2.708]
+
+... similarly continues for 2 more benchamrks ...
+
+Benchmark                                          Thr    Cnt  Sec         Mean   Mean error          Var    Units
+p.l.s.u.g.t.Utf8EncodingBenchmark.charsetEncoder     1      3    5        2.487        0.848        0.022 ops/msec
+p.l.s.u.g.t.Utf8EncodingBenchmark.customEncoder      1      3    5        4.592        0.087        0.000 ops/msec
+p.l.s.u.g.t.Utf8EncodingBenchmark.stringGetBytes     1      3    5        2.298        0.607        0.011 ops/msec
+```
+
+Nice innit?
+
+Here's the extra knobs we get on our experiment for our effort:
+
+- I'm using some command line options to control the number of iterations/warmup iterations, here's the available knobs on that topic:
+
+  - **i** - number of benchmarked iterations, use 10 or more to get a good idea
+  - **r** - how long to run each benchmark iteration
+  - **wi** - number of warmup iterations
+  - **w** - how long to run each warmup iteration (give ample room for warmup, how much will depend on the code you try and measure, try and have it execute 100K times or so)
+
+- To choose which benchmarks we want to run we need to supply a regular expression to filter them or ".*" to run all of them. If you can't remember what you packed use:
+
+  - **v** - verbose run will also print out the list of available benchmarks and which ones were selected by your expression
+  - **l** - to list the available benchmarks
+
+- If you wish to isolate GC effects between iterations you can use the **gc** option, this is often desirable to help getting more uniform results.
+
+- Benchmarks are forked into separate VMs by default. If you wish to run them together add "**-f 0**" (you shouldn't really do this unless you are trying to debug something... forking is good). The framework also allows you to run several forks for each benchmark to help identify run to run variance. 
+
+The output is given for every iteration, then a summary of the stats. As I'm running 3 iterations these are not very informative (**this is not recommended practice and was done for the sake of getting sample outputs rather than accurate measurement, I recommend you run more than 10 iterations and compare several JMH runs for good measure**) but if I was to run 50 iterations they'd give me more valuable data. We can choose from a variety of several output formats to generate graphs/reports later. To get CSV format output add "-of csv" to your command line, which leaves you to draw your own conclusions from the data (no summary stats here):
+
+The above has your basic requirements from a benchmark framework covered:
+
+1. Make it easy to write benchmarks
+2. Integrate with my build tool
+3. Make it easy to run benchmarks (there's IDE integration on the cards to make it even easier)
+4. Give me output in a format I can work with
+
+I'm particularly happy with the runnable jar as a means to packaging the benchmarks as I can now take the same jar and try it out on different environments which is important to my work process. My only grumble is the lack of support for parametrization which leads me to use a system property to switch between the direct and heap buffer output tests. I'm assured this is also in the cards.
