@@ -1,6 +1,20 @@
 > #### 背景
 >
 > 最近正好准备要做Benchmark相关的事，正好发现最新的[IntelliJ IDEA 2019.2开始有Profiling的功能](https://www.jetbrains.com/help/idea/cpu-profiler.html)，**貌似**可以不再用JProfiler，或者VisualVM做本地的Profiler。IDEA的这个功能实际是集成了[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)和[Java Flight Recorder](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)。从[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)这引出了安全点偏差的问题。
+>
+> 1. 安全点相关的内容，[本文](#为啥大多数Java采样分析器不好用)
+>    1. [HBase实战：记一次Safepoint导致长时间STW的踩坑之旅](https://blog.csdn.net/pengzhouzhou/article/details/94516616)
+>    2. [Safepoint学习笔记](http://blog.yongbin.me/2016/11/23/safepoint/)
+> 2. Profiler 相关的内容，[本文](#AsyncGetCallTrace分析器的优缺点)
+>    1. [JVM CPU Profiler技术原理及源码深度解析](https://juejin.im/post/5da3d803e51d4577e9749bb4#heading-7)
+>    2. [什么是即时编译?](./什么是即时编译.md)
+> 3.  [如何读懂火焰图？](https://www.ruanyifeng.com/blog/2017/09/flame-graph.html)
+>    1. [官方](http://www.brendangregg.com/flamegraphs.html)
+> 4. Stub
+>
+>    1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
+>
+>    2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
 
 [TOC]
 
@@ -850,7 +864,7 @@ public void meSoHotInline_avgt_jmhStub(InfraControl control, RawResults result, 
 
 # AsyncGetCallTrace分析器的优缺点
 
-那么，从我[絮絮叨叨地抱怨安全点偏差的帖子](http://psy-lob-saw.blogspot.co.za/2016/02/why-most-sampling-java-profilers-are.html)继续， 应该从那里获取分析结果呢？使用OpenJDK内部API `AsyncGetCallTrace`是一个选择，可<u>在非安全点</u>方便地收集堆栈跟踪信息。
+那么，从我[絮絮叨叨地抱怨安全点偏差的帖子](#为啥大多数Java采样分析器不好用)继续， 应该从那里获取分析结果呢？使用OpenJDK内部API `AsyncGetCallTrace`是一个选择，可<u>在非安全点</u>方便地收集堆栈跟踪信息。
 
 `AsyncGetCallTrace`不是官方JVM API。对Profiler编写者而言有点烦，它最初只在OpenJDK / Oracle JVM上实现（Zing最近开始支持**AGCT**，以支持Solaris Studio和其他Profiler，我将为Solaris Studio上撰写单独的文章）。 它最初用于Solaris Studio，并提供以下API（参见[forte.cpp](http://hg.openjdk.java.net/jdk8/jdk8/hotspot/file/tip/src/share/vm/prims/forte.cpp#l457)，这个名称是Forte Analyzer时代遗留下来的）。 以下是所有的API：
 
