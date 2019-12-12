@@ -405,17 +405,49 @@ val optimizedPlan: LogicalPlan = optimizer.execute(analyzed)
 
 #### （ 6 ） Batch Operator Optimizations
 
-类似 Analyzer 中的 Operator 解析规则，该 Batch 包含了 Optim izer中数量最多同时也是最常用的各种优化规则，共 31 条。从整体来看，这 31 条优化规则（如表 5.4 所示）可以分为 3 个模块：算子下推（ Operator Push Down ）、算子组合（ Operator Combine ）、常量折叠与长度削减（ Constant Folding and Strength Reduction ）。
+类似 Analyzer 中的 *Operator* 解析规则，该 `Batch` 包含了 **Optimizer**中数量最多同时也是最常用的各种优化规则，共 31 条。从整体来看，这 31 条优化规则（如表 5.4 所示）可以分为 3 个模块：**算子下推**（ *Operator Push Down* ）、**算子组合**（ *Operator Combine* ）、**常量折叠与长度削减**（ *Constant Folding and Strength Reduction* ）。
 
-- **算子下推**：算子下推是数据库中常用的优化方式，表 5.4 中所列的前 8 条规则都属于算子下推的模块。顾名思义，算子下推所执行的优化操作主要是将逻辑算子树中上层的算子节点尽量下推，使其靠近叶子节点，这样能够在不同程度上减少后续处理的数据量甚至简化后续的处理逻辑。以常见的列剪裁（ ColumnPruning ）优化为例，假设数据表中有 A、B、C 3 列，但是查询语句中只涉及 A、B 两列，那么 ColumnPruning 将会在读取数据后剪裁出这两列。又如 Lim itPushDown 优化规则，能够将 LocalLim it 算子下推到 Union All 和 Outer Join 操作算子的下方，减少这两种算子在实际计算过程中需要处理的数据量。
-- **算子组合**：算子组合类型的优化规则将逻辑算子树中能够进行组合的算子尽量整合在一起，避免多次计算，以提高性能。表 5.4 中间 6 条规则（从 CollapseRepartition 到 CombineUnions ）都属于算子组合类型的优化。可以看到这些规则主要针对的是重分区（ repartition ）算子、投影（Project）算子、过滤（Filter）算子、Window 算子、Lim it 算子和 Union 算子，其中 CombineUnions 在之前已经提到过。需要注意的是，这些规则主要针对的是算子相邻的情况。
-
+- **算子下推**：算子下推是数据库中常用的优化方式，表 5.4 中所列的前 8 条规则都属于算子下推的模块。顾名思义，算子下推所执行的优化操作主要是将逻辑算子树中上层的算子节点尽量下推，使其靠近叶子节点，这样能够在不同程度上减少后续处理的数据量甚至简化后续的处理逻辑。以常见的列剪裁（ `ColumnPruning` ）优化为例，假设数据表中有 A、B、C 3 列，但是查询语句中只涉及 A、B 两列，那么 ColumnPruning 将会在读取数据后剪裁出这两列。又如 `LimitPushDown` 优化规则，能够将 `LocalLimit` 算子下推到 `Union All` 和 `Outer Join` 操作算子的下方，减少这两种算子在实际计算过程中需要处理的数据量。
+- **算子组合**：算子组合类型的优化规则将逻辑算子树中能够进行组合的算子尽量整合在一起，避免多次计算，以提高性能。表 5.4 中间 6 条规则（从 `CollapseRepartition` 到 `CombineUnions` ）都属于算子组合类型的优化。可以看到这些规则主要针对的是重分区（ `repartition` ）算子、投影（`Project`）算子、过滤（`Filter`）算子、`Window` 算子、`Limit` 算子和 `Union` 算子，其中 `CombineUnions` 在之前已经提到过。需要注意的是，这些规则主要针对的是算子相邻的情况。
+| 优化规则                            | 优化操作                   |
+| ----------------------------------- | -------------------------- |
+| `PushProjectionThroughUnion`        | 列剪裁下推                 |
+| `ReorderJoin`                       | Join 顺序优化              |
+| `EliminateOuterJoin`                | OuterJoin 消除             |
+| `PushPredicateThroughJoin`          | 谓词下推到 Join 算 子      |
+| `PushDownPredicate`                 | 谓词下推                   |
+| `LimitPushDown`                     | Limit 算子下推             |
+| `ColumnPruning`                     | 列剪裁                     |
+| `InferFiltersFromConstraints`       | 约束条件提取               |
+| `CollapseRepartition`               | 重分区组合                 |
+| `CollapseProject`                   | 投影算子组合               |
+| `CollapseWindow`                    | Window 组合                |
+| `CombineFilters`                    | 过滤条件组合               |
+| `CombineLimits`                     | Limit 操作组合             |
+| `CombineUnions`                     | Union 算子组合             |
+| `NullPropagation`                   | Null 提取                  |
+| `FoldablePropagation`               | 可折叠算子提取             |
+| `OptimizeIn`                        | In 操作优化                |
+| `ConstantFolding`                   | 常数折叠                   |
+| `ReorderAssociativeOperator`        | 重排序关联算子优化         |
+| `LikeSimplification`                | Like 算子简化              |
+| `BooleanSimplification`             | Boolean 算子简化           |
+| `SimplifyConditionals`              | 条件简化                   |
+| `RemoveDispensableExpressions`      | **Dispensable** 表达式消除 |
+| `SimplifyBinaryComparison`          | 比较算子简化               |
+| `PruneFilters`                      | 过滤条件剪裁               |
+| `EliminateSorts`                    | 排序算子消除               |
+| `SimplifyCasts`                     | Cast 算子简化              |
+| `SimplifyCaseConversionExpressions` | case 表达式简 化           |
+| `RewriteCorrelatedScalarSubquery`   | 标量依赖子查询重 写        |
+| `EliminateSerialization`            | 序列化消除                 |
+| `RemoveAliasOnlyProject`            | 消除别名                   |
 <p align="center">
  <img src="./learn scala from spark/table-5-4.png" />
  表 5.4 Batch OperatorOptimizations 中的规则
 </p>
 
-常量折叠与长度削减：对于逻辑算子树中涉及某些常量的节点，可以在实际执行之前就完成静态处理。常量折叠与长度削减类型的优化规则主要针对的就是这种情况。表 5.4 中的后 17 条优化规则都属于这种类型。例如，在 ConstantFolding 规则中，对于能够 foldable（可折叠）的表达式会直接在 EmptyRow 上执行 evaluate 操作，从而构造新的 Literal 表达式； PruneFilters 优化规则会详细地分析过滤条件，对总是能够返回 true 或 false 的过滤条件进行特别的处理。
+- **常量折叠与长度削减**：对于逻辑算子树中涉及某些常量的节点，可以在实际执行之前就完成静态处理。常量折叠与长度削减类型的优化规则主要针对的就是这种情况。表 5.4 中的后 17 条优化规则都属于这种类型。例如，在 `ConstantFolding` 规则中，对于能够 *foldable*（可折叠）的表达式会直接在 `EmptyRow` 上执行 `evaluate` 操作，从而构造新的 `Literal` 表达式； `PruneFilters` 优化规则会详细地分析过滤条件，对总是能够返回 true 或 false 的过滤条件进行特别的处理。
 
 #### （ 7 ） Batch Check Cartesian Products ⇒ CheckCartesianProducts
 
