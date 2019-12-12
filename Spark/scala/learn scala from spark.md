@@ -409,6 +409,7 @@ val optimizedPlan: LogicalPlan = optimizer.execute(analyzed)
 
 - **算子下推**：算子下推是数据库中常用的优化方式，表 5.4 中所列的前 8 条规则都属于算子下推的模块。顾名思义，算子下推所执行的优化操作主要是将逻辑算子树中上层的算子节点尽量下推，使其靠近叶子节点，这样能够在不同程度上减少后续处理的数据量甚至简化后续的处理逻辑。以常见的列剪裁（ `ColumnPruning` ）优化为例，假设数据表中有 A、B、C 3 列，但是查询语句中只涉及 A、B 两列，那么 ColumnPruning 将会在读取数据后剪裁出这两列。又如 `LimitPushDown` 优化规则，能够将 `LocalLimit` 算子下推到 `Union All` 和 `Outer Join` 操作算子的下方，减少这两种算子在实际计算过程中需要处理的数据量。
 - **算子组合**：算子组合类型的优化规则将逻辑算子树中能够进行组合的算子尽量整合在一起，避免多次计算，以提高性能。表 5.4 中间 6 条规则（从 `CollapseRepartition` 到 `CombineUnions` ）都属于算子组合类型的优化。可以看到这些规则主要针对的是重分区（ `repartition` ）算子、投影（`Project`）算子、过滤（`Filter`）算子、`Window` 算子、`Limit` 算子和 `Union` 算子，其中 `CombineUnions` 在之前已经提到过。需要注意的是，这些规则主要针对的是算子相邻的情况。
+
 | 优化规则                            | 优化操作                   |
 | ----------------------------------- | -------------------------- |
 | `PushProjectionThroughUnion`        | 列剪裁下推                 |
@@ -442,6 +443,7 @@ val optimizedPlan: LogicalPlan = optimizer.execute(analyzed)
 | `RewriteCorrelatedScalarSubquery`   | 标量依赖子查询重 写        |
 | `EliminateSerialization`            | 序列化消除                 |
 | `RemoveAliasOnlyProject`            | 消除别名                   |
+
 <p align="center">
  <img src="./learn scala from spark/table-5-4.png" />
  表 5.4 Batch OperatorOptimizations 中的规则
