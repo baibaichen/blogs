@@ -184,23 +184,37 @@ If the record order on the reduce side is not enforced, then the “reducer” w
 
 Starting Spark 1.2.0, this is the default shuffle algorithm used by Spark (**spark.shuffle.manager**= *sort*). In general, this is an attempt to implement the shuffle logic similar to the one used by [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/). With hash shuffle you output one separate file for each of the “reducers”, **while with sort shuffle you’re doing a smarted thing: you output a single file ordered by “reducer” id and indexed, this way you can easily fetch the chunk of the data related to “reducer x” by just getting information about the position of related data block in the file** and doing a single fseek before fread. But of course for small amount of “reducers” it is obvious that hashing to separate files would work faster than sorting, so the sort shuffle has a “fallback” plan: when the amount of “reducers” is smaller than “**spark.shuffle.sort.bypassMergeThreshold**” (200 by default) we use the “fallback” plan with hashing the data to separate files and then joining these files together in a single file. This logic is implemented in a separate class [BypassMergeSortShuffleWriter](https://github.com/apache/spark/blob/master/core/src/main/java/org/apache/spark/shuffle/sort/BypassMergeSortShuffleWriter.java).
 
+> 有趣的是，该实现在 map 端对数据进行排序，但在 reduce 端不合并排序结果-如果需要数据排序，则只对数据重新排序。
+
 **The funny thing about this implementation is that it sorts the data on the “map” side, but does not merge the results of this sort on “reduce” side – in case the ordering of data is needed it just re-sorts the data.** Cloudera has put itself in a fun position with this idea: [Improving Sort Performance in Apache Spark: It’s a Double](http://blog.cloudera.com/blog/2015/01/improving-sort-performance-in-apache-spark-its-a-double/). They started a process of implementing the logic that takes advantage of pre-sorted outputs of “mappers” to merge them together on the “reduce” side instead of resorting. As you might know, sorting in Spark on reduce side is done using [TimSort](https://en.wikipedia.org/wiki/Timsort), and this is a wonderful sorting algorithm which in fact by itself takes advantage of pre-sorted inputs (by calculating minruns and then merging them together). A bit of math here, you can skip if you’d like to. Complexity of merging **M** sorted arrays of **N** elements each is **O(MNlogM)** when we use the most efficient way to do it, using Min Heap. With TimSort, we make a pass through the data to find MinRuns and then merge them together pair-by-pair. It is obvious that it would identify **M** MinRuns. First **M/2** merges would result in **M/2** sorted groups, next **M/4** merges would give **M/4**sorted groups and so on, so its quite straightforward that the complexity of all these merges would be **O(MNlogM)** in the very end. Same complexity as the direct merge! The difference here is only in constants, and constants depend on implementation. So [the patch by Cloudera engineers](https://issues.apache.org/jira/browse/SPARK-2926) has been pending on its approval for already one year, and unlikely it would be approved without the push from Cloudera management, because performance impact of this thing is very minimal or even none, you can see this in JIRA ticket discussion. Maybe they would workaround it by introducing separate shuffle implementation instead of “improving” the main one, we’ll see this soon.
 
 Fine with this. What if you don’t have enough memory to store the whole “map” output? You might need to spill intermediate data to the disk. Parameter **spark.shuffle.spill** is responsible for enabling/disabling spilling, and by default spilling is enabled. If you would disable it and there is not enough memory to store the “map” output, you would simply get OOM error, so be careful with this.
 
 The amount of memory that can be used for storing “map” outputs before spilling them to disk is “JVM Heap Size” * **spark.shuffle.memoryFraction** * **spark.shuffle.safetyFraction**, with default values it is “JVM Heap Size” * 0.2 * 0.8 = “JVM Heap Size” * 0.16. Be aware that if you run many threads within the same executor (setting the ratio of **spark.executor.cores / spark.task.cpus** to more than 1), average memory available for storing “map” output for each task would be “JVM Heap Size” * **spark.shuffle.memoryFraction** * **spark.shuffle.safetyFraction** / **spark.executor.cores \* spark.task.cpus**, for 2 cores with other defaults it would give 0.08 * “JVM Heap Size”.
 
-Spark internally uses [AppendOnlyMap](https://github.com/apache/spark/blob/branch-1.5/core/src/main/scala/org/apache/spark/util/collection/AppendOnlyMap.scala) structure to store the “map” output data in memory. Interestingly, Spark uses their own Scala implementation of hash table that uses open hashing and stores both keys and values in the same array using [quadratic probing](http://en.wikipedia.org/wiki/Quadratic_probing). As a hash function they use murmur3_32 from Google Guava library, which is [MurmurHash3](https://en.wikipedia.org/wiki/MurmurHash).
+> Spark internally uses [AppendOnlyMap](https://github.com/apache/spark/blob/branch-1.5/core/src/main/scala/org/apache/spark/util/collection/AppendOnlyMap.scala) structure to store the “map” output data in memory. Interestingly, Spark uses their own Scala implementation of hash table that uses <u>open hashing</u> and stores both keys and values in the same array using [quadratic probing](http://en.wikipedia.org/wiki/Quadratic_probing). As a hash function they use `murmur3_32` from Google Guava library, which is [MurmurHash3](https://en.wikipedia.org/wiki/MurmurHash).
+>
+> This hash table allows Spark to apply “combiner” logic in place on this table – each new value added for existing key is getting through “combine” logic with existing value, and the output of “combine” is stored as the new value.
+>
+> When the spilling occurs, it just calls “sorter” on top of the data stored in this AppendOnlyMap, which executes TimSort on top of it, and this data is getting written to disk.
+>
+> Sorted output is written to the disk when the spilling occurs or when there is no more mapper output, i.e. the data is guaranteed to hit the disk. Whether it will really hit the disk depends on OS settings like file buffer cache, but it is up to OS to decide, Spark just sends it “write” instructions.
+>
+> Each spill file is written to the disk separately, their merging is performed only when the data is requested by “reducer” and the merging is real-time, i.e. it does not call somewhat “on-disk merger” like it happens in [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/), it just dynamically collects the data from a number of separate spill files and merges them together using [Min Heap](https://en.wikipedia.org/wiki/Binary_heap) implemented by Java `PriorityQueue` class.
+>
+> This is how it works:
 
-This hash table allows Spark to apply “combiner” logic in place on this table – each new value added for existing key is getting through “combine” logic with existing value, and the output of “combine” is stored as the new value.
+Spark 内部使用 [`AppendOnlyMap`](https://github.com/apache/spark/blob/branch-1.5/core/src/main/scala/org/apache/spark/util/collection/AppendOnlyMap.scala) 结构存储内存中 map 的输出数据。有趣的是，**Spark** 使用 *Scala* 自己实现哈希表，该实现使用<u>开放式哈希</u>并使用[二次探查](http://en.wikipedia.org/wiki/Quadratic_probing)将键和值存储在同一数组中。他们使用的散列函数是 Google Guava 库的`murmur3_32`，即[MurmurHash3](https://en.wikipedia.org/wiki/MurmurHash)。
 
-When the spilling occurs, it just calls “sorter” on top of the data stored in this AppendOnlyMap, which executes TimSort on top of it, and this data is getting written to disk.
+通过这个哈希表，Spark 可以在此表上就地应用“组合器”逻辑——为现有键添加的每个新值，都将通过“组合”逻辑与现有的值一起获得，并且“组合”输出被存储为新的值。
 
-Sorted output is written to the disk when the spilling occurs or when there is no more mapper output, i.e. the data is guaranteed to hit the disk. Whether it will really hit the disk depends on OS settings like file buffer cache, but it is up to OS to decide, Spark just sends it “write” instructions.
+发生溢出（spilling）时，它只排序 `AppendOnlyMap` 中存储的数据，即在其之上执行 **TimSort**，并将此（排序后的）数据写入磁盘。
 
-Each spill file is written to the disk separately, their merging is performed only when the data is requested by “reducer” and the merging is real-time, i.e. it does not call somewhat “on-disk merger” like it happens in [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/), it just dynamically collects the data from a number of separate spill files and merges them together using [Min Heap](https://en.wikipedia.org/wiki/Binary_heap) implemented by Java PriorityQueue class.
+当溢出发生或没有更多的 mapper 输出时，此时肯定会把数据写入磁盘，输出排序后的数据到磁盘。但是否真的会写入磁盘取决于操作系统（文件缓冲区缓存的）设置，Spark 只是发送“写入”指令。
 
-This is how it works:
+每个溢出文件都分别写入磁盘，仅当 reducer 请求数据<u>并且实时合并时</u>才合并它们，即不像 [Hadoop MapReduce](https://0x0fff.com/hadoop-mapreduce-comprehensive-description/) 中那样调用某种“磁盘合并”操作，它只是使用由Java `PriorityQueue` 实现的 [Min Heap](https://en.wikipedia.org/wiki/Binary_Heap)，动态地从多个单独的溢出文件中收集数据。
+
+这就是它的工作原理：
 
 ![spark_sort_shuffle](./SparkShuffle的技术演进/spark_sort_shuffle.png)
 
@@ -234,9 +248,13 @@ This shuffle implementation would be used only when all of the following conditi
 - The shuffle produces less than 16777216 output partitions
 - No individual record is larger than 128 MB in serialized form
 
-Also you must understand that at the moment sorting with this shuffle is performed only by partition id, it means that the optimization with merging pre-sorted data on “reduce” side and taking advantage of pre-sorted data by TimSort on “reduce” side is no longer possible. Sorting in this operation is performed based on the 8-byte values, each value encodes both link to the serialized data item and the partition number, here is how we get a limitation of 1.6b output partitions.
+> Also you must understand that at the moment sorting with this shuffle is performed only by partition id, it means that the optimization with merging pre-sorted data on “reduce” side and taking advantage of pre-sorted data by TimSort on “reduce” side is no longer possible. Sorting in this operation is performed based on the 8-byte values, each value encodes both link to the serialized data item and the partition number, here is how we get a limitation of 1.6b output partitions.
+>
+> Here’s how it looks like:
 
-Here’s how it looks like:
+您还必须了解，目前仅通过**分区 id** 进行此 shuffle 排序，这意味着在“reduce”端，没有合并**预排序数据**的优化，并且不再可能利用 TimSort 排序**部分有序数据**。在此操作中，排序是基于**8字节的值**进行，每个值由指向序列化数据项的指针和分区号组成，这是我们获得1.6b输出分区限制的方式。
+
+看起来像这样：
 
 ![spark_tungsten_sort_shuffle](./SparkShuffle的技术演进/spark_tungsten_sort_shuffle.png)
 
@@ -257,10 +275,6 @@ But in my opinion this sort is a big advancement in the Spark design and I would
 This is all what I wanted to say about Spark shuffles. It is a very interesting piece of the code and if you have some time I’d recommend you to read it by yourself.
 
 # Spark Shuffle原理及相关调优
-
-发表于 2016-11-04   |   分类于 [spark ](http://sharkdtu.com/categories/spark/)  |   阅读量 1244次
-
-[spark](http://sharkdtu.com/tags/spark/) [大数据](http://sharkdtu.com/tags/big-data/) [分布式计算](http://sharkdtu.com/tags/distributed-computation/) [shuffle](http://sharkdtu.com/tags/shuffle/)
 
 通过文章[“Spark Scheduler内部原理剖析”](http://sharkdtu.com/posts/spark-scheduler.html)我们知道，Spark在DAG调度阶段会将一个Job划分为多个Stage，上游Stage做map工作，下游Stage做reduce工作，其本质上还是MapReduce计算框架。Shuffle是连接map和reduce之间的桥梁，它将map的输出对应到reduce输入中，这期间涉及到序列化反序列化、跨节点网络IO以及磁盘读写IO等，所以说Shuffle是整个应用程序运行过程中非常昂贵的一个阶段，理解Spark Shuffle原理有助于优化Spark应用程序。
 
@@ -284,7 +298,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 ![spark-shuffle-v1](./SparkShuffle的技术演进/spark-shuffle-v1.png)
 
-在map阶段(shuffle write)，每个map都会为下游stage的每个partition写一个临时文件，假如下游stage有1000个partition，那么每个map都会生成1000个临时文件，一般来说一个executor上会运行多个map task，这样下来，一个executor上会有非常多的临时文件，假如一个executor上运行M个map task，下游stage有N个partition，那么一个executor上会生成M*N个文件。另一方面，如果一个executor上有K个core，那么executor同时可运行K个task，这样一来，就会同时申请K*N个文件描述符，一旦partition数较多，势必会耗尽executor上的文件描述符，同时生成K*N个write handler也会带来大量内存的消耗。
+在map阶段(shuffle write)，每个map都会为下游stage的每个partition写一个临时文件，假如下游stage有1000个partition，那么每个map都会生成1000个临时文件，一般来说一个executor上会运行多个map task，这样下来，一个executor上会有非常多的临时文件，假如一个executor上运行M个map task，下游stage有N个partition，那么一个executor上会生成 **M * N 个文件**。另一方面，如果一个executor上有K个core，那么executor同时可运行K个task，这样一来，就会同时申请 **K * N 个文件描述符**，一旦partition数较多，势必会耗尽executor上的文件描述符，同时生成K*N个write handler也会带来大量内存的消耗。
 
 在reduce阶段(shuffle read)，每个reduce task都会拉取所有map对应的那部分partition数据，那么executor会打开所有临时文件准备网络传输，这里又涉及到大量文件描述符，另外，如果reduce阶段有combiner操作，那么它会把网络中拉到的数据保存在一个`HashMap`中进行合并操作，如果数据量较大，很容易引发OOM操作。
 
@@ -292,7 +306,7 @@ Spark在1.1以前的版本一直是采用Hash Shuffle的实现的方式，到1.1
 
 ### Hash Shuffle v2
 
-在上一节讲到每个map task都要生成N个partition文件，为了减少文件数，后面引进了，目的是减少单个executor上的文件数。如下图所示，一个executor上所有的map task生成的分区文件只有一份，即将所有的map task相同的分区文件合并，**这样每个executor上最多只生成N个分区文件**。
+在上一节讲到每个map task都要生成N个partition文件，为了减少文件数，后面引进了，目的是减少**单个 executor** 上的文件数。如下图所示，一个executor上所有的 map task 生成的分区文件只有一份，即将所有的map task相同的分区文件合并，**这样每个executor上最多只生成N个分区文件**。
 
 ![spark-shuffle-v2](./SparkShuffle的技术演进/spark-shuffle-v2.png)
 

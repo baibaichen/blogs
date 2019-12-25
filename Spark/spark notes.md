@@ -306,20 +306,31 @@ val pairs = sql("SELECT key, value FROM src").rdd.map {
 
 **Spark stages are created by breaking the RDD graph at shuffle boundaries**. RDD operations with **narrow** dependencies, like `map()` and `filter()`, are pipelined together into one set of tasks in each stage, but operations with shuffle dependencies require multiple stages (one to write a set of map output files, and another to read those files after a barrier). **In the end, every stage will have only shuffle dependencies on other stages, and may compute multiple operations inside it**. The actual pipelining of these operations happens in the `RDD.compute()` functions of various RDDs (**MapPartitionsRDD**, etc).
 
-> **高级调度层**，**实现了面向 stage 的调度**。 为每个作业计算 stage 的 DAG、跟踪哪些 RDD 和 stage 的输出需要**物化**，并为执行的作业找到一个最小的调度。然后为了在集群上运行这些stages，就把它们做为 `TaskSet`s 提交给`TaskScheduler`的底层实现。**`TaskSet`**包含完全独立的任务，如果执行任务所需的数据（例如，上一阶段 `map` 的输出文件）已经在集群上，则可以马上运行，不过，后续可能因为这些数据不可用而失败。
+In addition to coming up with a DAG of stages, the `DAGScheduler` also determines the preferred locations to run each task on, based on the current cache status, and passes these to the low-level [`TaskScheduler`](#TaskScheduler). Furthermore, it handles failures due to shuffle output files being lost, in which case old stages may need to be resubmitted. Failures **within** a stage that are not caused by shuffle file loss are handled by the [`TaskScheduler`](#TaskScheduler), which will retry each task a small number of times before cancelling the whole stage.
+
+> **高级调度层**，**实现了面向 stage 的调度**。 为每个作业计算 stage 的 DAG、跟踪哪些 RDD 和 stage 的输出需要**物化**，并为执行的<u>作业</u>找到一个最小的调度。然后为了在集群上运行这些stages，就把它们做为 `TaskSets` 提交给`TaskScheduler`的底层实现。**`TaskSet`**包含完全独立的任务，如果执行任务所需的数据（例如，上一阶段 `map` 的输出文件）已经在集群上，则可以马上运行，不过，后续可能因为这些数据不可用而失败。
 >
 > Spark 以 **shuffle** 为边界分割 **`RDD graph`** 而创建 stages。像 `map()` 和 `filter()` 这类窄依赖的 `RDD` 操作，在每个 stage 内串联成为一组任务。但是有 **shuffle** 依赖的操作需要多个 stages（前一个stage在一端产生一组 `map` 的输出文件，后一个stage在另一端读取这些文件）。最终，每个 stage 之间只有**shuffle** 依赖，但是每个 stage 内部可能有多个操作。在各个 `RDD` （例如**`MapPartitionsRDD`**）的 `compute()` 函数内部真正以流水线的方式执行这些操作。
-
-**In addition to coming up with a DAG of stages, the `DAGScheduler` also determines the preferred locations to run each task on, based on the current cache status, and passes these to the low-level [`TaskScheduler`](#TaskScheduler). Furthermore, it handles failures due to shuffle output files being lost, in which case old stages may need to be resubmitted. Failures **within** a stage that are not caused by shuffle file loss are handled by the [`TaskScheduler`](#TaskScheduler), which will retry each task a small number of times before cancelling the whole stage.
+>
+> 除了提供分 stage 的 DAG 之外，`DAGScheduler` 还根据当前缓存状态确定每个任务首选的运行位置，并将其传给底层的[`TaskScheduler`](＃TaskScheduler)。 此外，它可以处理由于 *shuffle* 输出文件丢失而导致的故障，此时可能需要重新提交旧的 stage。[`TaskScheduler`](＃TaskScheduler)处理本 stage 内并非由 *shuffle* 文件丢失引起的故障时，会重试每个任务几次，然后取消整个 stage。
 
 When looking through this code, there are several key concepts:
 
-- **Jobs** (represented by [`ActiveJob`](#ActiveJob)) are the top-level work items submitted to the **scheduler**.For example, when the user calls an **action**, like `count()`, a job will be submitted through `submitJob`. Each Job may require the execution of multiple stages to build intermediate data.
-- **Stages** ([`Stage`](#Stage)) are sets of tasks that compute intermediate results in jobs, where *each task computes the same function on partitions of the same RDD*. Stages are separated at shuffle boundaries, which introduce a **barrier** (where we must wait for the previous stage to finish to fetch outputs). There are two types of stages: [`ResultStage`](#ResultStage), for the final stage that executes an action, and [`ShuffleMapStage`](#ShuffleMapStage), which writes map output files for a shuffle. **Stages are often shared across multiple jobs, if these jobs reuse the same RDDs**.
+- **Jobs** (represented by [`ActiveJob`](#ActiveJob)) are the <u>top-level</u> work items submitted to the **scheduler**.For example, when the user calls an **action**, like `count()`, a job will be submitted through `submitJob`. Each Job may require the execution of multiple stages to build intermediate data.
+- **Stages** ([`Stage`](#Stage)) are sets of tasks that compute intermediate results in jobs, where **each task computes the same function on partitions of the same RDD**. Stages are separated at shuffle boundaries, which introduce a **barrier** (where we must wait for the previous stage to finish to fetch outputs). There are two types of stages: [`ResultStage`](#ResultStage), for the final stage that executes an action, and [`ShuffleMapStage`](#ShuffleMapStage), which writes map output files for a shuffle. **Stages are often shared across multiple jobs, if these jobs reuse the same RDDs**.
 - **Tasks** are individual units of work, each sent to one machine.
 - **Cache tracking**: the `DAGScheduler` figures out which RDDs are cached to avoid recomputing them and likewise remembers which shuffle map stages have already produced output files to avoid redoing the map side of a shuffle.
 - **Preferred locations**: the `DAGScheduler` also computes where to run each task in a stage based on the preferred locations of its underlying RDDs, or the location of cached or shuffle data. See `getPreferredLocsInternal`
-- **Cleanup**: all data structures are cleared when the running jobs that depend on them finish,to prevent memory leaks in a long-running application.
+- **Cleanup**: all data structures are cleared when the running jobs that depend on <u>them</u> finish,to prevent memory leaks in a long-running application.
+
+> 查看此代码时，有几个关键概念：
+>
+> 1. **Jobs**（由[`ActiveJob`](#ActiveJob)表示）是提交给**调度器**的<u>顶级</u>工作项。例如，当用户调用像 `count()` 这样的 **action** 时，将通过 `submitJob` 提交一个 **job**。为 **job** 构建中间数据，可能需要执行多个 **stage**。
+> 2. **Stages**（[`Stage`](#Stage)）是 **Jobs** 中计算中间结果的 **task 集**，**每个 task 在相同的 RDD 分区上用相同的函数进行计算**。Stages 在 shuffle 边界处分离，这引入了 **barrier**（为了获取输出，必须在这里等前面的 stage 结束）。有两种类型的阶段：[`ResultStage`](＃ResultStage)用于执行 **action** 的最后一步，以及[`ShuffleMapStage`](＃ShuffleMapStage)用于为 shuffle 输出 map 的结果到文件。**如果这些作业重复使用相同的RDD，则 stages 通常在多个 job 之间共享**。
+> 3. **Task** 是单个工作单元，每个工作单元发送到一台机器。
+> 4. **缓存跟踪**：`DAGScheduler` 会找出缓存了哪些RDD，以避免重新计算它们，并且同样会记住哪些 shuffle map stage 已经生成了输出文件，以避免重做 shuffle 的 map 端。
+> 5. **首选位置**：`DAGScheduler` 还会根据其底层 `RDD` 的首选位置，以及缓存或者 shuffle 数据的位置来计算 stage 中每个 task 的运行位置。参见`getPreferredLocsInternal`
+> 6. **清理**：当依赖于<u>它们</u>的正在运行的作业完成时，将清除所有数据结构，以防长时运行的应用出现内存泄漏。
 
 To recover from failures, the same stage might need to run multiple times, which are called "attempts". If the [`TaskScheduler`]() reports that a task failed because a map output file from a previous stage was lost, the `DAGScheduler` resubmits that lost stage. This is detected through a `CompletionEvent` with `FetchFailed`, or an ExecutorLost event. The DAGScheduler will wait a small amount of time to see whether other nodes or tasks fail, then resubmit **TaskSets** for any lost stage(s) that compute the missing tasks. As part of this process, we might also have to create `Stage` objects for old (finished) stages where we previously cleaned up the Stage object. Since tasks from the old attempt of a stage could still be running, care must be taken to map any events received in the correct Stage object.
 
