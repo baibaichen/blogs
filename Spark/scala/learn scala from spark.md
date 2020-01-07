@@ -647,7 +647,10 @@ public class Main {
 }
 ```
 
-![img](./learn scala from spark/9.3.2.1.png)
+<p align="center">
+<img src="./learn scala from spark/9.3.2.1.png" />
+</p>
+
 
 此外，Janino 还支持编译更加复杂的 Java 代码模块。典型的案例如下，`method1` 和 `method2` 都是静态方法， ScriptEvaluator 执行 cook 方法来编译整个代码模块，然后调用 evaluate 执行该模块的处理逻辑。
 
@@ -683,9 +686,10 @@ public class Main {
 }
 ```
 
-![img](./learn scala from spark/9.3.2.2.png)
-
-![img](./learn scala from spark/9.3.2.3.png)
+<p align="center">
+ <img src="./learn scala from spark/9.3.2.2.png" />
+ <img src="./learn scala from spark/9.3.2.3.png" />
+</p>
 
 这里通过两个简单案例介绍了 Janino 的使用方式，以帮助读者对代码生成的相关工具有一个直观的了解，更加复杂的用法读者可进一步自行探索。
 
@@ -697,9 +701,10 @@ Tungsten 代码生成分为两部分，一部分是最基本的表达式代码�
 
 代码生成的实现中 CodegenContext 可以算是最重要的类， CodegenContext 作为代码生成的上下文，记录了将要生成的代码中的各种元素，包括变量、函数等。如图 9.22 所示，可以将 CodegenContext 中的元素划分为几个大的类别。
 
-![img](./learn scala from spark/9.22.png)
-
+<p align="center">
+ <img src="./learn scala from spark/9.22.png" />
 图 9.22 CodegenContext 类
+</p>
 
 首先是生成的代码中的所有变量 mutableStates ，类型为三元字符串（javaType， variableName ，initCode）构成的数组，其中的字符串分别代表 Java 类型、变量名称和变量初始化代码。例如，三元组（“int”，“count”，“count=0;”）将在生成的类中作为成员变量 count 即「 private int count; 」，同时在类的初始化函数中加入变量初始化的代码即「count=0」。
 
@@ -717,7 +722,7 @@ Tungsten 代码生成分为两部分，一部分是最基本的表达式代码�
 
 经过 CodeGenerator 类生成后的代码，由其伴生对象提供的 compile 方法进行编译，得到 GeneratedClass 的子类。 GeneratedClass 仅仅起到封装生成类的作用，在具体应用时会调用 generate 方法显示地强制转换得到生成的类。
 
-![img](https://pic4.zhimg.com/v2-ce48742547d19b25ada48ce3ec54b6ad_r.jpg)
+![img](./learn scala from spark/table-9.5.png)
 
 表 9.5　Spark 数据类型与 Java 数据类型
 
