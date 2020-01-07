@@ -581,6 +581,369 @@ object ConstantFolding extends Rule[LogicalPlan] {
 
 经过上述步骤， Spark SQL 逻辑算子树生成、分析与优化的整个阶段都执行完毕。最终生成的逻辑算子树包含 Relation 节点、Filter 节点和 Project 节点，同时每个节点中又包含了由对应表达式构成的树。这棵逻辑算子树将作为 Spark SQL 中生成物理算子树的输入，开始下一个阶段。
 
+## 9.3　动态代码生成（ Code generation ）
+
+Spark 引入代码生成主要用于 SQL 和 DataFrames 中的表达式求值（ Expression evaluation ） [43] 。表达式求值的过程是在特定的记录上计算一个表达式的值。当然，这里指的是运行时，而不是在一个缓慢的解释器中逐行做单步调试。对比解释器，代码生成去掉了原始数据类型的封装，更重要的是，避免了昂贵的多态函数调度。
+
+
+### 9.3.1　漫谈代码生成
+
+当今绝大多数数据库系统处理 SQL 查询的方式都是将其翻译成一系列的关系代数算子或表达式，然后依赖这些关系代数算子逐条处理输入数据并产生结果。从本质上看，这是一种迭代的模式 [44] ，某些时候也被称为 Volcano 形式的处理方式，由 Graefe 在 1993 年提出。
+
+该模式可以概括为：每个物理关系代数算子反复不断地调用 next 函数来读入数据元组（Tuple）作为算子的输入，经过表达式处理后输出一个数据元组的流（ Tuplestream ）。这种模式简单而强大，能够通过任意组合算子来表达复杂的查询。
+
+这种迭代处理模式提出的背景是减轻查询处理的 IO 瓶颈，对 CPU 的消耗则考虑较少 [43] 。首先，每次处理一个数据元组时，next 函数都会被调用，在数据量非常大时，调用的次数会非常多。最重要的是，next 函数通常实现为虚函数或函数指针，这样每次调用都会引起 CPU 中断并使得 CPU 分支预测（ Branch Prediction ）下降，因此相比常规函数的调用代价更大。此外，迭代处理模式通常会导致很差的代码本地化能力，并且需要保存复杂的处理信息。例如，表扫描算子在处理一个压缩的数据表时，在迭代模式下，需要每次产生一个数据元组，因此表扫描算子中需要记录当前数据元组在压缩数据流中的位置，以便根据压缩方式跳转到下一条数据元组的位置。
+
+正是基于这些考虑及实际性能上的观察，一些现代的数据库系统开始尝试摆脱单纯的迭代模式，考虑面向数据块（Block）的方式 [45] （一次读取一批数据）来获得数据向量化的处理优势。具体包含两方面，一方面是每次解压一批数据元组，然后每次迭代读取数据时只在这批数据中读取；另一方面是直接在 next 函数读取数据时就读取多个数据元组，甚至一次性读取所有的数据元组。
+
+上述面向数据块的处理方式在一定程度上确实能够消除在大数据量情况下的调用代价，然而在另一方面却丢掉了迭代模式一个重要的优点，即所谓的能够按照管道方式传输数据（ Pipelining data ）。管道方式意味着数据从一个算子传输到另一个算子不需要进行额外复制或序列化处理。例如，select 就是一个具有管道方式的算子，能够在不修改数据的前提下传输数据元组到下一个算子。然而，在面向数据块的处理方式中，一次产生多条数据元组往往需要序列化保存，虽然能够带来向量化处理的优势 [46] ，但是破坏了管道方式的优点，并且在通常情况下会消耗更多的内存与网络带宽。
+
+因此，当内存与 IO 不再成为瓶颈后，CPU 成为现代数据库系统的主要瓶颈。MonetDB 系列的数据库处理系统采用的是面向数据块的思路。另一个思路则是将查询编译成中间可执行的格式，即动态代码生成（ Codegeneration ），来取代解释性的结构。在实际数据处理中，比较有意思的一个发现是开发人员手写的程序明显比向量化的数据库系统性能高 [47] 。
+
+总的来讲，动态代码生成能够有效地解决 3 个方面的问题。
+
+•大量虚函数调用，生成的实际代码不再需要执行表达式系统中统一定义的虚函数（如 Eval、Evaluate 等）。
+
+•判断数据类型和操作算子等内容的大型分支选择语句。
+
+•常数传播（ Constantspropagation ）限制，生成的代码中能够确定性地折叠常量。
+
+近年来，在代码生成方面，学术界与企业界也做了大量的工作。例如，文献 [48] 中将查询逻辑转换为 Java 字节码、HIQUE 系统将查询翻译为 C 代码。代码生成技术在大数据系统中的应用也非常广泛，例如，Impala 中采用 LLVM（ Low-LevelVirtualMachine ）作为中间代码加速数据处理、 Spark SQL 生成 Java 中间代码来提升效率。
+
+------
+
+### 9.3.2　Janino 编译器实践
+
+在 *Spark* 中，生成的代码由 **Janino** 进行编译。**Janino** 是一个小且快的 *Java* 编译器，它不仅能像 *javac* 工具那样将一组源文件编译成字节码文件，还可以对一些 **Java** 表达式、代码块、类中的文本（**Classbody**）或内存中的源文件进行编译，并把编译后的字节码直接加载到同一个 JVM 中运行。**Janino** 不是一个开发工具，而是运行时的嵌入式编译器，比如作为表达式求值的翻译器或类似 JSP 的服务端页面引擎。
+
+下面的案例展示了 **Janino** 中 `ExpressionEvaluator` 的用法，将符合 Java 语法的字符串表达式（“a+b”）进行编译（Cook），然后加载使用，读者可仔细体会其中的调用方式。
+
+```java
+import java.lang.reflect.InvocationTargetException;
+import org.codehaus.commons.compiler.CompileException;
+import org.codehaus.janino.ExpressionEvaluator;
+ 
+public class Main {
+ 
+    public static void
+    main(String[] args) throws CompileException, InvocationTargetException {
+ 
+        // Now here's where the story begins...
+        ExpressionEvaluator ee = new ExpressionEvaluator();
+ 
+        // The expression will have two "int" parameters: "a" and "b".
+        ee.setParameters(new String[] { "a", "b" }, new Class[] { int.class, int.class });
+ 
+        // And the expression (i.e. "result") type is also "int".
+        ee.setExpressionType(int.class);
+ 
+        // And now we "cook" (scan, parse, compile and load) the fabulous expression.
+        ee.cook("a + b");
+ 
+        // Eventually we evaluate the expression - and that goes super-fast.
+        int result = (Integer) ee.evaluate(new Object[] { 19, 23 });
+        System.out.println(result);
+    }
+}
+```
+
+![img](./learn scala from spark/9.3.2.1.png)
+
+此外，Janino 还支持编译更加复杂的 Java 代码模块。典型的案例如下，`method1` 和 `method2` 都是静态方法， ScriptEvaluator 执行 cook 方法来编译整个代码模块，然后调用 evaluate 执行该模块的处理逻辑。
+
+```java
+import java.lang.reflect.InvocationTargetException;
+ 
+import org.codehaus.commons.compiler.CompileException;
+import org.codehaus.janino.ScriptEvaluator;
+ 
+public class Main {
+ 
+    public static void
+    main(String[] args) throws CompileException, NumberFormatException, InvocationTargetException {
+ 
+        ScriptEvaluator se = new ScriptEvaluator();
+ 
+        se.cook(
+            ""
+            + "static void method1() {\n"
+            + "    System.out.println(1);\n"
+            + "}\n"
+            + "\n"
+            + "method1();\n"
+            + "method2();\n"
+            + "\n"
+            + "static void method2() {\n"
+            + "    System.out.println(2);\n"
+            + "}\n"
+        );
+ 
+        se.evaluate(new Object[0]);
+    }
+}
+```
+
+![img](./learn scala from spark/9.3.2.2.png)
+
+![img](./learn scala from spark/9.3.2.3.png)
+
+这里通过两个简单案例介绍了 Janino 的使用方式，以帮助读者对代码生成的相关工具有一个直观的了解，更加复杂的用法读者可进一步自行探索。
+
+------
+
+### 9.3.3　基本（表达式）代码生成
+
+Tungsten 代码生成分为两部分，一部分是最基本的表达式代码生成，另一部分称为全阶段代码生成，用来将多个处理逻辑整合到单个代码模块中。
+
+代码生成的实现中 CodegenContext 可以算是最重要的类， CodegenContext 作为代码生成的上下文，记录了将要生成的代码中的各种元素，包括变量、函数等。如图 9.22 所示，可以将 CodegenContext 中的元素划分为几个大的类别。
+
+![img](./learn scala from spark/9.22.png)
+
+图 9.22 CodegenContext 类
+
+首先是生成的代码中的所有变量 mutableStates ，类型为三元字符串（javaType， variableName ，initCode）构成的数组，其中的字符串分别代表 Java 类型、变量名称和变量初始化代码。例如，三元组（“int”，“count”，“count=0;”）将在生成的类中作为成员变量 count 即「 private int count; 」，同时在类的初始化函数中加入变量初始化的代码即「count=0」。
+
+变量数组 mutableStates 相关的方法有 4 个，其中 addMutableState 方法用来添加变量，需要指定 Java 类型、变量名称和变量初始化代码。 addBufferedState 方法用来添加缓冲变量，与常规的状态变量的不同之处是，缓冲变量一般用来存储来自 InternalRow 中的数据，比如一行数据中的某些列等。因此，这些变量仅在类中声明，但是不会在初始化函数中执行，该方法返回的是 ExprCode 对象。 declareMutableStates 方法用来在生成的 Java 类中声明这些变量（默认均为 private 类型）。 initMutableStates 方法用来在类的初始化函数中生成变量的初始化代码，输出的元素都是每行一个。
+
+除常见的变量外，对于 Spark RDD 的处理，有些处理逻辑中可能会涉及 RDD 分区的下标（ partition Index ）。针对这些内容， CodegenContext 中也会进行保存。图 9.22 中的 partition InitializationStatements ，作为字符串类型的数组，提供了添加相关代码的方法 addPartition InitializationStatement 和代码初始化相关的 initPartition 方法。同样的， references 也是一个数组，用来保存生成代码中的对象（objects），可以通过 addReferenceObj 方法添加。
+
+除变量外，生成的代码中另一个比较重要的部分是添加的函数。在 CodegenContext 中， addedFunctions 类型为 Map[String，String]，提供了函数名和函数代码的映射关系。在代码生成的过程中，可以通过 addNewFunction 方法添加函数，并通过 declareAddedFunctions 方法声明函数。
+
+从直接执行 Spark 到生成 Java 代码来执行，必然会涉及数据类型方面的对应关系。 CodegenContext 中提供了一系列的方法来完成数据类型的映射。如表 9.5 所示，javaType 方法能够根据 Spark 中的 DataType 得到 Java 中的数据类型。可以看到，有些类型属于多对一的关系，例如 IntegerType 和 DateType 都会生成「int」类型。
+
+此外， CodegenContext 还提供了大量的辅助方法与变量。例如，类型为 Seq[ExprCode]的 currentVars ，用来记录生成的各列作为当前算子的输入； freshName 方法与类型为 HashMap[String，Int]的 freshNameIds 配合，用来生成具有唯一 ID 的变量名； nullSafeExec 可以对通常的代码添加 null 检测的逻辑。
+
+代码生成的过程由代码生成器（ CodeGenerator ）完成， CodeGenerator 是一个基类，对外提供生成代码的接口是 generate，如图 9.23 所示。在 Spark SQL 中， CodeGenerator 的子类共有 7 个，包括生成 SpecificOrdering 的 GenerateOrdering 类、生成 Predicate 用于谓词处理的 GeneratePredicate 类等，如表 9.6 所示。
+
+经过 CodeGenerator 类生成后的代码，由其伴生对象提供的 compile 方法进行编译，得到 GeneratedClass 的子类。 GeneratedClass 仅仅起到封装生成类的作用，在具体应用时会调用 generate 方法显示地强制转换得到生成的类。
+
+![img](https://pic4.zhimg.com/v2-ce48742547d19b25ada48ce3ec54b6ad_r.jpg)
+
+表 9.5　Spark 数据类型与 Java 数据类型
+
+![img](./learn scala from spark/9.23.png)
+
+图 9.23　代码生成器（ CodeGenerator ）
+
+![img](./learn scala from spark/table-9.6.png)
+
+表 9.6 CodeGenerator 具体实现
+
+回顾之前的简单案例，如图 9.24 所示，该查询生成的物理计划包括 FileSourceScanExec 、 FilterExec 和 ProjectExec 3 个节点。为了考察基本的代码生成功能，需要在 Spark 中关闭全阶段代码生成，即将 spark.sql.codegen.wholeStage 设置为 false。
+
+![img](./learn scala from spark/9.24.png)
+
+图 9.24　代码生成案例
+
+从各个不同节点的 `doExecute` 方法可知，执行计划中的 `FilterExec` 节点会调用 `GeneratePredicate` 对象的 `generate` 方法生成 `Predicate` 类，完成过滤算子的逻辑； `ProjectExec` 节点则会调用 `GenerateUnsafeProjection` 对象的 `generate` 方法生成 `UnsafeProjection` 类，完成投影算子的逻辑。
+
+首先来看 `GeneratePredicate` 的代码生成过程，如图 9.25 所示（注：图 9.25 中去掉了 `generate` 函数）。代码生成先构造一个 `CodegenContext` 对象，然后 `FilterExec` 算子的谓词表达式 `predicate` 直接调用其内部的 `genCode` 方法（最终对应 `doGenCode` 方法）。案例中的 **predicate** 是 `isnotnull(age) && age >18`，其根节点为 `And` 表达式，两个子节点分别为 `IsNotNull` 表达式和 `GreaterThan` 表达式。
+
+根据 `And` 表达式代码生成的实现逻辑，最终生成的代码如下。其中，`eval1` 是 `IsNotNull` 表达式生成的代码，`eval2` 是 `GreaterThan` 表达式生成的代码。该代码框架可以与图 9.25 中的实际代码一一对应。对于 `IsNotNull` 和 `GreaterThan` 这两个表达式，其代码生成逻辑都比较简单，这里不再赘述，读者可以参考具体源代码。因为 `IsNotNull` 不输出 `null` 值，所以其 `ExprCode` 的 `isNull` 为 `false`，也可以看到图中的 `value4` 对应最终不为 `null` 的 `age` 字段。
+
+```java
+$(eval1.code)
+boolean ${ev.isNull} = false;
+boolean ${ev.value} = false;
+if (!${eval1.isNull} && !${eval1.value}) {
+} else {
+  $(eval2.code)
+  if (!${eval2.isNull} && !${eval2.value}) {
+  } else if (!${eval1.isNull} && !${eval1.value}) {
+    ${ev.value} = true;
+  } else {
+    ${ev.isNull} = true;
+  }
+}
+```
+<p align="center">
+ <img src="./learn scala from spark/9.3.2.10.png" />
+ <img src="./learn scala from spark/9.25.png" />
+图 9.25 GeneratePredicate 代码生成
+</p>
+
+接下来，就是 GenerateUnsafeProjection 的代码生成，其代码如图 9.26 所示。实际调用的是 GenerateUnsafeProjection 类中的 create 方法，最终得到 UnsafeProjection 类。 GenerateUnsafeProjection 生成的 SpecificUnsafeProjection 类中定义了 3 个变量：首先是 UnsafeRow 类型的 result 变量，用来记录 ProjectExec 的执行结果；其次是 BufferHolder 类型的 holder 变量，即投影处理过程中的缓冲区，用于单数据行的缓存；最后是 UnsafeRowW riter 类型的 rowWriter 变量，用来执行写数据操作。
+
+展开来讲， SpecificUnsafeProjection 类中的 apply 方法完成了以下 4 件事。
+
+（1）重置 BufferHolder 对象（ resetBufferHolder ）。如果 ProjectExec 算子表达式的数据类型全都是固定长度的，那么此时无需再进行任何操作，否则对 Buffl erHolder 执行 reset 操作。
+
+（2）子表达式评估（ evalSubexpr ）。本例中 CodegenContext 的 subexprFunctions 为空，因此生成的代码不包含任何内容。
+
+（3）写入表达式（ w riteExpressions ）。这部分是 ProjectExec 算子的操作核心，根据数据类型的不同，对应多种情况。图 9.26 展示的是投影算子选择 name 这一列的实际代码。可以看到，首先会判断这一列数据是否为 null，如果是，则直接写入 null；否则获取数据行中对应下标的列，然后用 rowWriter 写入。
+
+（4）更新行变量（ updateRowSize ）。同样的，如果 ProjectExec 算子中表达式的数据类型全都是固定长度的，那么无需进行任何操作，否则执行 setTotalSize 方法来更新 result 对象的行数信息。
+
+![img](./learn scala from spark/9.26.png)
+
+图 9.26 GenerateUnsafeProjection 代码生成
+
+基本的代码生成过程分析完毕，其他的表达式对应的 Java 代码可以参考源码，并且生成过程类似，都是集中由 7 种 CodeGenerator 在不同情形下触发，然后整合在一起。可以看到，基本的代码生成得到的都是一个个单独的处理模块。
+
+------
+
+### 9.3.4　全阶段代码生成（ WholeStageCodegen ）
+
+Catalyst 全阶段代码生成的入口是 CollapseCodegenStages 规则（参见 QueryExectution ）。当设置了支持全阶段代码生成的功能时（默认将 spark.sql.codegen.wholeStage 设置为 true）， CollapseCodegenStages 规则会将生成的物理计划中支持代码生成的节点生成的代码整合成一段，因此称为全阶段代码生成（ WholeStageCodegen ）。
+
+回顾之前的简单案例，如图 9.27 所示，该查询生成的物理计划包括 FileSourceScanExec 、 FilterExec 和 ProjectExec 3 个节点。这 3 个节点都支持代码生成，因此 CollapseCodegenStages 规则会在 3 个物理算子节点上添加一个 WholeStageCodegenExec 节点，其主要功能就是将这 3 个节点生成的代码整合在一起。此外，在加入了 WholeStageCodegenExec 物理节点后，物理计划打印输出时不会打印该节点本身，其所囊括的所有子节点在打印输出字符串（ generateTreeString ）时，都会统一加入特定的（“ *∗* ”）字符作为前缀，用来区别不支持代码生成的物理计划节点。
+
+![img](./learn scala from spark/9.27.png)
+
+图 9.27 CollapseCodegenStages 规则的作用
+
+一般来讲，对于物理算子树， CollapseCodegenStages 规则会根据节点是否支持代码生成采用不同的处理方式。如图 9.28 所示，在遍历物理算子树时，当碰到不支持代码生成的节点时，会在其上插入一个名为 InputAdapter 的物理节点对其进行封装。
+
+![img](./learn scala from spark/9.28.png)
+
+图 9.28 CollapseCodegenStages 规则采用的处理方式
+
+在某种程度上，这些不支持代码生成的节点可以看作是分隔的点，可将整个物理计划拆分成多个代码段。而 InputAdapter 节点可以看作是对应 WholeStageCodegenExec 所包含子树的叶子节点，起到 InternalRow 的数据输入作用。每个 WholeStageCodegenExec 节点负责整合一个代码段，图 9.28 中就插入了 3 个 WholeStageCodegenExec 节点。
+
+在 Spark 中， CodegenSupport 接口代表支持代码生成的物理节点。如图 9.29 所示， CodegenSupport 本身也是 SparkPlan 的子类，提供了 11 个方法和 1 个变量。首先， variablePrefix 返回 String 类型，表示对应的物理算子节点生成的代码中变量名的前缀。不同的节点类型其前缀不同，对应关系如表 9.7 所示。例如， SortMergeJoinExec 节点生成的代码中的变量前缀缩写为「sm j」，除特定的缩写外，默认均以 nodeName 的小写作为变量前缀，这样方便彼此之间的区别。
+
+![img](./learn scala from spark/9.29.png)
+
+图 9.29 CodegenSupport 接口
+
+![img](./learn scala from spark/table-9.7.png)
+
+表 9.7 SparkPlan 生成代码的变量名前缀
+
+在 CodegenSupport 中比较重要的是 consume/ doConsume 和 produce/ doProduce 这两对方法。根据方法名很容易理解，consume 和 doConsume 用来「消费」，返回的是该 CodegenSupport 节点处理数据核心逻辑所对应生成的代码；而 produce/ doProduce 则用来「生产」，返回的是该节点及其子节点所生成的代码。在具体实现上，consume 和 produce 都是 final 类型，区别在于 produce 方法会调用 doProduce 方法，而 consume 方法则会调用其父节点的 doConsume 方法。
+
+此外， CodegenSupport 中还保存了其父节点 parent 作为变量，以及其他一些辅助的方法，如判断是否支持代码生成（ supportCodegen ）、获得产生输入数据的 inputRDDs 等，具体细节这里不再展开。
+
+在大致了解了 CodegenSupport 和 CodegenContext 类的基础上， WholeStageCodegenExec 的执行方式就很好理解了。图 9.30 展示了 WholeStageCodegenExec 的主要逻辑，可以看到其 execute（）方法具体分为数据获取与代码生成两部分。假设物理算子节点 A 支持代码生成，物理算子节点 B 不支持代码生成，因此 B 会采用 InputAdapter 封装（图 9.30 中的 FakeInput ，起到了数据源的作用）。
+
+![img](./learn scala from spark/9.30.png)
+
+图 9.30 WholeStageCodegen 调用关系
+
+数据的获取比较直接，调用 inputRDDs 递归得到整段代码的输入数据。代码生成可以看作是两个方向相反的递归过程：代码的整体框架由 produce/ doProduce 方法负责，父节点调用子节点；代码具体处理逻辑由 consume/ doConsume 方法负责，由子节点调用父节点。
+
+节点的 produce 方法调用 doProduce 方法，而 doProduce 中递归调用子节点的 produce 方法，如果是叶子节点或 InputAdapter 节点， doProduce 方法会生成具体的代码框架，因此图 9.30 在 FakeInput 节点的 doProduce 方法中构造代码生成的框架。 InputAdapter 中 doProduce 方法的代码如下，可以看到，生成的代码框架基于 while 语句循环，不断地读入数据行（row），并将数据行的处理交给 consume 方法完成。
+
+![img](./learn scala from spark/9.3.2.4.png)
+
+每个物理算子节点的 consume 方法将生成相应的代码来完成该节点的数据处理逻辑。consume 方法将递归调用其父节点的 doConsume 方法，这样正好对应了子节点处理逻辑先于父节点处理逻辑的顺序关系。
+
+WholeStageCodegenExec 生成代码的入口在 doCodeGen 方法中，首先构造一个 CodegenContext 对象；然后将此对象作为 CodegenSupport 中 produce 方法的参数，直接调用 produce 方法生成具体的处理代码片段；最终基于该代码片段和代码生成之后的 CodegenContext 对象，构造完整的代码段。
+
+WholeStageCodegenExec 的代码框架如图 9.31 所示。生成的代码中通过一个 generate 静态方法来构造 Generated Iterator 对象。 Generated Iterator 对象是 Spark 中 BufferedRow Iterator 对象的子类，重载实现了 init 方法（负责相关变量的初始化）和 processNext 方法（用于循环处理 RDD 中的数据行）。
+
+![img](./learn scala from spark/9.31.png)
+
+图 9.31 WholeStageCodegenExec 代码框架
+
+可以看到， Generated Iterator 类中会声明 CodegenContext 中保存的状态变量，在初始化方法 init 中会加入 initMutableStates 与 initPartition 方法。同样的，也会加入 declareAddedFunctions 来声明 CodegenContext 中定义的相关函数。在核心的 processNext 方法中，直接加入 WholeStage-CodegenExec 中 produce 方法生成的代码（图 9.31 中的 code.trim ）。
+
+后续内容将会详细分析查询实例物理算子树代码生成的具体过程。在此之前，这里先展示由 WholeStageCodegenContext 真正生成的完整 Java 代码，如图 9.32 所示。在每个 WholeStage-CodegenContext 节点生成的 Java 代码中，包含一个静态的 generate 方法和一个 Generated Iterator 类。
+
+![img](./learn scala from spark/9.32.png)
+
+图 9.32　查询实例生成代码概览
+
+WholeStageCodegenExec 生成 Java 代码之后，就会交给 Janino 编译器进行编译。主要逻辑如以下代码片段所示： doCodeGen 方法返回 CodegenContext 对象与生成并格式化后的代码（ cleaned-Source ），Spark 首先尝试编译，如果编译失败且配置回退机制（参数 spark.sql.codegen.wholeStage 默认为 true），则代码生成将被舍弃转而执行 Spark 原生的逻辑。编译任务由 CodeGenerator 中的 doCompile 方法执行，调用的是 Jano 中的 ClassBodyEvaluator 对象。需要注意的是， ClassBodyE-valuator 类单独定义了一个 ParentClassLoader ，这样避免编译过程中抛出 ClassNotFoundException 异常。最终得到的是一个 GeneratedClass 类，提供了 generate 方法入口供外部调用。
+
+![img](./learn scala from spark/9.3.2.5.png)
+
+如果顺利编译成功，则得到生成的对象（clazz），然后调用其 generate 方法得到 BufferedRow Iterator 对象。接下来， WholeStageCodegenExec 的后续处理和其他物理算子节点（ mapPartitionsW ith Index ）类似。调用 inputRDDs 方法得到 RDD 列表后，会根据 RDD 的数量采取不同的处理逻辑。在现有的实现中，代码生成仅最多支持对两个 RDD 的处理。
+
+上述内容从整体上分析了代码生成的技术实现，为了进一步加深理解，接下来将对实例查询生成代码的详细步骤展开分析。如图 9.33 所示， WholeStageCodegenExec 执行时会调用其子节点 ProjectExec 中的 produce 方法得到生成的代码，因此 ProjectExec 的 produce 方法是整个代码生成过程的入口。
+
+图 9.33 同时标出了完整的调用顺序， ProjectExec 节点的 produce 调用 doProduce 方法，继而调用 FilterExec 节点的 produce 方法。依此类推，一直到叶子节点 FileSourceScanExec 的 doProduce 方法，构造出将要生成的 Java 代码框架。实际上，produce 方法除设置当前 CodegenSupport 节点的 parent 节点和 CodegenContext 的变量前缀外，只是添加注释，然后直接调用 doProduce 方法，代码如下。
+
+![img](./learn scala from spark/9.3.2.6.png)
+
+![img](./learn scala from spark/9.3.2.7.png)
+
+![img](./learn scala from spark/9.33.png)
+
+图 9.33　代码生成步骤概览
+
+下面将 WholeStageCodegen 的每一步展开来分析，具体看 FileSourceScanExec 节点的 doProduce 方法所进行的操作，如图 9.34 所示。首先通过 metricTerm 方法在 CodegenContext 中加入一个变量名为 scan_ numOutputRows 的 SQLMetric 对象，用来记录从文件中读取的数据行数，以及 Iterator 类型的 scan_input 变量，用来不断读取数据。
+
+此外，当前读取的数据行（ InternalRow ）在生成的代码中对应命名为 scan_row 的变量，同时将 CodegenContext 对象中的 INPUT_ROW 指向 scan_row 变量。有了该变量， FileSourceScanExec 节点读取的数据列就能够顺利地根据 BoundReference 生成 ExprCode 对象（ columnsRow Input 列表）。从图 9.34 中可以看到，除读取数据 scan_row 和更新 scan_ numOutputRows 的值外，接下来继续交给 FileSourceScanExec 节点的 consume 方法。
+
+由于是 final 类型，所以所有节点的 consume 处理逻辑均相同。总体来讲， CodegenSupport 对象的 consume 方法所起到的作用是整合当前节点的处理逻辑，构造（ctx，inputVars，rowVar）三元组并提交到下一个处理逻辑（父节点的 doConsume 方法）。consume 方法会检查当前生成的代码中是否已经包含了下一步所需的变量，并完成 3 个方面的功能。
+
+•生成下一步逻辑处理的变量 inputVars ，类型为 Seq[ExprCode]，不同的变量代表不同的列。
+
+•生成 rowVar，类型为 ExprCode，代表整行数据的变量名。
+
+•在构造上述对象的过程中，相应修改 CodegenContext 对象中的元素。
+
+![img](./learn scala from spark/9.34.png)
+
+图 9.34 FileSourceScanExec 节点的 doProduce 代码生成
+
+下一步逻辑处理的变量 inputVars 生成逻辑如以下代码所示，其中 row 表示当前数据行对应的变量（ExprCode）， outputVars 对应列信息的变量列表（Seq[ExprCode]）。分为两种情况，如果有行变量，那么将 CodegenContext 对象的 INPUT_ROW 指向该行变量，且 currentVars 设为 null，得到的 inputVars 为该节点的输出字段对应的 BoundReference 生成的代码；如果行变量为空，则直接将 outputVars 复制。
+
+![img](./learn scala from spark/9.3.2.8.png)
+
+类似的，下一步逻辑处理的数据行变量 rowVar 的生成逻辑代码如下。如果传入的行变量不为空，则直接对应该行变量的 ExprCode 对象；如果行变量为空，但是传入的列变量不为空，那么根据 output 由 GenerateUnsafeProjection 生成代码的主要内容（ createCode ），否则构造名为 unsafeRow 的 ExprCode 对象。
+
+![img](./learn scala from spark/9.3.2.9.png)
+
+此外，consume 方法中通常还会用到 evaluateVariables 和 evaluateRequiredVariables 两个辅助函数。这里的 evaluate 直接翻译为「评价」，体现在生成的代码中就是该代码片段已经声明。因此， evaluateVariables 方法得到按行分隔的所有 code 不为空的 ExprCode 代码，并将 ExprCode 对应的 code 设置为空；而 evaluateRequiredVariables 只是根据所需的列集合（ AttributeSet ）筛选出对应的 ExprCode 代码，其他操作和 evaluateVariables 方法中的逻辑相同。
+
+对应 FileSourceScanExec 算子中的 consume 操作，产生的效果如图 9.35 所示。经过 consume 操作后的变化主要有两个地方：一个是 CodegenContext 对象中的 freshNamePrefix 从「scan」变为「fi lter」，表示接下来的代码开始进入 FilterExec 的处理逻辑范围；另一个是传递给 doProduce 的输入变量 inputVars ，可以看到 scan_value2 和 scan_value3 分别表示 age 与 name 两个字段。
+
+在 consume 的逻辑中，如果传入的变量 row 不为空（对应数据源节点），那么会根据 output 重新得到 BoundReference ，这里 FileSourceScanExec 节点就对应这种情况。如果传入的变量 row 为空，那么 inputVars 会对 outputVars 执行 copy 操作，因为这里的 outputVars 变量会用到 CodegenContext 中的 currentVars 来生成 UnsafeRow 代码。
+
+接下来进入到 FilterExec 算子的 doConsume 操作，如图 9.36 所示。同样的，在 FilterExec 中首先会通过 metricTerm 方法在 CodegenContext 中加入一个变量名为 fi lter_ numOutputRows 的 SQLMetric 对象，用来记录经过过滤处理之后的数据行数。此外， CodegenContext 中的 currentVars 会设置为当前传递进来的输入变量（scan_value2 和 scan_value3）所对应的 ExprCode 对象，其 parent 对象在 produce 方法中也会对应变为 ProjectExec 算子。
+
+![img](./learn scala from spark/9.35.png)
+
+图 9.35 FileSourceScanExec 节点的 consume 代码生成
+
+从图 9.36 中可以看到， FilterExec 算子的 doConsume 方法实际上完成了 4 件事，分别是实际过滤条件的代码生成（ Predicated ）、null 检测的代码生成（ nullChecks ）、 SQLMetric 变量更新（ numOutput.add( 1)）和 consume 方法的调用。 SQLMetric 变量更新与 consume 方法的调用都比较简单，生成的代码很直观，如图 9.36 所示。
+
+过滤条件与 null 检测是 FilterExec 算子代码生成的核心。在 FilterExec 算子中，会将过滤谓词分为 notNullPreds 和 otherPreds 两部分， notNullPreds 是所有的 IsNotNull 表达式， otherPreds 对应其它的过滤条件。例如，本例中的 notNullPreds 列表中只有一个表达式 isnotnull （age）， otherPreds 列表中也只有一个过滤条件「age>18」。
+
+具体来看， FilterExec 算子 doConsume 方法中实际过滤条件的代码生成（ Predicated ）针对的是 otherPreds 谓词，即「age>18」过滤条件。需要注意的是，这里也会对过滤条件中的字段（age）进行 null 检查，并将记录某个字段是否执行了 null 检查的布尔数组（ generated IsNotNullChecks ）的下标设置为 true，避免 null 检测的代码生成（ nullChecks ）再次执行。图 9.36 中对 age 字段的 null 检查代码已经在 predicated 中体现，因此 nullChecks 为空。
+
+深入 predicated 的具体实现，前 3 行（一直到第一个 continue）负责执行 null 的检查，剩下的 5 行代码负责表达式（age>18）的逻辑。此外，传递给 consume 方法的 resultVars 中，age 对应的 scan_value2 已经属于非 null 的字段，因此将其 isNull 设置为「false」；并且 scan_value2 相关的变量在代码中已经声明了（ evaluateRequiredVariables ），后面不需要再次出现，因此将其 code 设置为空。
+
+![img](./learn scala from spark/9.36.png)
+
+图 9.36 FilterExec 节点的 doConsume 代码生成
+
+FilterExec 算子完成了 doConsume 操作之后进入 consume 方法的操作，如图 9.37 所示。前面已经提到，consume 方法中主要完成 3 件事。首先传递给父节点 doConsume 方法的 inputVars 变量，对于 FilterExec 节点来讲，传递的 row 为空，因此 inputVars 变量是 outputVars 的复制，从生成的代码来看两者完全相同。
+
+FilterExec 算子中的 consume 方法由 GenerateUnsafeProjection 类得到输出的行（rowVar）并传递给 ProjectExec 节点。跟踪其实现，可以知道 CodegenContext 中的 INPUT_ROW 会被设置为当前传入的 row 即 null，而 currentVars 则会被设置为 outputVars 变量。从图 9.37 右下角来看，rowVar 生成的代码包括两部分：输入列（age 与 name 列）变量的声明（evaluate），因为 age 列在之前已经声明过了，code 为空，因此这里会加上 name 列的相关代码； GenerateUnsafeProjection 类生成的代码，这部分内容在前面已经分析过。
+
+![img](./learn scala from spark/9.37.png)
+
+图 9.37 FilterExec 节点的 consume 代码生成
+
+需要注意的是， GenerateUnsafeProjection 类在代码生成时会在 CodegenContext 中加入 3 个变量（fi lter_holder、fi lter_ rowW riter 和 fi lter_result）。经过这一步后，最终可以看到， FilterExec 算子的 consume 方法中得到的 evaluated 为空，因此在最终的代码中没有加入多的内容。
+
+接下来进入 ProjectExec 算子的 doConsume 方法的操作中，该方法的参数 input 为 age 和 name 两个变量对应的 ExprCode（scan_value2 和 scan_value3），参数 row 对应上一步 FilterExec 得到的 fi lter_result 变量。实际上， ProjectExec 的 doConsume 方法用不到 row 参数。
+
+如图 9.38 所示，这一步所做的操作也非常简单，根据需要输出的列（ projectList ）生成对应的代码，并封装为 ExprCode（ resultVars ）。这里的 resultVars 只包含 name 列，对应的变量为 scan_value3。最终输出的代码照样会执行 evaluateRequiredVariables 方法（针对的是不确定性的表达式），确保所有的变量都已经声明过了。因为这里不确定性表达式为空，所以不会输入额外的代码。因此， ProjectExec 节点的 doConsume 方法基本上没做比较复杂的事情，只是生成 resultVars ，作为参数传递给 consume 方法。
+
+![img](./learn scala from spark/9.38.png)
+
+图 9.38 ProjectExec 节点的 doConsume 代码生成
+
+ProjectExec 算子的 consume 方法的代码生成如图 9.39 所示。类似 FilterExec 算子的效果， inputVars 直接复制传入的 outputVars 参数（ doConsume 中得到的 resultVars 变量）。同样的，consume 方法中生成的行变量（rowVar）由 GenerateUnsafeProjection 类生成。在此过程中，同样会在 CodegenContext 中增加 project_result、project_holder 和 project_rowWriter3 个变量，同时将 currentVars 设置为 outputVars ，并将变量字符串前缀改为父节点的名称（ wholestagecodegen ）。可以看到，rowVar 对应的代码和 FilterExec 节点执行 consume 方法时的代码类似。最终的结果是， ProjectExec 节点不直接产生代码，而是将得到的 inputVar 和 rowVar 传递给父节点的 doConsume 方法。此外，也可以看到， ProjectExec 算子不会在 CodegenContext 中构造 SQLMetric 变量记录输出的数据行数，这一点与 FileSourceScanExec 节点和 FilterExec 节点不同。实际上，在一些特殊的算子（例如 Aggregation 与 Join）中，都会添加辅助变量来记录一些关键信息。
+
+全阶段代码生成（ WholeStageCodegen ）的最后一步都会落脚在 WholeStageCodegenExec 算子的 doConsume 方法。如图 9.40 所示，生成的代码首先会输出 row 变量的 code，对应 ProjectExec 中得到的 project_result 变量。
+
+需要注意的是，是否对得到的结果执行 copy 操作取决于 CodegenContext 对象中的 copyResult 变量。在上述例子中，不需要 copy 操作，因此最终添加结果的代码为 append（project_result）。至此，整个代码生成的过程结束，完整的代码可以参看图 9.32 中的各个函数。
+
+![img](./learn scala from spark/9.39.png)
+
+图 9.39 ProjectExec 节点的 consume 代码生成
+
+代码生成是数据处理中一项重要的技术，本节对 Spark SQL 中的具体实现进行了详细、逐步的分析。一般情况下，代码生成技术可以加速（接近一个量级）多种 TPC-DS 查询。目前社区的开发方向是让代码生成可以应用到所有的内置表达式上。此外，未来工作将提升代码生成的等级，从每次一条记录表达式求值到向量化表达式求值，使用 JIT 开发更好的作用于新型 CPU 的指令流水线，从而同时处理多条记录。除通过表达式求值优化内部组件的 CPU 效率外，还会将代码生成推广到更广泛的地方，其中一个就是 Shuffl e 过程中将数据从内存二进制格式转换到 wire-protocol 。如前文所述，Shuffl e 通常会因数据序列化出现瓶颈。通过代码生成，可以显著地提升序列化吞吐量，从而反过来作用到 Shuffl e 网络吞吐量的提升。
+
+![img](./learn scala from spark/9.40.png)
+
+图 9.40 WholeStageCodegenExec 节点的 doConsume 代码生成
+
 ----
 
 
