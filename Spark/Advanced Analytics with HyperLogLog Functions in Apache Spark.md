@@ -809,7 +809,7 @@ At this point, it looks like UDFs have the upper hand over Map functions in term
 
 > 显然不是。
 >
-> 在这一点上，在编写自定义函数时，从性能上看，UDF似乎具有优于映射函数的优势，而且编写起来也稍微简单一些。但是，Spark的==原生列功能==在工程简便性和原始性能方面轻松胜过这两个选项。 我们需要的是一种编写我们自己的Spark原生函数的方法。
+> 在这一点上，在编写自定义函数时，从性能上看，UDF似乎具有优于 `Map` 函数的优势，而且编写起来也稍微简单一些。但是，Spark的==原生列功能==在**工程简便性**和**原始性能方面**轻松胜过这两个选项。 我们需要的是一种编写我们自己的Spark原生函数的方法。
 
 ## Custom Spark-Native Functions
 
