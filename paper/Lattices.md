@@ -551,6 +551,36 @@ GROUP BY empid, deptname
 
 This rule still presents some limitations. In particular, the rewriting rule attempts to match all views against each query. We plan to implement more refined filtering techniques such as those described in [[GL01](https://calcite.apache.org/docs/materialized_views.html#ref-gl01)].
 
+##### perform
+
+Rewriting logic is based on "Optimizing Queries Using Materialized Views: A Practical, Scalable Solution" by Goldstein and Larson.
+
+> 重写逻辑基于 Goldstein and Larson 的 "Optimizing Queries Using Materialized Views: A Practical, Scalable Solution"
+
+On the query side, rules matches a Project-node chain or node, where node is either an Aggregate or a Join. Subplan rooted at the node operator must be composed of one or more of the following operators: TableScan, Project, Filter, and Join.
+
+> 在查询端，规则匹配 Project 节点链或节点，其中节点是 Aggregate 或 Join。根在节点运算符处的子计划必须由以下一个或多个运算符组成：Tabscan、Project、Filter和Join。
+
+For each join MV, we need to check the following:
+
+1. The plan rooted at the Join operator in the view produces all rows needed by the plan rooted at the Join operator in the query.
+2. All columns required by compensating predicates, i.e., predicates that need to be enforced over the view, are available at the view output.
+3. All output expressions can be computed from the output of the view.
+4. All output rows occur with the correct duplication factor. We might rely on existing Unique-Key - Foreign-Key relationships to extract that information.
+
+In turn, for each aggregate MV, we need to check the following:
+
+1. The plan rooted at the Aggregate operator in the view produces all rows needed by the plan rooted at the Aggregate operator in the query.
+2.  columns required by compensating predicates, i.e., predicates that need to be enforced over the view, are available at the view output.
+3. The grouping columns in the query are a subset of the grouping columns in the view.
+4. All columns required to perform further grouping are available in the view output.
+5. All columns required to compute output expressions are available in the view output.
+
+The rule contains multiple extensions compared to the original paper. One of them is the possibility of creating rewritings using Union operators, e.g., if the result of a query is partially contained in the materialized view.
+
+
+
+
 ## References
 
 - [GL01] Jonathan Goldstein and Per-åke Larson. [Optimizing queries using materialized views: A practical, scalable solution](https://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.95.113). In *Proc. ACM SIGMOD Conf.*, 2001.
