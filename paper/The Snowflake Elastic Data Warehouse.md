@@ -98,13 +98,25 @@ Another important observation related to elasticity is that it is often possible
 
 Each worker node maintains a cache of table data on local disk. The cache is a collection of table files i.e. S3 objects that have been accessed in the past by the node. To be precise, the cache holds file headers and individual columns of files, since queries download only the columns they need. 
 
-The cache lives for the duration of the worker node and is shared among concurrent and subsequent worker processes i.e. queries. It just sees a stream of file and column requests, and follows a simple least-recently-used (LRU) replacement policy, oblivious of individual queries. This simple scheme works surprisingly well, but we may refine it in the future to better match different workloads.
+> 每个工作节点在本地磁盘上维护一个表数据缓存。缓存是表文件的集合，即节点过去访问过的S3对象。==准确地说，缓存保存文件头和文件的各个列，因为查询只下载它们需要的列==。
 
-To improve the hit rate and avoid redundant caching of individual table files across worker nodes of a VW, the query optimizer assigns input file sets to worker nodes using consistent hashing over table file names [[31](#_bookmark52)]. Subsequent or concurrent queries accessing the same table file will there- fore do this on the same worker node.
+**The cache lives for the duration of the worker node** and is shared among concurrent and subsequent worker processes i.e. queries. It just sees a stream of file and column requests, and follows a simple least-recently-used (LRU) replacement policy, oblivious of individual queries. This simple scheme works surprisingly well, but we may refine it in the future to better match different workloads.
 
-**==Consistent hashing in Snowflake is lazy==**. When the set of worker nodes changes—because of node failures or VW resizing—no data is shuffled immediately. Instead, Snow- flake relies on the LRU replacement policy to eventually re- place the cache contents. This solution amortizes the cost of replacing cache contents over multiple queries, resulting in much better availability than an eager cache or a pure shared-nothing system which would need to immediately shuffle large amounts of table data across nodes. It also simplifies the system since there is no “degraded” mode.
+> **缓存和工作节点的生命周期相同**，并在后续工作进程（即查询）之间并发共享。它只是看到文件和列请求的流（忽略单个查询），并且遵循简单的 LRU 替换策略。 这个简单的方案出奇地好，但是我们将来可能会对其进行改进，以更好地匹配不同的工作负载。
+
+To improve the hit rate and avoid redundant caching of individual table files across worker nodes of a VW, the query optimizer assigns input file sets to worker nodes using **consistent hashing** over table file names [[31](#_bookmark52)]. Subsequent or concurrent queries accessing the same table file will therefore do this on the same worker node.
+
+> 为了提高命中率并避免在VW的工作节点之间冗余缓存单个表文件，查询优化器根据表文件名的**一致性哈希**将输入文件集分配给工作节点。访问同一表文件的后续或并发查询将在同一工作节点上执行此操作。
+
+**==Consistent hashing in Snowflake is lazy==**. When the set of worker nodes changes—because of node failures or VW resizing—no data is shuffled immediately. Instead, Snow- flake relies on the LRU replacement policy to eventually replace the cache contents. This solution amortizes the cost of replacing cache contents over multiple queries, resulting in much better availability than an **eager cache** or a pure shared-nothing system which would need to immediately shuffle large amounts of table data across nodes. It also simplifies the system since there is no “degraded” mode.
+
+> **==Snowflake 中的一致性哈希是 lazy 的==**。当工作节点集发生更改时（由于节点故障或VW调整大小），不会立即重新 hash 数据。相反，Snowflake 依靠 LRU 替换策略来最终替换缓存内容。这个方案均摊了在多个查询中替换缓存的成本，因此，与 **eager cache** 或纯无共享系统相比，可用性要好得多，后者需要立即在节点上重新 shuffle 大量表数据。 因为没有“降级”模式，还简化了系统。
 
 Besides caching, skew handling is particularly important in a cloud data warehouse. Some nodes may be executing much slower than others due to virtualization issues or network contention. Among other places, Snowflake deals with this problem at the scan level. Whenever a worker process completes scanning its set of input files, it requests additional files from its peers, a technique we call *file stealing*. If a peer finds that it has many files left in its input file set when such a request arrives, it answers the request by transferring ownership of one remaining file for the duration and scope of the current query. The requestor then downloads the file directly from S3, not from its peer. This design ensures that file stealing does not make things worse by putting additional load on straggler nodes.
+
+> 除了缓存，倾斜处理在云数据仓库中尤为重要。由于虚拟化问题或网络争用，某些节点的执行速度可能比其他节点慢得多。 除了其他地方，Snowflake 在 scan 时处理这个问题。每当一个工作进程扫描完它的输入文件集，它就会从它的对等进程请求额外的文件，我们称之为**文件窃取**。当某个慢节点收到这样的请求时，如果其输入文件集中还有许多文件，它将在当前查询的范围和生命周期内，将某个剩余文件的所有权转移给请求方。然后，请求者直接从S3下载文件，而不是从慢节点上下载。这确保了**文件窃取**不会给慢节点增加额外的负载，而使事情变得更糟。
+
+
 
 #### 3.2.3      Execution Engine
 

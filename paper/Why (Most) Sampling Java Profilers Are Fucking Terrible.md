@@ -29,8 +29,8 @@
       1. [Java Mock Frameworks Comparison](https://web.archive.org/web/20090711150137/http://www.sizovpoint.com/2009/03/java-mock-frameworks-comparison.html)
       2. [软件开发的中总能看到stub这个词。它在表述什么意思？](https://www.zhihu.com/question/21017494)
 
-   2. 🀆 [About the dynamic de-optimization of HotSpot](https://stackoverflow.com/questions/20522870/about-the-dynamic-de-optimization-of-hotspot)
-   3. 🀆 [AsyncGetCallTrace 源码深度剖析](https://club.perfma.com/article/145902)
+   2. [About the dynamic de-optimization of HotSpot](https://stackoverflow.com/questions/20522870/about-the-dynamic-de-optimization-of-hotspot)
+   3. [AsyncGetCallTrace 源码深度剖析](https://club.perfma.com/article/145902)
 
    
 
@@ -85,8 +85,6 @@ Points 1 and 2 are about profiling overheads, which is basically about cost. In 
 
 > 1. YMMV: Your mileage may vary
 > 2. TTSP: Time To Safepoint
-
-
 
 ## Safepoint Sampling: Theory
 
@@ -643,15 +641,15 @@ VisualVM、NB Profiler（同样的东西）、YourKit和JProfiler都提供了一
 
 - 当前堆栈跟踪
 
-可以为单个线程或所有线程采样数据。怎样做才能采样分析器工作？
+可以为单个线程或所有线程采样数据，那么如何采样，Profiler 才能正确工作？
 
 > “但是，要使采样结果与完整（未采样）的概况相媲美，必须满足以下两个条件。**首先，我们必须拥有大量样本才能获得具有统计意义的结果。**例如，如果分析器在整个程序运行中只收集一个样本，分析器会将程序执行时间的100％分配给采样所在的代码，将0％分配给其他所有代码。[...]
 >
-> **其次，分析器应以相同的概率对程序运行中的所有点进行采样。**如果不这么做，则其采样结果将带有偏差。 例如，假设分析器只能对包含`call`的方法进行采样，那就不会将任何执行时间归因于不包含`call`的方法，即使这些有`call`的方法可能占据程序大部分执行时间。” 来自于[评估Java探查器的准确性（Evaluating the Accuracy of Java Profiler）](http://plv.colorado.edu/papers/mytkowicz-pldi10.pdf)，我们将稍后再回到该文
+> **其次，分析器应以相同的概率对程序运行中的所有点进行采样。**否则采样结果将带有偏差。 例如，假设分析器只能对包含`call`的方法进行采样，那就不会将任何执行时间归因于不包含`call`的方法，即使这些有`call`的方法可能占据程序大部分执行时间。” 来自于[评估Java探查器的准确性（Evaluating the Accuracy of Java Profiler）](http://plv.colorado.edu/papers/mytkowicz-pldi10.pdf)，我们将稍后再回到该文
 
 听起来很简单，对吧？
 
-一旦有了很多样本，就可以构造一个热门方法列表，甚至那些方法中的代码行（如果样本有这样的信息）；还可以查看调用树上的样本分布（如果收集了调用堆栈信息），很爽吧！
+一旦有了大量样本，就可以构造一个热门方法列表，如果样本包含其代码行的信息，甚至可以指出方法中那些代码是热点；还可以查看调用树上的样本分布（如果收集了调用堆栈信息），很爽吧！
 
 ## 商业的Java采样分析器一般如何工作？
 
