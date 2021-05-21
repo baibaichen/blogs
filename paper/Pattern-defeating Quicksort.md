@@ -46,7 +46,7 @@ Finally, we <u>**==beat patterns==**</u> with two novel additions. We diverge fr
 ----
 *pdqsort* 是一种混合排序，由快速排序[10]、插入排序和**后备排序**组成。本文使用**堆排序**作为后备排序，实际上最坏情况为 *O(nlogn)*  的排序都可以使用，启发式方法最终切换到后备排序将极为罕见。每次递归调用 *pdqsort*，要么选择回退，要么使用插入排序，要么分区后再递归。
 
-插入排序用于小的递归调用，尽管最坏情况是 *O(n^2^)* ，但它有很大的常量因子，*n*  较小时优于快速排序。我们稍后将讨论在混合算法中正确实现**插入排序**的技术（不是新技术，但很重要）。<u>我们曾尝试使用类似于 Codish 方法[5]的小型排序网络作为替代的基本情况</u>，但无法击败插入排序。估计是插入排序的代码比较小，有足够的正缓存效应，抵消混合排序中较慢算法带来的影响。
+插入排序用于小的递归调用，尽管最坏情况是 *O(n^2^)* ，但它有很好的常量因子，*n*  较小时优于快速排序。我们稍后将讨论在混合算法中正确实现**插入排序**的技术（不是新技术，但很重要）。<u>我们曾尝试使用类似于 Codish 方法[5]的小型排序网络作为替代的基本情况</u>，但无法击败插入排序。估计是插入排序的代码比较小，有足够的正缓存效应，抵消混合排序中较慢算法带来的影响。
 
 我们使用一种新颖的划分方案，间接执行[三路划分](https://blog.csdn.net/jlqCloud/article/details/46939703)。与 BlockQuicksort[7] 中非常重要的技术结合使用，极大地加快了无分支比较函数的划分速度。在某种意义上，<u>从相等元素的角度来看</u>，我们的划分方案类似于 Yaroslavskiy 的双支点快速排序[18]。我们的确考虑过快速排序的双支点和多支点的变体[2]，但最终选择传统的划分方案是为了简化此处所述技术的适用性，并且由于 BlockQuicksort 的巨大提速，它并未轻易扩展到多支点（参见IPS^4^o[3]）。
 
@@ -569,24 +569,11 @@ In a nutshell, the main routine marches over the array once, left to right, alte
 
 Comparison with Python's Samplesort Hybrid
 ------------------------------------------
-+ timsort can require a temp array containing as many as N//2 pointers,
-  which means as many as 2*N extra bytes on 32-bit boxes.  It can be
-  expected to require a temp array this large when sorting random data; on
-  data with significant structure, it may get away without using any extra
-  heap memory.  This appears to be the strongest argument against it, but
-  compared to the size of an object, 2 temp bytes worst-case (also expected-
-  case for random data) doesn't scare me much.
++ timsort can require a temp array containing as many as N//2 pointers,   which means as many as 2*N extra bytes on 32-bit boxes.  It can be   expected to require a temp array this large when sorting random data; on data with significant structure, it may get away without using any extra heap memory.  This appears to be the strongest argument against it, but compared to the size of an object, 2 temp bytes worst-case (also expected-case for random data) doesn't scare me much.
 
-  It turns out that Perl is moving to a stable mergesort, and the code for
-  that appears always to require a temp array with room for at least N
-  pointers. (Note that I wouldn't want to do that even if space weren't an
-  issue; I believe its efforts at memory frugality also save timsort
-  significant pointer-copying costs, and allow it to have a smaller working
-  set.)
+  It turns out that Perl is moving to a stable mergesort, and the code for that appears always to require a temp array with room for at least N pointers. (Note that I wouldn't want to do that even if space weren't an issue; I believe its efforts at memory frugality also save timsort significant pointer-copying costs, and allow it to have a smaller working set.)
 
-+ Across about four hours of generating random arrays, and sorting them
-  under both methods, samplesort required about 1.5% more comparisons
-  (the program is at the end of this file).
++ Across about four hours of generating random arrays, and sorting them under both methods, samplesort required about 1.5% more comparisons(the program is at the end of this file).
 
 + In real life, this may be faster or slower on random arrays than
   samplesort was, depending on platform quirks.  Since it does fewer
@@ -651,8 +638,7 @@ Comparison with Python's Samplesort Hybrid
         1048575 1048575 1048575
           0.00%   0.00%   0.00%
 
-  The algorithms are effectively identical in these cases, except that
-  timsort does one less compare in \sort.
+  The algorithms are effectively identical in these cases, except that timsort does one less compare in \sort.
 
   Now for the more interesting cases.  lg(n!) is the information-theoretic
   limit for the best any comparison-based sorting algorithm can do on
@@ -744,26 +730,13 @@ Comparison with Python's Samplesort Hybrid
  524288 262142     0     0  31302      0 212057 196608      0 262143
 1048576 524286     0     0 312438      0 484942 393216      0 524287
 
-  Discussion:  The tests that end up doing (close to) perfectly balanced
-  merges (*sort, !sort) need all N//2 temp slots (or almost all).  ~sort
-  also ends up doing balanced merges, but systematically benefits a lot from
-  the preliminary pre-merge searches described under "Merge Memory" later.
-  %sort approaches having a balanced merge at the end because the random
-  selection of elements to replace is expected to produce an out-of-order
-  element near the midpoint.  \sort, /sort, =sort are the trivial one-run
-  cases, needing no merging at all.  +sort ends up having one very long run
-  and one very short, and so gets all the temp space it needs from the small
-  temparray member of the MergeState struct (note that the same would be
-  true if the new random elements were prefixed to the sorted list instead,
-  but not if they appeared "in the middle").  3sort approaches N//3 temp
-  slots twice, but the run lengths that remain after 3 random exchanges
-  clearly has very high variance.
-
+Discussion:  The tests that end up doing (close to) perfectly balanced  merges (*sort, !sort) need all N//2 temp slots (or almost all).  ~sort  also ends up doing balanced merges, but systematically benefits a lot from  the preliminary pre-merge searches described under "Merge Memory" later.  %sort approaches having a balanced merge at the end because the random  selection of elements to replace is expected to produce an out-of-order  element near the midpoint.  \sort, /sort, =sort are the trivial one-run  cases, needing no merging at all.  +sort ends up having one very long run  and one very short, and so gets all the temp space it needs from the small  temparray member of the MergeState struct (note that the same would be  true if the new random elements were prefixed to the sorted list instead,  but not if they appeared "in the middle").  3sort approaches N//3 temp  slots twice, but the run lengths that remain after 3 random exchanges  clearly has very high variance.
+```
 
 A detailed description of timsort follows.
 
-Runs
-----
+## Runs
+
 count_run() returns the # of elements in the next run.  A run is either "ascending", which means non-decreasing:
 
     a0 <= a1 <= a2 <= ...
@@ -778,22 +751,31 @@ The definition of descending is strict, because the main routine reverses a desc
 
 If an array is random, it's very unlikely we'll see long runs.  If a natural run contains less than minrun elements (see next section), the main loop artificially boosts it to minrun elements, via a stable binary insertion sort applied to the right number of array elements following the short natural run.  In a random array, *all* runs are likely to be minrun long as a result.  This has two primary good effects:
 
-1. Random data strongly tends then toward perfectly balanced (both runs have    the same length) merges, which is the most efficient way to proceed when data is random.
-
+1. Random data strongly tends then toward perfectly balanced (both runs have  the same length) merges, which is the most efficient way to proceed when data is random.
 2. Because runs are never very short, the rest of the code doesn't make heroic efforts to shave a few cycles off per-merge overheads.  For example, reasonable use of function calls is made, rather than trying to inline everything.  Since there are no more than N/minrun runs to begin with, a few "extra" function calls per merge is barely measurable.
 
+---
 
-Computing minrun
-----------------
-If N < 64, minrun is N.  IOW, binary insertion sort is used for the whole array then; it's hard to beat that given the overheads of trying something fancier.
+如果数组是随机的，则不太可能看到长的 <u>**run**</u>。 如果自然的 <u>**run**</u> 包含少于 minrun 元素（见下节），主循环会通过稳定的二叉插入排序，将较短的自然 <u>**run**</u> 人为提升为 minrun 元素。对于随机数组，**所有**的 <u>**run**</u> 可能最终的元素个数都是 minrun 个。这有两个主要的好处：
 
-When N is a power of 2, testing on random data showed that minrun values of 16, 32, 64 and 128 worked about equally well.  At 256 the data-movement cost in binary insertion sort clearly hurt, and at 8 the increase in the number of function calls clearly hurt.  Picking *some* power of 2 is important here, so that the merges end up perfectly balanced (see next section).  We pick 32 as a good value in the sweet range; picking a value at the low end allows the adaptive gimmicks more opportunity to exploit shorter natural runs.
+1. 随机数据很容易趋向于达到完美平衡（两个 <u>**run**</u> 具有相同的长度）合并，这是在数据为随机数据时最有效的处理方式。
+2. 由于 <u>**run**</u> 永远不会很短，因此代码的其余部分并没有做出巨大的努力来减少<u>**每次合并的开销**</u>。例如，合理地使用函数调用，而不是尝试内联所有函数。由于运行的次数不超过 N/minrun，因此每次合并的几个“额外”函数调用几乎无法测量。
 
-Because sortperf.py only tries powers of 2, it took a long time to notice that 32 isn't a good choice for the general case!  Consider N=2112:
 
+
+
+## Computing minrun
+
+If N < 64, minrun is N.  <u>**IOW**</u>, **<u>==binary insertion sort==</u>** is used for the whole array then; it's hard to beat that given the overheads of trying something fancier.
+
+When N is a power of 2, testing on random data showed that minrun values of 16, 32, 64 and 128 worked about equally well.  At 256 the data-movement cost in binary insertion sort clearly hurt, and at 8 the increase in the number of function calls clearly hurt. Picking *some* power of 2 is important here, so that the merges end up perfectly balanced (see next section).  <u>**We pick 32 as a good value in the sweet range; picking a value at the low end allows the adaptive gimmicks more opportunity to exploit shorter natural runs**</u>.
+
+Because sortperf.py only tries powers of 2, it took a long time to notice that 32 isn't a good choice for the general case!  Consider N = 2112:
+
+```python
 >>> divmod(2112, 32)
 (66, 0)
->>>
+```
 
 If the data is randomly ordered, we're very likely to end up with 66 runs each of length 32.  The first 64 of these trigger a sequence of perfectly balanced merges (see next section), leaving runs of lengths 2048 and 64 to merge at the end.  The adaptive gimmicks can do that with fewer than 2048+64 compares, but it's still more compares than necessary, and-- mergesort's bugaboo relative to samplesort --a lot more data movement (O(N) copies just to get 64 elements into place).
 
@@ -805,13 +787,69 @@ What we want to avoid is picking minrun such that in
 
 q is a power of 2 and r>0 (then the last merge only gets r elements into place, and r < minrun is small compared to N), or q a little larger than a power of 2 regardless of r (then we've got a case similar to "2112", again leaving too little work for the last merge to do).
 
-Instead we pick a minrun in range(32, 65) such that N/minrun is exactly a power of 2, or if that isn't possible, is close to, but strictly less than, a power of 2.  This is easier to do than it may sound:  take the first 6 bits of N, and add 1 if any of the remaining bits are set. In fact, that rule covers every case in this section, including small N and exact powers of 2; merge_compute_minrun() is a deceptively simple function.
+Instead we pick a minrun in range(32, 65) such that `N/minrun` is exactly a power of 2, or if that isn't possible, <u>**==is close to, but strictly less than==**</u>, a power of 2.  This is easier to do than it may sound:  take the first 6 bits of N, and add 1 if any of the remaining bits are set. In fact, that rule covers every case in this section, including small N and exact powers of 2; merge_compute_minrun() is a <u>**deceptively**</u> simple function.
 
+如果 N <64，则 minrun 为 N。换句话说，**<u>==二叉插入排序==</u>**用于整个数组。 考虑到尝试一些高级技术的开销，很难击败插入排序。
 
-The Merge Pattern
------------------
+当 N 为 2 的幂时，对随机数据的测试表明，minrun 值为 16、32、64 和 128 时效果差不多。在  256  时，二进制插入排序明显受损于数据移动的开销，而在8时，函数调用数量的增加显然会造成损害。在这里，选择为**某个** 2 的幂很重要，这样合并最终会达到完美平衡（见下一节）。<u>**我们选择 32 作为甜蜜区间的一个好值；在低端选择一个值可以使自适应噱头有更多机会利用较短的自然行程**</u>。
+
+因为 sortperf.py 只尝试 2 的幂，所以花了很长时间才注意到在通常情况下，32 不是一个好选择！ 考虑 N = 2112：
+
+```python
+>>> divmod(2112, 32)
+(66, 0)
+```
+
+如果数据是随机排序的，那么很可能最终得到 66 个 <u>**run**</u>，每个 <u>**run**</u> 的长度为32。其中前 64 个将触发一系列完全平衡的合并（请参见下一节），在最后留下长度为 2048 和 64 的 <u>**run**</u> 进行合并。自适应技巧可以用少于 `2048+64` 个比较来实现，但仍然比需要的多，且需要（`mergesort` 相对于 `samplesort` 的缺陷）更多的数据移动（ O(N) 拷贝，只是为了让64个元素就位）。
+
+在这个例子中，如果我们取 `minrun = 33`，那么我们很可能最终得到 64 个 run，每个长度为 33，然后所有合并都是完全平衡的。更好！
+
+我们要避免这样选择 `minrun`
+
+    q, r = divmod(N, minrun)
+
+q 是 2 的幂且 r > 0（最后一次合并只将 r 个元素放置其正确的位置，并且 r < minrun，与 N 相比很小），或者 q 稍大于 2 的幂，而不考虑 r（那么我们得到了一个类似于 2112 的情况，同样，留给最后一次合并的工作太少了）。
+
+相反，`minrun` 在一个范围（32，65）中选择，使得 `N/minrun` 正好是 2 的幂，如果不可能的话，则<u>**==接近但严格小于==**</u> 2 的幂。这比听起来更容易：取 N 的前 6 位，剩余的位只要有 1，则加1。实际上，该规则涵盖了本节中的所有情况，包括小 N 和 2 的整数次幂； `merge_compute_minrun()` 是一个看似简单的函数。
+
+```C
+/* Compute a good value for the minimum run length; natural runs shorter
+ * than this are boosted artificially via binary insertion.
+ *
+ * If n < 64, return n (it's too small to bother with fancy stuff).
+ * Else if n is an exact power of 2, return 32.
+ * Else return an int k, 32 <= k <= 64, such that n/k is close to, but
+ * strictly less than, an exact power of 2.
+ *
+ * See listsort.txt for more info.
+ */
+static Py_ssize_t
+merge_compute_minrun(Py_ssize_t n)
+{
+    Py_ssize_t r = 0;           /* becomes 1 if any 1 bits are shifted off */
+
+    assert(n >= 0);
+    while (n >= 64) {
+        r |= n & 1;
+        n >>= 1;
+    }
+    return n + r;
+}
+```
+
+> 举例来说，比如 74998，minirun = 37，run 的个数为 2027 = 2^10.98513^。如果不加 1，则 run 的个数为 2084 = 2^11.02514^
+>
+> 74998~(2进制)~ = 1 0010 0100 1111 0110，假设前 6 位的值为 d，长度为 n，则 n = d * 2^k^ +  r，
+>
+> 1. r 的取值为 0，说明 run 的个数恰好等于 2 的幂，minrun = d，不用加 1，此时是完全平衡的合并，
+> 2. r 的取值为 [1, 2^k^)
+>    1. 如果 minrun 不加 1（minrun = d），则 d * 2^k^ 是完全平衡的合并，最后是元素个数分别为 d * 2^k^ 和 r 的两个 run 合并。
+>   2. 如果 minrun = d + 1，那么 d * 2^k^ +  r = (d + 1) * 2^k^ + (r - 2^k^) = (d + 1) * 2^k-1^ * 2 + (r - 2^k^) = (d + 1) * 2^k-1^ + (d + 1) * 2^k-1^ + (r - 2^k^)  =  (d + 1) * 2^k-1^ + (d - 1) * 2^k-1^ + r， (d + 1) * 2^k-1^ 是完全平衡的合并，(d - 1) * 2^k-1^ + r 是接近平衡的合并，最后这两部份合并时， (d + 1) * 2^k-1^ 和 (d - 1) * 2^k-1^ + r  最多差 6%。
+> 
+
+## The Merge Pattern
+
 In order to exploit regularities in the data, we're merging on natural run lengths, and they can become wildly unbalanced. That's a Good Thing for this sort!  It means we have to find a way to manage an assortment of potentially very different run lengths, though.
-为了利用数据中的规律性，我们将自然游程长度合并在一起，它们可能会变得非常不平衡。 这是一件好事！ 但是，这意味着我们必须找到一种方法来管理各种可能非常不同的游程长度。
 
 Stability constrains permissible merging patterns.  For example, if we have 3 consecutive runs of lengths
 
@@ -821,14 +859,14 @@ we dare not merge A with C first, because if A, B and C happen to contain a comm
 
 So merging is always done on two consecutive runs at a time, and in-place, although this may require some temp memory (more on that later).
 
-When a run is identified, its base address and length are pushed on a stack in the MergeState struct.  merge_collapse() is then called to see whether it should merge it with preceding run(s).  We would like to delay merging as long as possible in order to exploit patterns that may come up later, but we like even more to do merging as soon as possible to exploit that the run just found is still high in the memory hierarchy.  We also can't delay merging "too long" because it consumes memory to remember the runs that are still unmerged, and the stack has a fixed size.
+When a run is identified, its base address and length are pushed on a stack in the `MergeState` struct.  `merge_collapse()` is then called to see whether it should merge it with preceding run(s).  We would like to delay merging as long as possible in order to exploit <u>**patterns**</u> that may come up later, but we like even more to do merging as soon as possible to exploit that the run just found is still high in the memory hierarchy.  We also can't delay merging "too long" because it consumes memory to remember the runs that are still unmerged, and the stack has a fixed size.
 
 What turned out to be a good compromise maintains two invariants on the stack entries, where A, B and C are the lengths of the three righmost not-yet merged slices:
 
 1.  A > B+C
 2.  B > C
 
-Note that, by induction, #2 implies the lengths of pending runs form a decreasing sequence.  #1 implies that, reading the lengths right to left, the pending-run lengths grow at least as fast as the Fibonacci numbers. Therefore the stack can never grow larger than about log_base_phi(N) entries, where phi = (1+sqrt(5))/2 ~= 1.618.  Thus a small # of stack slots suffice for very large arrays.
+Note that, by induction, #2 implies the lengths of pending runs form a decreasing sequence.  #1 implies that, reading the lengths right to left, the pending-run lengths grow at least as fast as the Fibonacci numbers. Therefore the stack can never grow larger than about `log_base_phi(N)` entries, where `phi = (1+sqrt(5))/2 ~= 1.618`.  Thus a small # of stack slots suffice for very large arrays.
 
 If A <= B+C, the smaller of A and C is merged with B (ties favor C, for the freshness-in-cache reason), and the new run replaces the A,B or B,C entries; e.g., if the last 3 entries are
 
@@ -852,157 +890,122 @@ In both examples, the stack configuration after the merge still violates invaria
 
 The thrust of these rules when they trigger merging is to balance the run lengths as closely as possible, while keeping a low bound on the number of runs we have to remember.  This is maximally effective for random data, where all runs are likely to be of (artificially forced) length minrun, and then we get a sequence of perfectly balanced merges (with, perhaps, some oddballs at the end).
 
-这些规则触发合并时，其目的是在尽可能短地平衡游程长度的同时，使我们必须记住的游程数目保持较低的界限。 这对于随机数据最大有效，在随机数据中，所有游程都有可能是（人为强迫的）最小游程长度，然后我们得到了一系列完美平衡的合并（最后可能还有一些奇数球）。
-
 OTOH, one reason this sort is so good for partly ordered data has to do with wildly unbalanced run lengths.
 
-OTOH，这种方式对于部分排序的数据如此之好的原因之一与游程长度非常不平衡有关。
+---
+
+为了利用数据中的规律性，我们将<u>**自然行程**</u>的长度合并在一起，可能会变得非常不平衡。这是一件好事！ 但这意味着我们必须找到一种方法来管理各种可能<u>**非常不同的行程长度**</u>。
+
+稳定性约束限制了可以合并的模式。例如，如果我们有3个连续的 run，其长度分别是：
+
+    A:10000  B:20000  C:10000
+
+我们不能先合并 A 和 C，因为如果A，B 和 C 碰巧包含了一个公共元素，则相对于 B 会变得混乱。 合并必须以（A + B）+ C 或 A +（B + C）的方式完成。
+
+因此，合并总是一次就地在两个连续的 <u>**run**</u> 上完成，尽管这可能需要一些临时内存（稍后再介绍）。
+
+识别出一个 run 后，其基址和长度被推到 `MergeState` 结构的堆栈中。然后调用 `merge_collapse()`，查看是否应将其与先前的 <u>**run**</u> 合并。我们希望尽可能长地延迟合并，以利用以后可能出现的<u>**模式**</u>，但我们更希望尽快合并，以利用刚刚发现的 <u>**run**</u>，它仍正处在较高的内存层次结构中。 也不能延迟合并太久，因为它消耗内存以记住仍未合并的 <u>**run**</u>，并且堆栈的长度是固定的。
+
+事实证明一个很好的折衷方案是：堆栈上的条目保证两个不变式，其中 A，B 和 C 是最右边三个尚未合并的 run 的长度：
+
+1.  A > B+C
+2.  B > C
+
+注意，通过归纳法，第 2 条表示待合并的 <u>**run**</u> 的长度形成递减序列。第 1 条意味着，从右到左读取长度，未合并的 run 的长度的增长至少与斐波那契数一样快。因此，堆栈永远不会增长到大于 `log_base_phi(N)` 个条目，其中 `phi = (1+sqrt(5))/2 ~= 1.618`。 因此，较少的堆栈长度足以容纳非常大的排序数组。
+
+如果A <= B + C，则将 A 和 C 中较小的一个与 B 合并（出于高速缓存的原因，优先合并 C），并且新合并后的 run 替换 A，B 或B，C 条目；例如，堆栈最顶部3个条目是：
+
+    A:30  B:20  C:10
+
+那么 B 和 C 合并，合并后堆栈的顶部为：
+
+    A:30  BC:30
+
+或者如果长度为：
+
+    A:500  B:400:  C:1000
+
+那么 A 和 B 合并，合并后堆栈的顶部为：
+
+    AB:900  C:1000
+
+在这两个例子中，合并后的堆栈配置仍然违反了不变式 2，`merge_collapse()` 继续进行合并，直到两个不变式都满足为止。作为一个极端的例子，假设我们没有使用 minrun 技巧，自然长度为 128、64、32、16、8、4、2 和2 。在最后的 2 出现之前，什么都不会合并，之后则将触发 7 次完全平衡的合并。
+
+这些规则触发合并时，其目的是在尽可能短地平衡行程长度，同时保持我们必须记住的游程数的下限。这对于随机数据最有效，在随机数据中，所有行程都有可能是（人为强迫）的最小游程长度，然后我们得到了一系列完美平衡的合并（可能在结尾有一些奇怪的东西）。
+
+另一方面，对于部分排序的数据而言，这种排序之所以如此出色的原因之一，就在于其行程长度极为不平衡。
 
 
-Merge Memory
-------------
-Merging adjacent runs of lengths A and B in-place is very difficult.
-Theoretical constructions are known that can do it, but they're too difficult
-and slow for practical use.  But if we have temp memory equal to min(A, B),
-it's easy.
+## Merge Memory
 
-If A is smaller (function merge_lo), copy A to a temp array, leave B alone,
-and then we can do the obvious merge algorithm left to right, from the temp
-area and B, starting the stores into where A used to live.  There's always a
-free area in the original area comprising a number of elements equal to the
-number not yet merged from the temp array (trivially true at the start;
-proceed by induction).  The only tricky bit is that if a comparison raises an
-exception, we have to remember to copy the remaining elements back in from
-the temp area, lest the array end up with duplicate entries from B.  But
-that's exactly the same thing we need to do if we reach the end of B first,
-so the exit code is pleasantly common to both the normal and error cases.
+Merging adjacent runs of lengths A and B in-place is very difficult. Theoretical constructions are known that can do it, but they're too difficult and slow for practical use.  But if we have temp memory equal to `min(A, B)`, it's easy.
 
-If B is smaller (function merge_hi, which is merge_lo's "mirror image"),
-much the same, except that we need to merge right to left, copying B into a
-temp array and starting the stores at the right end of where B used to live.
+If A is smaller (function `merge_lo`), copy A to a temp array, leave B alone, and then we can do the obvious merge algorithm **left to right**, from the temp area and B, starting the stores into where A used to live.  There's always a free area in the original area <u>**comprising**</u> a number of elements equal to the number not yet merged from the temp array (trivially true at the start; proceed by induction).  The only tricky bit is that if a comparison raises an exception, we have to remember to copy the remaining elements back in from the temp area, lest the array end up with duplicate entries from B.  But that's exactly the same thing we need to do if we reach the end of B first, so the exit code is <u>**pleasantly common**</u> to both the normal and error cases.
 
-A refinement:  When we're about to merge adjacent runs A and B, we first do
-a form of binary search (more on that later) to see where B[0] should end up
-in A.  Elements in A preceding that point are already in their final
-positions, effectively shrinking the size of A.  Likewise we also search to
-see where A[-1] should end up in B, and elements of B after that point can
-also be ignored.  This cuts the amount of temp memory needed by the same
-amount.
+If B is smaller (function `merge_hi`, which is `merge_lo`'s "mirror image"), much the same, except that we need to merge **right to left**, copying B into a temp array and starting the stores at the right end of where B used to live.	
 
-These preliminary searches may not pay off, and can be expected *not* to
-repay their cost if the data is random.  But they can win huge in all of
-time, copying, and memory savings when they do pay, so this is one of the
-"per-merge overheads" mentioned above that we're happy to endure because
-there is at most one very short run.  It's generally true in this algorithm
-that we're willing to gamble a little to win a lot, even though the net
-expectation is negative for random data.
+A refinement:  When we're about to merge adjacent runs A and B, we first do a form of binary search (more on that later) to see where B[0] should end up in A.  Elements in A preceding that point are already in their final positions, effectively shrinking the size of A.  Likewise we also search to see where A[-1] should end up in B, and elements of B after that point can also be ignored.  This cuts the amount of temp memory needed by the same amount.
+
+These preliminary searches may not pay off, and can be expected *not* to repay their cost if the data is random.  But they can win huge in all of time, copying, and memory savings when they do pay, so this is one of the "per-merge overheads" mentioned above that we're happy to endure because there is at most one very short run.  It's generally true in this algorithm that we're willing to gamble a little to win a lot, even though the net expectation is negative for random data.
+
+就地合并长度为 A 和 B 的相邻两个 <u>**run**</u> 非常困难。众所周知，理论上可以做到这一点，但对于实际应用来说过于困难和缓慢。但是如果我们有一个等于 `min(A, B)` 的临时内存，就比较容易。
+
+如果A较小（函数 `merge_lo`），将 A 复制到临时数组，B 不动，然后我们可以<u>**从左到右**</u>，从临时区域和 B 开始进行直白的合并，从原先存储 A 的地方开始存储合并后的元素。在原始区域中总是存在一个空闲区域，它可以容纳的元素数量等于尚未从临时数组合并而来的数量（在开始时通常是正确的；通过归纳法证明总是成立）。唯一棘手的一点是，如果比较抛出异常，我们必须记住将临时区域剩余的元素复制回来，以免数组包含来自 B 的重复数据。但是如果 B 先复制完，我们需要做的事情与此完全相同，因此，退出代码对于正常情况和错误情况都很常见。
+
+如果 B 较小使用函数 `merge_hi`，这是 `merge_lo`的镜像，几乎相同，除了我们需要**<u>从右到左</u>**合并，将 B 复制到临时数组，从原先存储 B 的右端开始存储合并后的元素。 
+
+细化：当我们要合并相邻的 <u>**run**</u> A 和 B 时，我们首先进行某种形式的二叉查找（稍后再讨论），以查看 B [0] 在A最终位于何处。A 中该点之前的元素已经处于其最终位置，从而有效地缩小了 A 的大小。同样，我们也会寻找 A[size -1] 应该在 B 中结束的位置，B 在该点之后的元素也可以被忽略。这样可以将所需的临时内存数量减少相同数量。
+
+这些初步搜索可能不会奏效，并且如果数据是随机的，基本就是得不偿失。 但是当它回报时，它们可以在时间，复制和内存节省方面赢得巨大的收益，因此，这是上面提到的“每次合并开销”之一，我们很乐意忍受，因为最多只有一个非常短的 <u>**run**</u>。在这个算法中，即使随机数据的净期望为负，我们也愿意以小博大。
+
+## Merge Algorithms
+
+`merge_lo()` and `merge_hi()` are where the bulk of the time is spent.  `merge_lo` deals with runs where A <= B, and merge_hi where A > B.  They don't know whether the data is clustered or uniform, but a lovely thing about merging is that many kinds of clustering "reveal themselves" by how many times in a row the winning merge element comes from the same run.  We'll only discuss `merge_lo` here; `merge_hi` is exactly analogous.
+
+Merging begins in the usual, obvious way, comparing the first element of A to the first of B, and moving B[0] to the merge area if it's less than A[0], else moving A[0] to the merge area.  Call that the "one pair at a time" mode.  The only <u>**twist**</u> here is keeping track of how many times in a row "the winner" comes from the same run.
+
+If that count reaches `MIN_GALLOP`, we switch to "galloping mode".  Here we *search* B for where A[0] belongs, and move over all the B's before that point in one chunk to the merge area, then move A[0] to the merge area.  Then we search A for where B[0] belongs, and similarly move a slice of A in one chunk.  Then back to searching B for where A[0] belongs, etc.  We stay in galloping mode until both searches find slices to copy less than `MIN_GALLOP` elements long, at which point we go back to one-pair-at-a-time mode.
+
+A refinement:  The `MergeState` struct contains the value of `min_gallop` that controls when we enter galloping mode, initialized to `MIN_GALLOP`. `merge_lo()` and `merge_hi()` adjust this higher when galloping isn't paying off, and lower when it is.
+
+`merge_lo()` 和 `merge_hi()` 是花费大部分时间的地方。`merge_lo` 处理 A <= B 的两个 runs，而 `merge_hi` 处理 A > B的情况。==他们不知道数据是聚集的还是均匀分布的，但是关于合并的一件可爱的事情是，许多类型的聚集可以“揭示自己” 获胜的合并元素连续多次来自同一运行。 我们这里只讨论 `merge_lo`； `merge_hi `完全相似==。
 
 
-Merge Algorithms
-----------------
-merge_lo() and merge_hi() are where the bulk of the time is spent.  merge_lo
-deals with runs where A <= B, and merge_hi where A > B.  They don't know
-whether the data is clustered or uniform, but a lovely thing about merging
-is that many kinds of clustering "reveal themselves" by how many times in a
-row the winning merge element comes from the same run.  We'll only discuss
-merge_lo here; merge_hi is exactly analogous.
+## Galloping
 
-Merging begins in the usual, obvious way, comparing the first element of A
-to the first of B, and moving B[0] to the merge area if it's less than A[0],
-else moving A[0] to the merge area.  Call that the "one pair at a time"
-mode.  The only twist here is keeping track of how many times in a row "the
-winner" comes from the same run.
+Still without loss of generality, assume A is the shorter run.  In galloping mode, we first look for A[0] in B.  We do this via "galloping", comparing A[0] in turn to B[0], B[1], B[3], B[7], ..., B[2**j - 1], ..., until finding the k such that B[2**(k-1) - 1] < A[0] <= B[2**k - 1].  This takes at most roughly lg(B) comparisons, and, unlike a straight binary search, favors finding the right spot early in B (more on that later).
 
-If that count reaches MIN_GALLOP, we switch to "galloping mode".  Here
-we *search* B for where A[0] belongs, and move over all the B's before
-that point in one chunk to the merge area, then move A[0] to the merge
-area.  Then we search A for where B[0] belongs, and similarly move a
-slice of A in one chunk.  Then back to searching B for where A[0] belongs,
-etc.  We stay in galloping mode until both searches find slices to copy
-less than MIN_GALLOP elements long, at which point we go back to one-pair-
-at-a-time mode.
+After finding such a k, the region of uncertainty is reduced to 2**(k-1) - 1 consecutive elements, and a straight binary search requires exactly k-1 additional comparisons to nail it.  Then we copy all the B's up to that point in one chunk, and then copy A[0].  Note that no matter where A[0] belongs in B, the combination of galloping + binary search finds it in no more than about 2*lg(B) comparisons.
 
-A refinement:  The MergeState struct contains the value of min_gallop that
-controls when we enter galloping mode, initialized to MIN_GALLOP.
-merge_lo() and merge_hi() adjust this higher when galloping isn't paying
-off, and lower when it is.
+If we did a straight binary search, we could find it in no more than ceiling(lg(B+1)) comparisons -- but straight binary search takes that many comparisons no matter where A[0] belongs.  Straight binary search thus loses to galloping unless the run is quite long, and we simply can't guess whether it is in advance.
 
+If data is random and runs have the same length, A[0] belongs at B[0] half the time, at B[1] a quarter of the time, and so on:  a consecutive winning sub-run in B of length k occurs with probability 1/2**(k+1).  So long winning sub-runs are extremely unlikely in random data, and guessing that a winning sub-run is going to be long is a dangerous game.
 
-Galloping
----------
-Still without loss of generality, assume A is the shorter run.  In galloping
-mode, we first look for A[0] in B.  We do this via "galloping", comparing
-A[0] in turn to B[0], B[1], B[3], B[7], ..., B[2**j - 1], ..., until finding
-the k such that B[2**(k-1) - 1] < A[0] <= B[2**k - 1].  This takes at most
-roughly lg(B) comparisons, and, unlike a straight binary search, favors
-finding the right spot early in B (more on that later).
+OTOH, if data is lopsided or lumpy or contains many duplicates, long stretches of winning sub-runs are very likely, and cutting the number of comparisons needed to find one from O(B) to O(log B) is a huge win.
 
-After finding such a k, the region of uncertainty is reduced to 2**(k-1) - 1
-consecutive elements, and a straight binary search requires exactly k-1
-additional comparisons to nail it.  Then we copy all the B's up to that
-point in one chunk, and then copy A[0].  Note that no matter where A[0]
-belongs in B, the combination of galloping + binary search finds it in no
-more than about 2*lg(B) comparisons.
-
-If we did a straight binary search, we could find it in no more than
-ceiling(lg(B+1)) comparisons -- but straight binary search takes that many
-comparisons no matter where A[0] belongs.  Straight binary search thus loses
-to galloping unless the run is quite long, and we simply can't guess
-whether it is in advance.
-
-If data is random and runs have the same length, A[0] belongs at B[0] half
-the time, at B[1] a quarter of the time, and so on:  a consecutive winning
-sub-run in B of length k occurs with probability 1/2**(k+1).  So long
-winning sub-runs are extremely unlikely in random data, and guessing that a
-winning sub-run is going to be long is a dangerous game.
-
-OTOH, if data is lopsided or lumpy or contains many duplicates, long
-stretches of winning sub-runs are very likely, and cutting the number of
-comparisons needed to find one from O(B) to O(log B) is a huge win.
-
-Galloping compromises by getting out fast if there isn't a long winning
-sub-run, yet finding such very efficiently when they exist.
+Galloping compromises by getting out fast if there isn't a long winning sub-run, yet finding such very efficiently when they exist.
 
 I first learned about the galloping strategy in a related context; see:
 
     "Adaptive Set Intersections, Unions, and Differences" (2000)
     Erik D. Demaine, Alejandro López-Ortiz, J. Ian Munro
 
-and its followup(s).  An earlier paper called the same strategy
-"exponential search":
+and its followup(s).  An earlier paper called the same strategy "exponential search":
 
-   "Optimistic Sorting and Information Theoretic Complexity"
-   Peter McIlroy
-   SODA (Fourth Annual ACM-SIAM Symposium on Discrete Algorithms), pp
-   467-474, Austin, Texas, 25-27 January 1993.
+   "Optimistic Sorting and Information Theoretic Complexity"   Peter McIlroy    SODA (Fourth Annual ACM-SIAM Symposium on Discrete Algorithms), pp467-474, Austin, Texas, 25-27 January 1993.
 
-and it probably dates back to an earlier paper by Bentley and Yao.  The
-McIlroy paper in particular has good analysis of a mergesort that's
-probably strongly related to this one in its galloping strategy.
+and it probably dates back to an earlier paper by Bentley and Yao.  The McIlroy paper in particular has good analysis of a mergesort that's probably strongly related to this one in its galloping strategy.
 
-
+```
 Galloping with a Broken Leg
 ---------------------------
 So why don't we always gallop?  Because it can lose, on two counts:
 
-1. While we're willing to endure small per-merge overheads, per-comparison
-   overheads are a different story.  Calling Yet Another Function per
-   comparison is expensive, and gallop_left() and gallop_right() are
-   too long-winded for sane inlining.
+1. While we're willing to endure small per-merge overheads, per-comparison overheads are a different story.  Calling Yet Another Function per comparison is expensive, and gallop_left() and gallop_right() are too long-winded for sane inlining.
 
-2. Galloping can-- alas --require more comparisons than linear one-at-time
-   search, depending on the data.
+2. Galloping can-- alas --require more comparisons than linear one-at-time search, depending on the data.
 
-#2 requires details.  If A[0] belongs before B[0], galloping requires 1
-compare to determine that, same as linear search, except it costs more
-to call the gallop function.  If A[0] belongs right before B[1], galloping
-requires 2 compares, again same as linear search.  On the third compare,
-galloping checks A[0] against B[3], and if it's <=, requires one more
-compare to determine whether A[0] belongs at B[2] or B[3].  That's a total
-of 4 compares, but if A[0] does belong at B[2], linear search would have
-discovered that in only 3 compares, and that's a huge loss!  Really.  It's
-an increase of 33% in the number of compares needed, and comparisons are
-expensive in Python.
+#2 requires details.  If A[0] belongs before B[0], galloping requires 1 compare to determine that, same as linear search, except it costs more to call the gallop function.  If A[0] belongs right before B[1], galloping requires 2 compares, again same as linear search.  On the third compare, galloping checks A[0] against B[3], and if it's <=, requires one more compare to determine whether A[0] belongs at B[2] or B[3].  That's a total of 4 compares, but if A[0] does belong at B[2], linear search would have discovered that in only 3 compares, and that's a huge loss!  Really.  It's an increase of 33% in the number of compares needed, and comparisons are expensive in Python.
 
 index in B where    # compares linear  # gallop  # binary  gallop
 A[0] belongs        search needs       compares  compares  total
@@ -1025,61 +1028,22 @@ A[0] belongs        search needs       compares  compares  total
               11                   12         5         3       8
                                         ...
 
-In general, if A[0] belongs at B[i], linear search requires i+1 comparisons
-to determine that, and galloping a total of 2*floor(lg(i))+2 comparisons.
-The advantage of galloping is unbounded as i grows, but it doesn't win at
-all until i=6.  Before then, it loses twice (at i=2 and i=4), and ties
-at the other values.  At and after i=6, galloping always wins.
+In general, if A[0] belongs at B[i], linear search requires i+1 comparisons to determine that, and galloping a total of 2*floor(lg(i))+2 comparisons. The advantage of galloping is unbounded as i grows, but it doesn't win at all until i=6.  Before then, it loses twice (at i=2 and i=4), and ties at the other values.  At and after i=6, galloping always wins.
 
-We can't guess in advance when it's going to win, though, so we do one pair
-at a time until the evidence seems strong that galloping may pay.  MIN_GALLOP
-is 7, and that's pretty strong evidence.  However, if the data is random, it
-simply will trigger galloping mode purely by luck every now and again, and
-it's quite likely to hit one of the losing cases next.  On the other hand,
-in cases like ~sort, galloping always pays, and MIN_GALLOP is larger than it
-"should be" then.  So the MergeState struct keeps a min_gallop variable
-that merge_lo and merge_hi adjust:  the longer we stay in galloping mode,
-the smaller min_gallop gets, making it easier to transition back to
-galloping mode (if we ever leave it in the current merge, and at the
-start of the next merge).  But whenever the gallop loop doesn't pay,
-min_gallop is increased by one, making it harder to transition back
-to galloping mode (and again both within a merge and across merges).  For
-random data, this all but eliminates the gallop penalty:  min_gallop grows
-large enough that we almost never get into galloping mode.  And for cases
-like ~sort, min_gallop can fall to as low as 1.  This seems to work well,
-but in all it's a minor improvement over using a fixed MIN_GALLOP value.
-
+We can't guess in advance when it's going to win, though, so we do one pair at a time until the evidence seems strong that galloping may pay.  MIN_GALLOP is 7, and that's pretty strong evidence.  However, if the data is random, it simply will trigger galloping mode purely by luck every now and again, and it's quite likely to hit one of the losing cases next.  On the other hand, in cases like ~sort, galloping always pays, and MIN_GALLOP is larger than it "should be" then.  So the MergeState struct keeps a min_gallop variable that merge_lo and merge_hi adjust:  the longer we stay in galloping mode, the smaller min_gallop gets, making it easier to transition back to galloping mode (if we ever leave it in the current merge, and at the start of the next merge).  But whenever the gallop loop doesn't pay, min_gallop is increased by one, making it harder to transition back to galloping mode (and again both within a merge and across merges).  For random data, this all but eliminates the gallop penalty:  min_gallop grows large enough that we almost never get into galloping mode.  And for cases like ~sort, min_gallop can fall to as low as 1.  This seems to work well, but in all it's a minor improvement over using a fixed MIN_GALLOP value.
 
 Galloping Complication
 ----------------------
-The description above was for merge_lo.  merge_hi has to merge "from the
-other end", and really needs to gallop starting at the last element in a run
-instead of the first.  Galloping from the first still works, but does more
-comparisons than it should (this is significant -- I timed it both ways).
-For this reason, the gallop_left() and gallop_right() functions have a
-"hint" argument, which is the index at which galloping should begin.  So
-galloping can actually start at any index, and proceed at offsets of 1, 3,
-7, 15, ... or -1, -3, -7, -15, ... from the starting index.
+The description above was for merge_lo.  merge_hi has to merge "from the other end", and really needs to gallop starting at the last element in a run instead of the first.  Galloping from the first still works, but does more comparisons than it should (this is significant -- I timed it both ways). For this reason, the gallop_left() and gallop_right() functions have a "hint" argument, which is the index at which galloping should begin.  So galloping can actually start at any index, and proceed at offsets of 1, 3, 7, 15, ... or -1, -3, -7, -15, ... from the starting index.
 
-In the code as I type it's always called with either 0 or n-1 (where n is
-the # of elements in a run).  It's tempting to try to do something fancier,
-melding galloping with some form of interpolation search; for example, if
-we're merging a run of length 1 with a run of length 10000, index 5000 is
-probably a better guess at the final result than either 0 or 9999.  But
-it's unclear how to generalize that intuition usefully, and merging of
-wildly unbalanced runs already enjoys excellent performance.
+In the code as I type it's always called with either 0 or n-1 (where n is the # of elements in a run).  It's tempting to try to do something fancier, melding galloping with some form of interpolation search; for example, if we're merging a run of length 1 with a run of length 10000, index 5000 is probably a better guess at the final result than either 0 or 9999.  But it's unclear how to generalize that intuition usefully, and merging of wildly unbalanced runs already enjoys excellent performance.
 
-~sort is a good example of when balanced runs could benefit from a better
-hint value:  to the extent possible, this would like to use a starting
-offset equal to the previous value of acount/bcount.  Doing so saves about
-10% of the compares in ~sort.  However, doing so is also a mixed bag,
-hurting other cases.
+~sort is a good example of when balanced runs could benefit from a better hint value:  to the extent possible, this would like to use a starting offset equal to the previous value of acount/bcount.  Doing so saves about 10% of the compares in ~sort.  However, doing so is also a mixed bag, hurting other cases.
 
 
 Comparing Average # of Compares on Random Arrays
 ------------------------------------------------
-[NOTE:  This was done when the new algorithm used about 0.1% more compares
- on random data than does its current incarnation.]
+[NOTE:  This was done when the new algorithm used about 0.1% more compares on random data than does its current incarnation.]
 
 Here list.sort() is samplesort, and list.msort() this sort:
 
@@ -1136,28 +1100,16 @@ def drive():
 drive()
 """
 
-I ran this on Windows and kept using the computer lightly while it was
-running.  time.clock() is wall-clock time on Windows, with better than
-microsecond resolution.  samplesort started with a 1.52% #-of-comparisons
-disadvantage, fell quickly to 1.48%, and then fluctuated within that small
-range.  Here's the last chunk of output before I killed the job:
+I ran this on Windows and kept using the computer lightly while it was running. time.clock() is wall-clock time on Windows, with better than microsecond resolution.  samplesort started with a 1.52% #-of-comparisons disadvantage, fell quickly to 1.48%, and then fluctuated within that small range.  Here's the last chunk of output before I killed the job:
 
-count 2630 nelts 130906543
+count 2630 nelts   130906543
  sort    6110.80   1937887573
 msort    6002.78   1909389381
             1.80         1.49
 
-We've done nearly 2 billion comparisons apiece at Python speed there, and
-that's enough <wink>.
+We've done nearly 2 billion comparisons apiece at Python speed there, and that's enough <wink>.
 
-For random arrays of size 2 (yes, there are only 2 interesting ones),
-samplesort has a 50%(!) comparison disadvantage.  This is a consequence of
-samplesort special-casing at most one ascending run at the start, then
-falling back to the general case if it doesn't find an ascending run
-immediately.  The consequence is that it ends up using two compares to sort
-[2, 1].  Gratifyingly, timsort doesn't do any special-casing, so had to be
-taught how to deal with mixtures of ascending and descending runs
-efficiently in all cases.
+For random arrays of size 2 (yes, there are only 2 interesting ones), samplesort has a 50%(!) comparison disadvantage.  This is a consequence of samplesort special-casing at most one ascending run at the start, then falling back to the general case if it doesn't find an ascending run immediately.  The consequence is that it ends up using two compares to sort [2, 1].  Gratifyingly, timsort doesn't do any special-casing, so had to be taught how to deal with mixtures of ascending and descending runs efficiently in all cases.
 ```
 
 # Engineering a Sort Function
@@ -1335,9 +1287,9 @@ Quicksort 有许多标准改进。 对于我们优化的Quicksort主循环（这
 
 - Sedgewick [26]提出的一个非常基本的优化可以部分避免（例如 `std:sort`）或完全避免（这需要引入堆栈）递归。
 
-- Introsort [22]：有一个递归次数的计数器。 一旦超过一定范围（`std::sort` 使用 `2logn`，我们使用`2logn + 3`），算法将停止 Quicksort 并切换到 Heapsort [12，29]（仅用于相应的子数组） 。 这可以保证最坏情况下的运行时间为 `O(nlogn)`。
+- Introsort [22]：有一个递归次数的计数器。 一旦超过一定范围（`std::sort` 使用 `2logn`，我们使用 `2logn + 3`），算法将停止 Quicksort 并切换到 Heapsort [12，29]（仅用于相应的子数组） 。 这可以保证最坏情况下的运行时间为 `O(nlogn)`。
 
-- Sedgewick [26]还建议，一旦数组的大小小于某个固定的小常量（`std::sort` 和我们的实现为 16），就立即切换到Insertionsort（参见[17，第5.2.1节]）。应用 Insertionsort 的时机有两个选择：当数组大小在递归过程中变得太小时，或者在 Quicksort 结束后。我们选择了第一种（与 `std::sort` 相反），因为对于整数排序几乎没有什么区别，但是对于较大的数据元素，则有轻微的加速（在[19]中，这被称为<u>**==内存调优==**</u>的 Quicksort）。
+- Sedgewick [26]还建议，一旦数组的大小小于某个固定的小常量（`std::sort` 和我们的实现为 16），就立即切换到 Insertionsort（参见[17，第5.2.1节]）。应用 Insertionsort 的时机有两个选择：当数组大小在递归过程中变得太小时，或者在 Quicksort 结束后。我们选择了第一种（与 `std::sort` 相反），因为对于整数排序几乎没有什么区别，但是对于较大的数据元素，则有轻微的加速（在[19]中，这被称为<u>**==内存调优==**</u>的 Quicksort）。
 
 - 划分后，将支点元素移动到其正确位置，并且不包含在递归调用中（未应用于 `std::sort`）。
 
@@ -1412,10 +1364,6 @@ The second statement follows because Quicksort with median-of-three incurs 1.18n
 # Engineering Radix Sort
 
 **ABSTRACT** Radix sorting methods have excellent asymptotic performance on string data, for which comparison is not a unit-time operation. Attractive for use in large byte-addressable memories, these methods have nevertheless long been eclipsed by more easily prograÍrmed algorithms. Three ways to sort strings by bytes left to right-a stable list sort, a stable two-array sort, and an in-place "American flag" sort  - are illustrated with practical C programs. For heavy-duty sorting, all three perform comparably, usually running at least twice as fast as a good quicksort. We recommend American flag sort for general use.
-
-**摘要**基排序方法对字符串数据具有良好的渐近性能，对于字符串数据，比较不是一个单位时间操作。这些方法对于大字节可寻址存储器的使用很有吸引力，但长期以来，这些方法一直被更容易编程的算法所掩盖。三种按字节从左到右排序字符串的方法——稳定的列表排序、稳定的双数组排序和就地“美国国旗”排序——用实际的C程序进行了说明。对于重负荷分拣，这三种方法的性能相当，通常运行速度至少是好的快速分拣的两倍。我们建议一般使用美国国旗。
-
-**摘要** 基数排序方法对字符串数据具有出色的渐近性能，因此比较不是单位时间操作。 长期以来，这些方法一直被更容易编程的算法所取代，因而吸引了大字节可寻址存储器的使用。 用实用的C程序说明了从左到右按字节对字符串进行排序的三种方法-稳定列表排序，稳定的两数组排序和就地“美国国旗”排序。 对于重型分拣，这三者的性能相当，通常至少比快速分拣的速度快两倍。 我们建议将美国国旗分类为一般用途。
 
 ## 1. Introduction
 
@@ -1509,25 +1457,122 @@ The wisdom that blesses quicksort dates from the era of small memories. With big
 
 优先考虑快速排序可以追溯到内存较少的时代。对于更大的机器，nlogn 和 nlog^2^n 之间的差异变得更加显著。有了更大的机器，我们可以负担更多的空间。因此，这种选择值得重新审视。
 
+## 3. Two-Array Sort
+
+Suppose the strings come in an array as for radix exchange. In basic radix exchange, the two piles live in known positions against the bottom and top of the array. For larger radixes, the positions of the piles can be calculated in an extra pass that tallies how many strings belong in each pile. Knowing the sizes of the piles, we don't need linked lists.
+
+Program 3.1 gets the strings home by <u>==**moving them as a block**==</u> to the auxiliary array *ta*, and then moving each element back to its proper place. The upper ends of the places are precomputed in array *pile* as shown in Figure 4. 1. (This "backward" choice is for harmony with the programs in section 4.) Elements are moved stably; equal elements retain the order they had in the input. As in Program 2.2, the stack is managed explicitly; the stack has a third field to hold the length of each subarray.
+
+
+```C
+/* Program 3.1 Simple two-array sort */
+typedef unsigned char* string;
+void rsort(string *a, int n) {
+  
+  #define push(a, n, b) sp->sa=a, sp->sn=n, (sp++)->sb=b
+  #define pop(a, n, b)  a=(--sp)->sa, n=sp->sn, b=sp->sb
+  #define stackempty() (sp <= stack)
+  #define splitable(c) c > 0 && count[c] > 1
+  struct {stirng *sa; int sn, sb;} stack[SIZE], *sp = stack;
+  string     *pile[256], *ak, *ta;
+  static int count[256];
+  int        i, b;
+  ta = malloc(n*sizeof(string));
+  
+  push(a, n, 0);
+  while(!stackempty()){
+    pop(a, n, b);
+    
+    for(i=n; --i>=0;)            /* tally */
+      count[a[i][b]]++;
+    
+    for(ak=a, i=0; i<256; i++){  /* find places */
+      if(splitable(i))
+        push(ak, count[i], b+1);
+      pile[i] = ak+=count[i];
+      count[i] = 0;
+    }
+    
+    for(i=n; --i>=0;)            /* move to temp */
+      ta[i] = a[i];
+    
+    for(i=n; --i>=0;)            /* move home */
+      *--pile[ta[i][b]] = ta[i]  
+  }
+  free(ta);
+}
+```
+
+Program 3.1 is amenable to most of the improvements listed in section 2; they appear in Program B. In addition, the piles are independent and need not be handled in order. Nor is it necessary to record the places of empty piles. These observations are embodied in the "find places" step of Program B.
+
+As we observed in the introduction, radix sorting is most advantageous for large arrays. When the piles get small, we may profitably divert to a simple low-overhead comparison-based sorting method such as insertion sort or Shell sort. Diversion thresholds between 10 and 50 work well; the exact value is not critical. Program B in the appendix is such a hybrid two-array sort. It is competitive with list-based sort; which of the two methods wins depends on what computer, compiler, and test data one measures. For library purposes, an array interface is more natural than a list interface. But two-array sort dilutes that advantage by using O(n) working space and dynamic storage allocation. Our next variant overcomes this drawback.
+
+假设字符串作为基数交换的数组。在基本的基数交换中，两个堆位于数组底部和顶部的已知位置。对于较大的基数，可以通过额外的一轮遍历来计算堆的位置，该轮计算出每个堆中有多少字符串。知道了堆的大小，我们就不需要链表了。
+
+程序 3.1 把字符串放回原处的方法是：先将字符串**<u>==作为一个块==</u>**移至辅助数组 *ta*，再将每个元素移回其适当位置。位置的上界在数组  *pile* 中预先计算，如图 4.1 所示（此“向后”选择是为了与第 4 节中的程序保持一致）。元素被稳定移动； 相等的元素保持它们在输入中的顺序。 与程序 2.2 一样，堆栈显式管理； 堆栈第三个字段用来保存每个子数组的长度。
+
+程序 3.1 适用于第 2 节中列出的大多数改进；它们出现在程序 B 中。此外堆是独立的，不需要按顺序处理。也不必记录空堆的位置。这些观察结果体现在程序B的“查找位置”步骤中。
+
+正如我们在简介中观察到，基数排序对大数组最有利。当堆变小时，我们可以改用一种简单的基于比较的低开销排序方法，例如插入排序或 Shell 排序。准确的值并不重要，10 到 50 之间的某个转换阈值效果就不错。附录中的程序 B 就是这样一种混合的 *Two-array sort*。它可以和基于列表的排序竞争；这两种方法谁获胜取决于所测量的计算机、编译器和测试数据。对于库函数来说，数组接口比列表接口更自然。但是，因为使用 O(n) 的工作空间和动态存储分配，*Two-array sort* 削弱了这种优势。我们的下一个变种克服了这个缺点。
+
 ## 4. American Flag Sort
 
-Instead of copying data to an auxiliary array and back, we can permute the data in place. The central problem, a nice exercise in practical algorithmics, is to rearrange into ascending order an array of n integer values in the range 0 to m - 1. Here m is a value of moderate size, fixed in our case at 256, andn is arbitrary. Special cases are the partition step of quicksort (m = 2) and the Dutch national flag problem (m = 3). By analogy with the latter, we call the general problem the American flag problem. (The many stripes are understood to be labeled distinctly, as if with the names of the several states in the original American union.)
-
-我们可以就地置换数据，而不必将数据复制到辅助数组，然后再复制回来。
-
-核心问题是将一个0到m-1范围内的n个整数值按升序重新排列。这里m是一个中等大小的值，在我们的例子中固定为256，n是任意的。特例是快速排序的分割步骤（m=2）和荷兰国旗问题（m=3）。与后者相类比，我们称之为美国国旗问题。（许多条纹被理解为清楚地标记着，就像是在最初的美国联邦中有几个州的名字一样。）
-
-中心问题是在实用算法中的一个不错的练习，它是将0到m-1范围内的n个整数值的数组重新排列为升序。这里m是中等大小的值，在我们的例子中固定为256，n是 任意的。 特殊情况是快速排序的分区步骤（m = 2）和荷兰国旗问题（m = 3）。 与后者类似，我们将一般性问题称为美国国旗问题。 （许多条纹被理解为带有明显的标签，好像带有原始美国联盟中几个州的名称一样。）
+Instead of copying data to an auxiliary array and back, we can permute the data in place. The central problem, a nice exercise in practical algorithmics, is to rearrange into ascending order an array of n integer values in the range 0 to m - 1. Here m is a value of moderate size, fixed in our case at 256, and n is arbitrary. Special cases are the partition step of quicksort (m = 2) and the Dutch national flag problem (m = 3). By analogy with the latter, we call the general problem the American flag problem. (The many stripes are understood to be labeled distinctly, as if with the names of the several states in the original American union.)
 
 American flag sort differs from the two-array sort mainly in its final phase. The effect of the "move to temp" and "move home" phases of Program 3.1 is attained by the "permute home" phase shown in Program 4.1 and Figures 4.1-4.4. This phase fills piles from the top, making room by cyclically displacing elements from pile to pile^*^.
 
-> - A similar algorithm in Knuth chapter 5.2, exercise 13, does without the array count, bnt involves more case analysis and visits O(n) elements more than once. The speed and simplicity of Program 4. I justify the cost of the extra array.
+> - A similar algorithm in Knuth chapter 5.2, exercise 13, does without the array count, but involves more case analysis and visits O(n) elements more than once. The speed and simplicity of Program 4.1 justify the cost of the extra array.
+
+```C
+// Program 4.1. In-place permutation to substitute in Program 3.1.
+
+#define swap (p, q, r)  r = p, p = q, q = r
+string           r, t;
+int              k, c;
+for(k=0; k < n; ) {
+  r = a[k];                     // 图 4.2
+  for(;;) {
+    c = r[b];                   // 图 4.3
+    if(--pile[c] <= a+k)
+      break;
+    swap(*pile[c], r, t);
+  }
+  a[k] = r;                     // 图 4.4
+  K += count[c];
+  count[c] = 0;
+}
+```
 
 Let *a*[*k*] be the first element of the first pile not yet known to be completely in place. Displace this element out of line to *r* (Figure 4.2). Let c be the number of the pile the displaced element belongs to. Find in the c- pile the next unfilled location, just below *pile*[*c*] (Figure 4.3). This location is the home of the displaced element. Swap the displaced element home after updating *pile*[*c*] to account for it.
 
 Repeat the operation of Figure 4.3 on the newly displaced element, following a cycle of the permutation until finally the home of the displaced element is where the cycle started, at *a*[*k*]. Move the displaced element to *a*[*k*]. Its pile, the current *c-* pile, is now filled (Figure 4.4). Skip to the beginning of the next pile by incrementing *k*. (Values in the *count* array must be retained from the "find places" phase.)  Clear the count of the just-completed pile, and begin another permutation cycle. It is easy to check that the code works right when a + k = *pile*[*c*] initially, that is, when the pile is already in place.
 
-When all piles but one are in place, the last pile must necessarily be in place, too. Progrum 4.2, otherwise a condensed Program 4.1, exploits this fact. Program 4.2 and Program B form the the basis of Program C in the appendix.
+When all piles but one are in place, the last pile must necessarily be in place, too. Program 4.2, otherwise a condensed Program 4.1, exploits this fact. Program 4.2 and Program B form the the basis of Program C in the appendix.
+
+```C
+// Program 4.2. improved in-place permutation.
+cmax = /* index of last occupied pile */;
+n -= count[cmax];
+count[cmax] = O;
+for (ak = a; ak < a+n; ak += count [c] , count [c] = 0) { 
+  r = *ak;
+  while(--pile[c = r[b]] > ak)
+    swap (*pile [c], r, t) ; 
+  *ak = r;
+}
+```
+
+我们可以就地置换数据，而不必将数据复制到辅助数组，然后再复制回来。这里的核心问题是一个不错的实用算法中练习题，将一个 0 到 m-1 范围内的 n 个整数值按升序重新排列。m 是一个中等大小的值，在我们的例子中固定为 256，n 是任意的。快速排序的划分（m=2）和荷兰国旗问题（m=3）是特例。与后者类似，我们将这个一般性问题称为美国国旗问题（**美国国旗**旗面有13道红白相间的宽条，代表最早建国时的[13个殖民地](https://zh.wikipedia.org/wiki/十三个殖民地)）。
+
+美国国旗排序与双数组排序的区别主要体现在最后阶段。程序 3.1 的“移到临时<u>**地点**</u>”和“移回原位”阶段的效果通过程序 4.1 和图 4.1 - 4.4 所示的“置换回原点”阶段实现。此阶段从<u>**==顶部==**</u>填充块，通过在各个块之间移动循环元素来腾出空间。
+
+> - Knuth 第 5.2 章练习 13 中的一个类似算法没有使用数组计数，但是涉及到更多的条件分析和多次访问 O(n)  元素。程序4.1 的速度和简单性证明了额外数组的成本是合理的。
+
+令 *a*[*k*] 为尚未完全就位的第一堆的第一个元素。将该元素移到 *r* 处（图4.2）。令 c 为被移元素所属的堆号。在 c- 堆中找到下一个未填充位置是**<u>放</u>**置换元素的地方，正好位于 *pile*[*c*] 的右侧（图4.3）。 更新 *pile*[*c*] 以便 将置换的元素交换到原位。
+
+在新置换的元素上重复图 4.3 的操作，经过多次置换，直到最后回到第一个置换元素开始的地方 *a*[*k*]。将替换的元素移动到 *a*[*k*]。现在 *a*[*k*] 所在的堆，即当前 *c-* 堆已完成填充（即置换，图4.4）。递增 *k* 跳到下一堆的开头（“查找位置”阶段构建的 *count* 数组的值必须保留），清除 *count*[*c*] （ 刚刚完成的堆）的计数，并开始另一个置换循环。如果当前堆已经完成置换，通过一开始检查 a+k=*pile*[*c*] ，就简单地让代码正确工作。
+
+当除了一个堆外的所有堆都在适当的位置时，最后一个堆也必然在适当的位置。 程序 4.2（否则为精简程序4.1）利用了这一事实。 程序 4.2 和程序 B 构成附录 C 中程序 C 的基础。
 
 ### 4.1 Stack Growth
 

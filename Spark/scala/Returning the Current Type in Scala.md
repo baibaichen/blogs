@@ -53,7 +53,7 @@ case class Kitty(name: String, color: Color) extends Pet {
 
 We also run into problems trying to abstract over renaming. For example, this attempt at a general renaming method fails to compile because the return type of `renamed` for an arbitrary `A <: Pet` is not specific enough; the best we can do is return `Pet`.
 
-```
+```scala
 def esquire[A <: Pet](a: A): A = a.renamed(a.name + ", Esq.")
 <console>:28: error: type mismatch;
  found   : Pet
@@ -68,6 +68,8 @@ So this approach doesn’t meet our stated goal of requiring that `renamed` retu
 
 An F-bounded type is **parameterized over its own subtypes**, which allows us to “pass” the implementing type as an argument to the superclass. The self-referential nature of `Pet[A <: Pet[A]]` is puzzling when you first see it; if it doesn’t click for you just keep on reading and it should start making more sense.
 
+> **F-bound** 类型的参数化类型是**<u>==其自身的子类型==</u>**，这允许我们可以将实现类型作为参数传递给超类。 第一次看到 `Pet[A <：Pet[A]]` 时，其**自我引用的性质**令人困惑。 如果你不理解它，请继续阅读，应该会变得有意义。
+
 ```scala
 trait Pet[A <: Pet[A]] {
   def name: String
@@ -77,13 +79,15 @@ trait Pet[A <: Pet[A]] {
 
 Ok, so any subtype of `Pet` needs to pass “itself” as a type argument.
 
+> 所以任何 `Pet` 的子类型都需要将**自身**作为类型参数传递。
+
 ```scala
 case class Fish(name: String, age: Int) extends Pet[Fish] { // note the type argument
   def renamed(newName: String) = copy(name = newName)
 }
 ```
 
-And all is well.
+==And all is well==.
 
 ```scala
 scala> val a = Fish("Jimmy", 2)
@@ -94,6 +98,8 @@ b: Fish = Fish(Bob,2)
 ```
 
 This time we **can** write our generic renaming method because we now have a more specific return type for `renamed`: any `Pet[A]` will return an `A`.
+
+> 这下可以用通用的方法重命名，因为现在可以为 `renamed` 提供更具体的返回类型：任何 `Pet[A]` 都将返回 `A`。
 
 ```scala
 scala> def esquire[A <: Pet[A]](a: A): A = a.renamed(a.name + ", Esq.")
@@ -107,15 +113,21 @@ So this is a big win. We now have a way to talk about the “current” type bec
 
 However we still have a problem with lying about what the “current” type is; **there is nothing forcing us to pass the correct type argument**. So here again is our `Kitty` that turns into a `Fish`.
 
+> 因此，这是一个巨大的胜利。 现在，我们可以讨论**当前**类型了，因为它作为参数出现。
+>
+> 然而，我们仍然有一个问题，那就是谎称“当前”类型；**没有机制确保我们传递正确的类型参数**。所以我们的 `Kityy` 又变成了 `Fish`。
+
 ```scala
 case class Kitty(name: String, color: Color) extends Pet[Fish] { // oops
   def renamed(newName: String): Fish = new Fish(newName, 42)
 }
 ```
 
-Rats. What we need is a way to restrict the implementing class *claiming* to be an `A` to *actually* be an `A`. And it turns out that Scala does give us a way to do that: a **self-type**annotation.
+Rats. What we need is a way to restrict the implementing class *claiming* to be an `A` to *actually* be an `A`. And it turns out that Scala does give us a way to do that: a **self-type** annotation.
 
-```
+> 所以，我们需要一种方法来限制**实现类**，当它声明 `A`时，就只能是 `A`。事实证明，Scala 确实为我们提供了一种方法：**self type** annotation。
+
+```scala
 trait Pet[A <: Pet[A]] { this: A => // self-type
   def name: String
   def renamed(newName: String): A 
@@ -124,7 +136,9 @@ trait Pet[A <: Pet[A]] { this: A => // self-type
 
 Now when we try to define our fishy `Kitty` the compiler says nope.
 
-```
+> 现在，当我们试图定义可疑的 `Kitty` 时，编译器会说不。
+
+```scala
 case class Kitty(name: String, color: Color) extends Pet[Fish] {
   def renamed(newName: String): Fish = new Fish(newName, 42)
 }
@@ -136,7 +150,9 @@ case class Kitty(name: String, color: Color) extends Pet[Fish] {
 
 This boxes us in considerably, and we may think we have won. But alas it turns out that we can still lie about the “current” type by extending *another* type that correctly meets the constraint. Subtyping has provided an unwanted loophole.
 
-```
+> 这限制不错，我们似乎已经搞定了。 但遗憾的是，仍然可以通过从另一个满足约束的类型派生，来谎报当前类型，**子类型提供了一个不必要的漏洞**。
+
+```scala
 class Mammal(val name: String) extends Pet[Mammal] {
   def renamed(newName: String) = new Mammal(newName)
 }
@@ -148,11 +164,17 @@ And on it goes. I am not aware of any way to further constrain the F-bounded typ
 
 So let’s try another approach.
 
+> 继续下去，我也不知道有啥方法可以进一步约束 **F-bound** 类型。 因此如果使用这种技术，我们可以做得相当好，但仍不能完全保证 `renamed` 符合规范。另请注意， `Pet` 的参数化类型引入的混乱不会添加任何信息；纯粹是一种限制实施的机制。
+>
+> 
+>
+> 所以让我们尝试另一种方法。
+
 ### How about a Typeclass?
 
 As is often the case, we can avoid our subtyping-related problems by using a typeclass. Let’s redefine `Pet` without our `renamed` method, and instead define an orthogonal [typeclass](http://tpolecat.github.io/2013/10/12/typeclass.html)to deal with this operation.
 
-```
+```scala
 trait Pet {
   def name: String
 }
@@ -164,7 +186,7 @@ trait Rename[A] {
 
 We can now define `Fish` and an *instance* of `Rename[Fish]`. We make the instance implicit and place it on the companion object so it will be available during implicit search.
 
-```
+```scala
 case class Fish(name: String, age: Int) extends Pet
 
 object Fish {
@@ -176,7 +198,7 @@ object Fish {
 
 And we can use an implicit class to make this operation act like a method as before. With this extra help any `Pet` with a `Rename` intance will automatically gain a `renamed` method by implicit conversion.
 
-```
+```scala
 implicit class RenameOps[A](a: A)(implicit ev: Rename[A]) {
   def renamed(newName: String) = ev.renamed(a, newName)
 }
@@ -184,7 +206,7 @@ implicit class RenameOps[A](a: A)(implicit ev: Rename[A]) {
 
 And our simple test still works, although the mechanism is quite different.
 
-```
+```scala
 scala> val a = Fish("Jimmy", 2)
 a: Fish = Fish(Jimmy,2)
 
@@ -194,7 +216,7 @@ b: Fish = Fish(Bob,2)
 
 With the typeclass-based design there is no simply way to define a `Rename[Kitty]` instance that returns anything other than another `Kitty`; the types make this quite clear. And our `esquire` method is a snap; the type bounds are different, but the implementation it is identical to the one in the F-bounded case above.
 
-```
+```scala
 scala> def esquire[A <: Pet : Rename](a: A): A = a.renamed(a.name + ", Esq.")
 esquire: [A <: Pet](a: A)(implicit evidence$1: Rename[A])A
 
@@ -210,7 +232,7 @@ So what if we abandon the super-trait altogether?
 
 Consider the following implementation, where `Pet` is a typeclass with associated syntax. We have abandoned subtype polymorphism altogether and are defining pets via *ad-hoc*polymorphism: any type `A` can act as a `Pet`, given an instance of `Pet[A]`.
 
-```
+```scala
 trait Pet[A] {
   def name(a: A): String
   def renamed(a: A, newName: String): A
@@ -224,7 +246,7 @@ implicit class PetOps[A](a: A)(implicit ev: Pet[A]) {
 
 Here is our `Fish` class, now without an interesting superclass, and an implicit instance `Pet[Fish]` on its companion object.
 
-```
+```scala
 case class Fish(name: String, age: Int)
 
 object Fish {
@@ -237,12 +259,14 @@ object Fish {
 
 And the `renamed` method works by implicit application of `PetOps`.
 
-```
+```scala
 scala> Fish("Bob", 42).renamed("Steve")
 res0: Fish = Fish(Steve,42)
 ```
 
-There is an informal conjecture that *ad-hoc* and parametric polymorphism are really all we need in a programming language; we can get along just fine without subtyping. Haskell is the prime example of such a language, and it’s an interesting exercise to take this approach in Scala, or at least making it part of our design space. In my experience I have never regretted replacing a superclass with a typeclass.
+There is an informal conjecture that *ad-hoc* and parametric polymorphism are really all we need in a 
+
+programming language; we can get along just fine without subtyping. Haskell is the prime example of such a language, and it’s an interesting exercise to take this approach in Scala, or at least making it part of our design space. In my experience I have never regretted replacing a superclass with a typeclass.
 
 ------
 
@@ -258,7 +282,7 @@ An interesting exercise is to consider the case where we have a heterogeneous co
 
 Let’s consider the F-bounded case first. Here is our full implementation:
 
-```
+```scala
 import java.awt.Color
 
 trait Pet[A <: Pet[A]] { this: A =>
@@ -291,7 +315,7 @@ res18: List[A forSome { type A <: Pet[A] }] = List(Fish(Bob, Esq.,12), Kitty(Tho
 
 In the *ad-hoc* implementation we have a different problem. For reference, here is our full implementation.
 
-```
+```scala
 import java.awt.Color
 
 trait Pet[A] {

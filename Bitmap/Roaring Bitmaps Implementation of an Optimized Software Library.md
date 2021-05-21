@@ -118,6 +118,8 @@ Like most commodity processors, Intel and AMD processors benefit from *bit-manip
 Two useful bit-manipulation instructions are `blsi`, which sets all but the least significant 1-bit to zero (i.e., `x & -x` in C), and `tzcnt`, which counts the number of trailing zeroes (largest *i* such as that *x/*2^i^ is an integer). Using the corresponding Intel intrinsics (`_blsi_u64` and `_mm_tzcnti_64`), we can extract the locations of all 1-bits in a 64-bit word (`w`) to an array (`out`) efficiently.
 
 > 两条有用的位操作指令是 `blsi`，将除最低有效 1 位以外的所有位设置为零（即 C 中的 `x & -x`），及 `tzcnt`，计算尾随零的数量（即求最大的 *i*，使得 *x/*2^i^ 是整数）。使用相应的 Inte l内部函数（`_blsi_u64`和`_mm_tzcnti_64`），我们可以将64位字（`w`）中所有1位的位置有效地提取到数组（`out`）中。
+>
+> > `blsi`：找到最右边的1位，并将所有其他位设置为0。最终结果只有一个最右边的1位集。例如，01010**==1==**00（最右边的位以粗体显示）将变为00000100。
 
 ```c
 pos = 0
@@ -205,7 +207,7 @@ We are interested in the following scenario: given a bitset and an array of 16-b
 ```C
   uint64_t old_w = words [pos >> 6];
   uint64_t new_w = old_w | ( UINT64_C (1) << ( pos & 63) );
-cardinality += ( old_w ˆ new_w ) >> ( pos & 63) ; // 更新基数
+  cardinality += ( old_w ˆ new_w ) >> ( pos & 63) ; // 更新基数
   words [pos >> 6] = new_w ;
 ```
 

@@ -1,6 +1,6 @@
 ## 2 ROARING Bitmap
 
-我们将32位索引(`[0；n)`)的范围划分为2^16^个整数块，这些整数共享相同的16位**最高有效位**（most significant digits）。我们使用专门的容器来存储它们的16位**最低有效位**（least significant bits）。
+我们将32位索引`[0, n)`的范围划分为2^16^个整数块，这些整数共享相同的16位**最高有效位**（most significant digits）。我们使用专门的容器来存储它们的16位**最低有效位**（least significant bits）。
 
 > When a chunk contains no more than 4096 integers, we use a sorted array of **==packed==** 16-bit integers. When there are more than 4096 integers, we use a 2^16^-bit bitmap. Thus, we have two types of containers: an array container for sparse chunks and a bitmap container for dense chunks. The 4096 threshold insures that at the level of the containers, each integer uses no more than 16 bits: we either use 2^16^ bits for more than 4096 integers, using less than 16 bits/integer, or else we use exactly 16 bits/integer.
 
@@ -18,9 +18,9 @@
 
 > Each Roaring container keeps track of its cardinality (number of integers) using a counter. Thus computing the cardinality of a Roaring bitmap can be done quickly: it suffices to sum at most  $\lceil n/2^{16} \rceil$ counters. It also makes it possible to support rank and select queries faster than with a typical bitmap: rank queries count the number of set bits in a range [0, i] whereas select queries seek the location of the ith set bit.
 
-每个Roaring容器使用计数器跟踪其基数（整数的个数）。 因此，可以快速完成计算Roaring位图的基数：它最多可以求和 $\lceil n/2^{16} \rceil$个计数器。与传统的位图相比，它还可以更快地支持排名和选择查询：排名查询计算范围[0, i]中的设置位数，而选择查询查找第i个设置位的位置。
+每个Roaring容器使用计数器跟踪其基数（整数的个数）。 因此，可以快速完成计算Roaring 位图的基数：它最多对  $\lceil n/2^{16} \rceil$ 个计数器求和。与传统的位图相比，它还可以更快地支持排名和选择查询：**排名查询**计算[0, i]中的设置位数，而**选择查询**返回第 i 个设置位的整数。
 
-> ==TODO：== 什么是**rank query**，这里感觉是range query
+>  **rank query（排名查询）**：给定一个整数 `x`，返回集合内 `<=x`  的整数个数。
 
 > The overhead due to the containers and the dynamic array means that our memory usage can exceed 16 bits/integer. However, as long as the number of containers is small compared to the total number of integers, we should never use much more than 16 bits/integer. We assume that there are far fewer containers than integers. More precisely, we assume that the density typically exceeds 0.1% or that `n/|S| > 0.001`. When applications encounter integer sets with lower density (less than 0.1%), a bitmap is unlikely to be the proper data structure.
 
@@ -121,7 +121,7 @@ Roaring位图用于表示**32位无符号整数**的集合。在高层，Roaring
 
 > We can verify that bitCount((Ci ≪ 1) ANDNOT Ci) = 6, that is, we have effectively computed the number of runs. In the case where a run continues up to the left-most bit, and does not continue in the next word, it does not get counted, but we add another term ((Ci ≫ 63) ANDNOT Ci+1 when using 64-bit words) to check for this case. We use only a few instructions for each word. Nevertheless, the computation may be expensive—exceeding the cost of computing the union or intersection between two bitmap containers. Thus, instead of always computing the number of runs exactly, we rely on the observation that no bitmap container with more than 2047 runs should be converted. As soon as we can produce a lower bound exceeding 2047 on the number of runs, we can stop. An exact computation of the number of runs is important only when our lower bound is less than 2048. We found that a good heuristic is to compute the number of runs in blocks of 128 words using a function inspired by Algorithm 1. We proceed block by block. As soon as the number of runs exceeds the threshold, we conclude that converting to a run container is counterproductive and abort the computation of the number of runs. We could also have applied the optimization to array containers as well, stopping the count of the number of runs at 2047, but this optimization is likely less useful because array containers have small cardinality compared to bitmap containers. A further possible optimization is to omit the last term from the sum in line 5 of Algorithm 1, thus underestimating the number of runs, typically by a few percent, but by up to 1023 in the worst case. Computing this lower bound is nearly twice as fast as computing the exact count in our tests using a recent Intel processor (Haswell microarchitecture).
 
-可以验证 **`bitCount((C~i~ ≪ 1) ANDNOT C~i~) = 6`** ，也就是说，我们已经有效地计算了行程个数。如果连续整数持续到最高有效位，但没在下一个字中继续，则丢失了一个计数。但是我们添加另一个算式（假设使用64位字，**(C~i~ ≫ 63) ANDNOT C~i+1~**）检查这种情况。每个字只需要使用几条指令，然而计算成本可能比较高，超过计算两个位图容器之间并集或交集的成本。因此，并不是每次都精确地计算行程个数，而是依赖于这样的观察：行程个数超过2047的位图容器不应该被转换。一旦行程个数的下限超过2047，算法就可以停止了。只有当下限小于2048时，精确计算行程个数才重要。我们发现一个好的启发式方法来使用算法1中的函数：每次计数128个字（1KB）的行程个数，一块块地计算。一旦行程个数超过阈值，就得出结论：转换为行程容器会适得其反，中止计算。我们也可以将该优化应用于数组容器，在到达2047个行程个时停止，但这种优化可能不太有用，因为与位图容器相比，数组容器具有较小的基数。另一种可能的优化方法是从算法1第5行的求和中省略最后一项，少估行程个数，通常为百分之几，最坏的情况是最多少算1023，使用最近的英特尔处理器（Haswell微架构）测试，计算这个下限的速度几乎是精确计数的两倍。
+可以验证 **bitCount((C~i~ ≪ 1) ANDNOT C~i~) = 6**，也就是说，我们已经有效地计算了行程个数。如果连续整数持续到最高有效位，但没在下一个字中继续，则丢失了一个计数。但是我们添加另一个算式（假设使用64位字，**(C~i~ ≫ 63) ANDNOT C~i+1~**）检查这种情况。每个字只需要使用几条指令，然而计算成本可能比较高，超过计算两个位图容器之间并集或交集的成本。因此，并不是每次都精确地计算行程个数，而是依赖于这样的观察：行程个数超过2047的位图容器不应该被转换。一旦行程个数的下限超过2047，算法就可以停止了。只有当下限小于2048时，精确计算行程个数才重要。我们发现一个好的启发式方法来使用算法1中的函数：每次计数128个字（1KB）的行程个数，一块块地计算。一旦行程个数超过阈值，就得出结论：转换为行程容器会适得其反，中止计算。我们也可以将该优化应用于数组容器，在到达2047个行程个时停止，但这种优化可能不太有用，因为与位图容器相比，数组容器具有较小的基数。另一种可能的优化方法是从算法1第5行的求和中省略最后一项，少估行程个数，通常为百分之几，最坏的情况是最多少算1023，使用最近的英特尔处理器（Haswell微架构）测试，计算这个下限的速度几乎是精确计数的两倍。
 
 ```bash
 # 算法1. 用于计算位图中行程个数的函数。
@@ -333,7 +333,7 @@ Roaring的另一个特点是，其中一些逻辑操作可以**就地执行**。
 
 > Our software also supports fast rank and select functions: rank queries count the number of values present in a range whereas select queries seek the ith value. These queries are accelerated because array and bitmap containers maintain their cardinality as a value that can be quickly queried. Moreover, when accessing serialized bitmaps (e.g., through memory-mapped files), the cardinality of all containers is readily available.
 
-Roaring还支持快速排名和选择功能：**排名查询**统计范围内存在的值的数量，而**选择查询**搜索第i个值。 这些查询会被加速，因为数组和位图容器将其基数保存为可快速查询的值。 此外，当访问序列化的位图（例如，通过内存映射文件），所有容器的基数都是现成的。
+Roaring 还支持快速排名和选择功能：**排名查询**统计范围内存在的值的数量，而**选择查询**搜索第 i 个位置的值。由于数组和位图容器将其基数保存为可快速查询的值，所以会加速这些查询。 此外，当访问序列化的位图（例如，通过内存映射文件），所有容器的基数都是现成的。
 
 > Our software also supports the ability to add or remove all values in an interval, to check efficiently whether two bitmaps intersect (without computing the intersection) and so forth. We allow users to quickly iterate over the values contained in a Roaring bitmap. Internally, these iterators are implemented by on-the-fly creation of iterators over containers. We also found it useful to apply the flyweight design patterns and to allow programmers to reuse iterator objects—to minimize memory allocation [23].
 

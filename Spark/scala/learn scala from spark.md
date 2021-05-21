@@ -43,8 +43,8 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]]
 }
 ```
 这里有两个语法构造：
-1. **自递归类型**：`BaseType <: TreeNode[BaseType]`，即**F-Bounded Type**。
-2. **自类型标记**：`self: BaseType =>`，即**self-type annotation**。
+1. **自递归类型**：`BaseType <: TreeNode[BaseType]`，即 **F-Bounded Type**。
+2. **自类型标记**：`self: BaseType =>`，即 **self-type annotation**。
 
 <img width="50%" height="50%"  src='https://g.gravizo.com/svg?
 abstract class TreeNode {}
@@ -72,11 +72,14 @@ transformUp==用后序遍历方式将规则作用于子节点===g( )
 ```
 ### `Expression` 体系
 
-表达式一般指的是不需要触发执行引擎而能够直接进行计算的单元，例如加减乘除四则运算、逻辑操作、转换操作、过滤操作等。如果说`TreeNode`是框架，那么就是`Expression`灵魂。在各种SQL引擎中，表达式都起着重要的作用。
+**<u>表达式一般指的是不需要触发执行引擎而能够直接进行计算的单元</u>**，例如加减乘除四则运算、逻辑操作、转换操作、过滤操作等。如果说`TreeNode`是框架，那么就是`Expression`灵魂。在各种SQL引擎中，表达式都起着重要的作用。
 
-Catalyst实现了完善的表达式体系，与各种算子（`QueryPlan`）占据同样第地位。算子执行前通常都会进行绑定操作，将表达式与输入的属性对应起来，同时算子也能够调用各种表达式处理相应的逻辑。在`Expression`类中主要定义了5个方面的操作，包括基本属性、核心操作、输入输出、字符串表示和等价性判断，如图3.7所示。
+Catalyst 实现了完善的表达式体系，与各种算子（`QueryPlan`）占据同样第地位。算子执行前通常都会进行绑定操作，将表达式与输入的属性对应起来，同时算子也能够调用各种表达式处理相应的逻辑。在`Expression`类中主要定义了5个方面的操作，包括基本属性、核心操作、输入输出、字符串表示和等价性判断，如图3.7所示。
 
-![Expression基本操作](learn scala from spark/image-3-7.png) 图3.7 Expression基本操作
+<p align="center">
+ <img src="learn scala from spark/image-3-7.png" />
+图3.7 Expression基本操作
+</p>
 
 核心操作的`eval`函数实现了表达式对应的处理逻辑，也就是其他模块调用该表达式的主要接口，而`genCode`和`doGenCode`用于生成表达上对应的**Java**代码（这部分内容将在第9章介绍）。字符串表示用于查看该Expression的具体内容，表达式名和输入参数等。下面对Expression包含的基本属性和操作进行简单介绍。
 
@@ -113,7 +116,7 @@ Catalyst实现了完善的表达式体系，与各种算子（`QueryPlan`）占�
 - **`BinaryExpression`**：二元类型的表达式，包含两个子节点。这种类型的表达式数目也比较庞大，大约80种。比较常用的是一些二元的算数表达式，例如加减乘除操作、`RLike`函数等。另外`BinaryExpression`有一个`BinaryOperator`特例，它要求两个子节点具有相同的输出数据类型。
 - **`TernaryExpression`** ：三元类型的表达式，包含三个子节点。这种类型的表达式数目不多，大约10种，大部分都是一些字符串操作函数，非常典型的例子可以参考Substring函数，其子节点分别是字符串、下标和长度的表达式。
 
-Catalyst中的表达式如果想要在函数注册表中公开（用户因此可以使用`name(arguments...)`的方式调用它），具体实现必须是一个`case`类，其构造函数的参数都必须是`Expression`s类型。有关示例，请参阅Substring。
+Catalyst 中的表达式如果想要在函数注册表中公开（用户因此可以使用`name(arguments...)`的方式调用它），具体实现必须是一个`case`类，其构造函数的参数都必须是`Expression`s类型。有关示例，请参阅Substring。
 
 ```scala
 abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
@@ -121,43 +124,49 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
 }
 abstract class Expression extends TreeNode[Expression] {}
 ```
-`Attribute` is the Catalyst name for an input column from a child operator. An `AttributeReference` has been resolved, meaning we know which input  column in particular it is referring too.  An `AttributeReference` also has a known DataType.  In contrast, before analysis there might still exist `UnresolvedReferences`, which are just string identifiers from a parsed query.
-
-An Expression can be more complex (like you suggested,  `a + b`), though  technically just `a` is also a very simple Expression.  The following console session shows how these types are composed:
-
-```bash
-$ build/sbt sql/console
-import org.apache.spark.SparkContextimport
-org.apache.spark.sql.SQLContextimport
-org.apache.spark.sql.catalyst.analysis._import
-org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.catalyst.dsl.expressions._import
-org.apache.spark.sql.catalyst.dsl.plans._
-
-sc: org.apache.spark.SparkContext = org.apache.spark.SparkContext@5adfe37d
-sqlContext: org.apache.spark.sql.SQLContext =
-org.apache.spark.sql.SQLContext@20d05227import
-sqlContext.implicits._import sqlContext._Welcome to Scala version
-2.10.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_45).Type in
-expressions to have them evaluated.Type :help for more information.
-
-scala> val unresolvedAttr: UnresolvedAttribute = 'a
-unresolvedAttr: org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute = 'a
-
-scala> val relation = LocalRelation('a.int)
-relation: org.apache.spark.sql.catalyst.plans.logical.LocalRelation =
-LocalRelation [a#0]
-
-scala> val parsedQuery = relation.select(unresolvedAttr)
-parsedQuery: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan =
-'Project ['a]
- LocalRelation [a#0]
-
-scala> parsedQuery.analyze
-res11: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan = Project [a#0]
- LocalRelation [a#0]
-```
-The `#0` after `a` is a unique identifier (within this JVM) that says where the data is coming from, even as plans are rearranged due to optimizations.
+> [Re: What does Attribute and AttributeReference mean in Spark SQL](http://mail-archives.apache.org/mod_mbox/spark-user/201508.mbox/%3CCAAswR-59+2Fz1HNfVAUmM1Oc_uWaHki24=vrGuB3oh7x_cUG7A@mail.gmail.com%3E)
+>
+> `Attribute` is the Catalyst name for an input column from a child operator. <u>An `AttributeReference` has been resolved, meaning we know which input  column in particular it is referring too.</u>  An `AttributeReference` also has a known DataType.  In contrast, before analysis there might still exist `UnresolvedReferences`, which are just string identifiers from a parsed query.
+>
+> An Expression can be more complex (like you suggested,  `a + b`), though  technically just `a` is also a very simple Expression.  The following console session shows how these types are composed:
+>
+> ```bash
+> $ build/sbt sql/console
+> import org.apache.spark.SparkContextimport
+> org.apache.spark.sql.SQLContextimport
+> org.apache.spark.sql.catalyst.analysis._import
+> org.apache.spark.sql.catalyst.plans.logical._
+> import org.apache.spark.sql.catalyst.dsl.expressions._import
+> org.apache.spark.sql.catalyst.dsl.plans._
+> 
+> sc: org.apache.spark.SparkContext = org.apache.spark.SparkContext@5adfe37d
+> sqlContext: org.apache.spark.sql.SQLContext =
+> org.apache.spark.sql.SQLContext@20d05227import
+> sqlContext.implicits._import sqlContext._Welcome to Scala version
+> 2.10.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_45).Type in
+> expressions to have them evaluated.Type :help for more information.
+> 
+> scala> val unresolvedAttr: UnresolvedAttribute = 'a
+> unresolvedAttr: org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute = 'a
+> 
+> scala> val relation = LocalRelation('a.int)
+> relation: org.apache.spark.sql.catalyst.plans.logical.LocalRelation =
+> LocalRelation [a#0]
+> 
+> scala> val parsedQuery = relation.select(unresolvedAttr)
+> parsedQuery: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan =
+> 'Project ['a]
+>  LocalRelation [a#0]
+> 
+> scala> parsedQuery.analyze
+> res11: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan = Project [a#0]
+>  LocalRelation [a#0]
+> ```
+> The `#0` after `a` is a unique identifier (within this JVM) that says where the data is coming from, even as plans are rearranged due to optimizations.
+>
+> `BoundReference`
+> 
+> 
 
 ## 5.2 LogicalPlan 简介
 `LogicalPlan` 作为数据结构记录了对应逻辑算子树节点的基本信息和基本操作，包括输入输出和各种处理逻辑等。在第 3 章中已经介绍过， `LogicalPlan` 属于 `TreeNode` 体系，继承自 `QueryPlan` 父类。
@@ -479,7 +488,7 @@ val optimizedPlan: LogicalPlan = optimizer.execute(analyzed)
 
 #### （ 12 ） Batch RewriteSubquery ⇒ RewritePredicateSubquery | CollapseProject
 
-该 Batch 主要用来优化子查询，目前包含 `RewritePredicateSubquery` 和 `CollapseProject` 两条优化规则。 `RewritePredicateSubquery` 将特定的子查询谓词逻辑转换为 left-sem i /anti-join 操作。其中，**EXISTS** 和 **NOTEXISTS** 算子分别对应 semi 和 anti 类型的 Join，过滤条件会被当作 Join 的条件；IN 和 NOT IN 也分别对应 semi 和 anti 类型的 Join，过滤条件和选择的列都会被当作 join 的条件。 `CollapseProject` 优化规则比较简单，类似 `CombineTypedFilters` 优化规则，会将两个相邻的 Project 算子组合在一起并执行别名替换，整合成一个统一的表达式。
+该 Batch 主要用来优化子查询，目前包含 `RewritePredicateSubquery` 和 `CollapseProject` 两条优化规则。 `RewritePredicateSubquery` 将特定的子查询谓词逻辑转换为 left-semi /anti-join 操作。其中，**EXISTS** 和 **NOTEXISTS** 算子分别对应 semi 和 anti 类型的 Join，过滤条件会被当作 Join 的条件；IN 和 NOT IN 也分别对应 semi 和 anti 类型的 Join，过滤条件和选择的列都会被当作 join 的条件。 `CollapseProject` 优化规则比较简单，类似 `CombineTypedFilters` 优化规则，会将两个相邻的 Project 算子组合在一起并执行别名替换，整合成一个统一的表达式。
 
 #### （ 13 ） Batch OptimizeMetadataOnly Query ⇒ OptimizeMetadataOnlyQuery
 
@@ -690,12 +699,12 @@ public class Main {
 在 `CodegenContext` 中保留了代码的信息，如何生成具体的代码在 `CodeGenerator` 的派生类和 `Expression` 的`genCode` 和 `doGenCode` 中，代码框架一般如下，也可以参见[图 9.25]() 
 
 ```scala
-// 来自 GenerateUnsafeProjection
-//   生成一个从 InternalRow 返回 UnsafeRow 的 Projection(实际是 UnsafeProjection )。
-//   它为所有表达式生成代码，计算所有列的总长度（可以通过变量访问），然后将数据以 UnsafeRow 的形式
-//   复制到暂存缓冲区空间中（暂存缓冲区将根据需要增长）。
+//来自 GenerateUnsafeProjection
+//  生成一个从 InternalRow 返回 UnsafeRow 的 Projection(实际是 UnsafeProjection )。
+//  它为所有表达式生成代码，计算所有列的总长度（可以通过变量访问），然后将数据以 UnsafeRow 的形式
+//  复制到暂存缓冲区空间中（暂存缓冲区将根据需要增长）。
 //
-//   注意：返回的 UnsafeRow 将指向 Projection 内部的暂存缓冲区。
+//  注意：返回的 UnsafeRow 将指向 Projection 内部的暂存缓冲区。
 
 val ctx  = newCodeGenContext()
 val eval = createCode(ctx, expressions, subexpressionEliminationEnabled)

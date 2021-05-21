@@ -189,7 +189,7 @@ In classical OO decomposition, the base class of a class hierarchy contains test
 
 The base class Expr contains test methods isVar, isNum and isMul, which correspond to the three subclasses of Expr (a trait is roughly a Java interface with methods optionally having default implementations). All test methods return false by default. Each subclass re-implements “its” test method to return true. The base class also contains one accessor method for every publicly visible field that is defined in some subclass. The default implementation of every access method in the base class throws a NoSuchMemberError exception.Each subclass re-implements the accessors for its own members. Scala makes these re-implementations particularly easy because it allows one to unify a class constructor and an overriding accessor method in one syntactic construct, using the syntax **override val …** in a class parameter.
 
-> 基类`Expr`包含测试方法`isVar`，`isNum`和`isMul`，它们对应于`Expr`的三个子类（**trait**大致是Java的接口，但是其方法可以有默认实现）。默认情况下，所有测试方法都返回*false*。每个子类重载“其”测试方法以返回true。子类中定义的每个公开可见字段，基类都包含一个**访问器**方法。基类中每个访问方法的默认实现都抛出`NoSuchMemberError`异常。每个子类都为其自己的成员重新实现访问器。在Scala中重载访问器方法特别容易，因为它允许在类参数中使用`override val …`这样的语法，同时定义了类的构造函数和重载的访问器方法。
+> 基类 `Expr` 包含测试方法`isVar`，`isNum`和`isMul`，它们对应于`Expr`的三个子类（**trait**大致是Java的接口，但是其方法可以有默认实现）。默认情况下，所有测试方法都返回*false*。每个子类重载“其”测试方法以返回true。子类中定义的每个公开可见字段，基类都包含一个**访问器**方法。基类中每个访问方法的默认实现都抛出`NoSuchMemberError`异常。每个子类都为其自己的成员重新实现访问器。在Scala中重载访问器方法特别容易，因为它允许在类参数中使用`override val …`这样的语法，同时定义了类的构造函数和重载的访问器方法。
 
 Note that in a dynamically typed language like Smalltalk, the base class needs to define only tests, not accessors, because missing accessors are already caught at run-time and are turned into NoSuchMethod messages. So the OO-decomposition pattern becomes considerably more lightweight. That might be the reason why this form of decomposition is more prevalent in dynamically typed languages than in statically typed ones. But even then the technique can be heavy. For instance, Squeak’s Object class contains 35 test methods that each inquire whether the receiver is of some (often quite specific) subclass.
 
@@ -1227,7 +1227,7 @@ This is already a big improvement -- the business logic pops out much more clear
 
 The chain of `if...else` still has some redundancy we'd like to squeeze out, both because it gives bugs a place to hide, and makes readers work harder to understand what the code does. Specifically, the `if (obj instanceof ...)`part is repeated. We'd like to say "choose the block which best describes the target object", and be guaranteed that exactly one of them will execute.
 
-> 我们仍然想从`if ... else`链中挤出一些冗余，因为它给**bug**提供了隐藏的地方，并使读者更难以理解代码的作用。 具体来说就是重复的`if (obj instanceof ...)`这部分。 我们想表达的是：“选择最能描述目标对象的代码块”，并保证其中只有一个会执行。
+> 我们仍然想从`if ... else`链中挤出一些冗余，因为它给 **bug** 提供了隐藏的地方，并使读者更难以理解代码的作用。 具体来说就是重复的`if (obj instanceof ...)`这部分。 我们想表达的是：“选择最能描述目标对象的代码块”，并保证其中只有一个会执行。
 
 We already have a mechanism for a multi-armed equality test in the language -- `switch`. But `switch` is currently very limited. You can only switch on a small set of types -- numbers, strings, and enums -- and you can only test for exact equality against constants. But these limitations are mostly accidents of history; the `switch` statement is a perfect "match" for pattern matching. Just as the type operand of `instanceof` can be generalized to patterns, so can `case` labels. Using a switch expression with pattern cases, we can express our formatting example as:
 
