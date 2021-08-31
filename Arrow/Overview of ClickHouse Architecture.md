@@ -10,7 +10,9 @@ There are two different approaches for speeding up query processing: vectorized 
 >
 > > 这个设计思路并不是新的思路理念。历史可以追溯到`APL`编程语言时代：`A+`, `J`, `K`, and `Q`。数组编程广泛用于科学数据处理领域。而在关系型数据库中：也应用了`向量化`系统。
 >
-> 在加速查询处理上，有两种方法：向量化查询执行和运行时代码生成。后者删除了所有的间接和动态调度。这两个方法没有绝对的优胜者，当多个操作一起执行时，运行时代码生成会更好，可以充分累用 CPU 执行单元和流水线。**向量化查询执行实用性并不那么高**，因为它涉及必须写到缓存并读回的临时向量。如果 L2 缓存容纳不下临时数据，那这将成为一个问题。但向量化查询执行更容易利用 **CPU** 的 **SIMD** 能力。这篇[研究论文](http://15721.courses.cs.cmu.edu/spring2016/papers/p5-sompolski.pdf)显示将两个方法结合到一起效果会更好。ClickHouse 主要使用**向量化查询执行**，并**有限支持运行时代码生成**（仅`GROUP BY`内部循环第一阶段被编译）。
+> 在加速查询处理上，有两种方法：向量化查询执行和运行时代码生成。后者删除了所有的间接和动态调度。这两个方法没有绝对的优胜者，当多个操作一起执行时，**运行时代码**生成会更好，可以充分累用 CPU 执行单元和流水线。**向量化查询执行实用性并不那么高**，因为它涉及必须写到缓存并读回的临时向量。如果 L2 缓存容纳不下临时数据，那这将成为一个问题。但向量化查询执行更容易利用 **CPU** 的 **SIMD** 能力。这篇[研究论文](http://15721.courses.cs.cmu.edu/spring2016/papers/p5-sompolski.pdf)显示将两个方法结合到一起效果会更好。ClickHouse 主要使用**向量化查询执行**，并**有限支持运行时代码生成**（仅`GROUP BY`内部循环第一阶段被编译）。
+>
+> Vectorization vs. Compilation in Query Execution
 
 ## Columns[ ](https://clickhouse.tech/docs/en/development/architecture/#columns)
 
@@ -31,7 +33,6 @@ Nevertheless, it is possible to work with individual values as well. To represen
 > 但也可使用利用 `Field` 表示的单个值， `Field` 不过是 `UInt64`， `Int64`， `Float64`， `String` 和 `Array` 的[可区分联合](https://zh.wikipedia.org/wiki/%E6%A0%87%E7%AD%BE%E8%81%94%E5%90%88)。 `IColumn`  有 `operator[]` 方法，将第 n 个值按 `Field` 返回，并且有 `insert` 方法将 `Field` 追加到列尾。这些方法并不高效，因为需要处理代表单个值的 `Field` 的临时对象。可以使用像 `insertFrom`， `insertRangeFrom` 这些更有效的方法。
 >
 > 对于表的数据类型，`Field` 没有足够的信息。比如，`UInt8`， `UInt16`， `UInt32` 和 `UInt64` 在 `Field` 中均表示为 `UInt64`。
->
 
 ## Leaky Abstractions[ ](https://clickhouse.tech/docs/en/development/architecture/#leaky-abstractions)
 
@@ -481,7 +482,6 @@ To be honest, LZ4 is not really the Pareto frontier — there are some options a
 >
 >
 > 老实说，LZ4 并不是真正的**<u>==帕累托前沿==</u>**：有些选择只是稍好一点。例如， [LZTURBO](https://sites.google.com/site/powturbo/) 来自一个绰号为 [powturbo](https://github.com/powturbo) 的开发者。多亏了 [encode.ru](https://encode.ru/) 社区（最大的，可能也是唯一的数据压缩论坛），结果的可靠性是毋庸置疑的。不幸的是，开发人员并没有分发源代码或二进制文件；只提供给有限数量的人进行测试，或者付很多钱买它（尽管看起来还没有人为此付费）。还可以看看 [Lizard](https://github.com/inikep/lizard/)（以前是LZ5）和 [Density](https://github.com/centaurean/density)，选择某个特定的压缩级别时，可能比 LZ4 稍好一些。另一个非常有趣的选择是 [LZSSE](https://github.com/ConorStokes/LZSSE/)。但先看完这篇文章再看它。
->
 
 ### How LZ4 works
 

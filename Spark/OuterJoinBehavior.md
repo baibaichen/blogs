@@ -104,7 +104,7 @@ from src s1 left join src s2 on s2.key > '2';
 和下推的结果一样
 ```sql
 select s1.key, s2.key 
-from (select key from src where key > '2') s1 left join src s2;
+from src s1 left join (select key from src where key > '2') s2;
 ```
 
 ## Case W2: Where Predicate on Null Supplying Table

@@ -1,4 +1,4 @@
-# 背景
+# [背景](https://en.wikipedia.org/wiki/Existential_crisis)
 
 最近正好准备要做Benchmark相关的事，正好发现最新的 [IntelliJ IDEA 2019.2开始有Profiling的功能](https://www.jetbrains.com/help/idea/cpu-profiler.html)，**貌似**可以不再用JProfiler，或者VisualVM做本地的Profiler。IDEA的这个功能实际是集成了[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)和[Java Flight Recorder](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)。从[Async Profiler](https://github.com/jvm-profiling-tools/async-profiler)这引出了安全点偏差的问题。
 
@@ -618,7 +618,7 @@ A big thank you to all the kind reviewers: [JP Bempel](https://twitter.com/jpbem
 
 # 为啥大多数Java采样分析器不好用
 
-本文建立在[上一篇关于安全点的](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html)基础上。如果没读过，可能会感到迷茫和困惑。如果已读过，但仍感到迷茫和困惑，并且确定这种感觉与手头的事情有关（而不是与存在的危机相对），继续往下看吧。 那么，既然我们已经确定了什么是安全点，那么：
+本文建立在[上一篇关于安全点的文章](http://psy-lob-saw.blogspot.com/2015/12/safepoints.html)的基础上。如果你没读过，可能会感到迷茫和困惑。如果你读过它，还仍感到迷茫和困惑，并且确定这种感觉与手头的事情有关（==而不是[存在危机](https://en.wikipedia.org/wiki/Existential_crisis)==），那就继续往下看吧。 既然我们已经知道啥是安全点，那么：
 
 1. 安全点轮询分散在相当任意的点上（<u>取决于执行模式，主要是在未计数的循环后缘或方法返回/入口</u>）。
 2. 将JVM带到全局安全点成本很高。
@@ -627,11 +627,11 @@ A big thank you to all the kind reviewers: [JP Bempel](https://twitter.com/jpbem
 
 [![img](https://1.bp.blogspot.com/-NTpQ0vTOg9o/VsytuZ7EIvI/AAAAAAAACfU/7ITCc3qLuoA/s1600/which-profiler.png)](https://1.bp.blogspot.com/-NTpQ0vTOg9o/VsytuZ7EIvI/AAAAAAAACfU/7ITCc3qLuoA/s1600/which-profiler.png)
 
-VisualVM、NB Profiler（同样的东西）、YourKit和JProfiler都提供了一个采样**CPU的Profiler**，在**安全点**进行采样。看到这是一个相当普遍的问题，让我们深入探讨一下。
+VisualVM、NetBeans Profiler（同样的东西）、YourKit 和 JProfiler都提供了一个在**安全点**处**采样 CPU 的 Profiler**。鉴于这是一个相当普遍的问题，需要深入探讨一下。
 
-## 采样分析器如何工作（理论上）
+## 采样分析器（理论上）如何工作
 
-**采样分析器**应该通过在不同的执行时间点上采样应用程序，来近似估算应用程序中“执行时间”的分布。每次采样的数据可以是：
+**采样分析器**应该通过<u>在应用程序不同执行时间点上的采样</u>，来近似估算应用程序中“执行时间”的分布。每次采样的数据可以是：
 
 - 当前指令
 
@@ -641,11 +641,11 @@ VisualVM、NB Profiler（同样的东西）、YourKit和JProfiler都提供了一
 
 - 当前堆栈跟踪
 
-可以为单个线程或所有线程采样数据，那么如何采样，Profiler 才能正确工作？
+每次采样时，可以收集单个线程或所有线程样本数据。那么如何采样，Profiler 才能正确工作？
 
-> “但是，要使采样结果与完整（未采样）的概况相媲美，必须满足以下两个条件。**首先，我们必须拥有大量样本才能获得具有统计意义的结果。**例如，如果分析器在整个程序运行中只收集一个样本，分析器会将程序执行时间的100％分配给采样所在的代码，将0％分配给其他所有代码。[...]
+> “然而，要使采样结果与完整（未采样）的概况相媲美，必须满足以下两个条件。**首先，我们必须拥有大量样本才能获得具有统计意义的结果。**例如，如果分析器在整个程序运行中只收集一个样本，分析器会将 100% 的程序执行时间分配给采样所在的代码，将 0％ 分配给其他所有代码。[...]
 >
-> **其次，分析器应以相同的概率对程序运行中的所有点进行采样。**否则采样结果将带有偏差。 例如，假设分析器只能对包含`call`的方法进行采样，那就不会将任何执行时间归因于不包含`call`的方法，即使这些有`call`的方法可能占据程序大部分执行时间。” 来自于[评估Java探查器的准确性（Evaluating the Accuracy of Java Profiler）](http://plv.colorado.edu/papers/mytkowicz-pldi10.pdf)，我们将稍后再回到该文
+> **其次，分析器应以相同的概率对程序运行中的所有点进行采样。**否则采样结果将带有偏差。 例如，假设分析器只能对包含 `call` 的方法进行采样，那就不会将任何执行时间归因于不包含 `call` 的方法，即使它们可能占程序的大部分执行时间。” 来自于[评估Java探查器的准确性（Evaluating the Accuracy of Java Profiler）](http://plv.colorado.edu/papers/mytkowicz-pldi10.pdf)，我们将稍后再用到该文
 
 听起来很简单，对吧？
 
@@ -653,23 +653,30 @@ VisualVM、NB Profiler（同样的东西）、YourKit和JProfiler都提供了一
 
 ## 商业的Java采样分析器一般如何工作？
 
-好吧，我可以从不同的解决方案中进行逆向工程，或者通读开源代码库，但是我会提供不受支持的推测，如果您了解得更多，可以随时给我打电话。通用分析器依赖于**JVMTI**规范，所有**JVM**都必须满足该规范：
+好吧，我可以逆向不同的解决方案，或者阅读开源代码，但是我会提供一些自己的推测，如果您知道得更多，可以随时打电话给我。分析器一般都依赖于所有 **JVM** 都必须满足的 **JVMTI** 规范：
 
-- JVMTI只提供了在**安全点**收集<u>采样点堆栈信息</u>的选项（对于调用线程，`GetStackTrace`不需要安全点，但这对分析器不是很有用。在Zing上，在一个线程调用另一个线程的`GetStackTrace`，只会将这个线程带到安全点）。因此，希望其工具在所有JVM上工作的供应商，只能在安全点进行采样。
-- 无论是对单个线程还是所有线程进行采样，都会达到全局安全点（OpenJDK至少是这样，Zing略有不同，但作为分析器供应商，要能在OpenJDK上工作）。调查过的所有分析器都要对所有线程进行采样。据我所知，它们也不限制堆栈收集的深度。这相当于以下JVMTI调用：`JvmtiEnv：：GetAllStackTraces(0，&stack_info，&thread_count)`
+- JVMTI 只提供了在**安全点**收集<u>采样点堆栈信息</u>的选项（对于调用线程，`GetStackTrace`不需要安全点，但这对分析器不是很有用。==在 Zing 上，在一个线程调用另一个线程的`GetStackTrace`，只会将这个线程带到安全点==）。因此，希望其工具在所 有JVM 上工作的供应商，只能在安全点进行采样。
+- 无论是对单个线程还是所有线程进行采样，都会达到全局安全点（至少 OpenJDK 是这样，Zing 略有不同，但作为分析器供应商，能在 OpenJDK 上工作是必选项）。所有我调查过的分析器都要采样**全体线程**。据我所知，它们也不限制堆栈收集的深度。这相当于这样的 JVMTI 调用：`JvmtiEnv：：GetAllStackTraces(0，&stack_info，&thread_count)`
 - 所以这就意味着：设置一个定时器线程，按“采样频率”触发，并收集所有线程的堆栈。
 
-**==这不太好，原因有几个，其中一些可以避免==**：
+**==这有问题，原因有几个，其中一些可以避免==**：
 
-1. 采样分析器需要采样，因此通常设置很高的采样频率（通常为每秒10次，或每100毫秒）。设置`-XX:+ PrintGCApplicationStoppedTime`并查看它会引入何种暂停时间具有指导意义。出现几毫秒的暂停并不罕见，不过每个人的结果可能不同（取决于线程数、堆栈深度、在安全点的时间等）。每100毫秒暂停5毫秒，意味着分析器会带来5%的开销（实际伤害可能会更糟）。通常可以通过设置<u>更长的时间间隔</u>来控制开销，但这也意味着需要更长的分析时间才能获得有意义的样本数。
-2. 从所有线程中收集全部堆栈信息，这意味着您的安全点操作成本是开放的。应用程序拥有的线程越多（考虑应用服务器、[SEDA架构](https://www.zybuluo.com/boothsun/note/887056)、大量线程池……），堆栈越深（比如Spring），获取应用程序单个线程的名称和<u>填写表单</u>的时间就越长。在上一篇文章中已经清楚地证明了这一点。 据我所知，当前的分析对此毫无办法。 如果构建自己的分析器，限制这两个数量似乎很明智，这样就可以限制开销。 **JVMTI**提供查询当前线程列表的功能，如果少于100，则对所有线程进行采样，否则随机选择100个线程进行采样。也许偏向于采样<u>实际上正在做事</u>的线程，而不是采样<u>所有时间都在阻塞</u>的线程更有意义。
-3. 似乎所有这些还不够糟糕，因为在安全点进行采样毫无意义。
+1. 采样分析器需要样本，因此通常设置很高的采样频率（通常为每秒10次，即每 100 毫秒 1 次）。设置`-XX:+ PrintGCApplicationStoppedTime`并查看它会引入何种暂停时间很有帮助。出现几毫秒的暂停并不罕见，不过每个人的结果可能不同（取决于线程数、堆栈深度、在安全点的时间等）。每100毫秒暂停5毫秒，意味着分析器会带来5%的开销（实际伤害可能会更糟）。通常可以通过设置<u>更长的时间间隔</u>来控制开销，但这也意味着需要更长的分析时间才能获得有意义的样本数。
 
-第1点和第2点与性能分析开销有关，基本上与成本有关。在上一篇关于安全点的文章中，我研究了这些成本，因此没必要重复。对于好的分析信息，成本是可以接受的，但正如我们将看到的，信息并不是那么好。
+   > 1. `PrintGCApplicationStoppedTime` shows how much time the application was stopped at safepoint. Most often safepoints are caused by stop-the-world phases of garbage collection, however, [many other reasons exist](https://stackoverflow.com/a/29673564/3448419).
+   > 2. `PrintGCApplicationConcurrentTime` is how much time the application worked without stopping, i.e. the time between two successive safepoints.
+
+2. 从所有线程中收集全部堆栈信息，这意味着您的安全点操作成本是开放的。应用程序拥有的线程越多（考虑应用服务器、[SEDA架构](https://www.zybuluo.com/boothsun/note/887056)、大量线程池……），堆栈越深（比如Spring），获取应用程序单个线程的名称和<u>填写表单</u>的时间就越长。在上一篇文章中已经清楚地证明了这一点。 据我所知，当前的分析对此毫无办法。 如果构建自己的分析器，限制这两个数量似乎很明智，这样就可以限制开销。 **JVMTI** 提供查询当前线程列表的功能，如果少于100，则对所有线程进行采样，否则随机选择100个线程进行采样。也许偏向于采样<u>实际上正在做事</u>的线程，而不是采样<u>所有时间都在阻塞</u>的线程更有意义。
+
+3. 在安全点进行采样毫无意义才是最糟糕的。
+
+第 1 点和第 2 点与性能分析开销有关，基本上与成本有关。在上一篇关于安全点的文章中，我研究了这些成本，因此没必要重复。对于好的分析信息，这些成本可以接受，但正如我们将看到的，信息并不是那么好。
+
+需要解释第 3 点，所以我们开始对意义的追寻。
 
 ## 安全点采样：理论
 
-那么，在安全点采样意味着什么？这意味着只能在运行代码的安全点采样。由于C1/C2（客户端/服务器编译器）可能会编译热代码，已经减少了抽样机会，只有在方法退出和[Uncounted loop回跳的](https://juejin.im/post/5d1b1fc46fb9a07ef7108d82#heading-8)时候进行采样。<u>这导致了这样的现象，即</u>，分析器应以相等的概率对程序运行中的所有点进行采样。
+那么，在安全点采样意味着什么？这意味着只能在运行代码的安全点采样。由于C1/C2（客户端/服务器编译器）可能会编译热代码，已经减少了采样机会，只有在方法退出和 [Uncounted loop 回跳的](https://juejin.im/post/5d1b1fc46fb9a07ef7108d82#heading-8)时候进行采样。<u>这导致了这样的现象，即</u>，分析器应以相等的概率对程序运行中的所有点进行采样。
 
 初听起来可能并不差，所以让我们通过一个简单的例子，来看看<u>热点应该归因到哪一行</u>。
 
@@ -683,12 +690,10 @@ int size;
 byte[] buffer;
 boolean result;
 
-
 @Setup
 public final void setup() {
   buffer = new byte[size];
 }
-
 
 @Benchmark
 @CompilerControl(CompilerControl.Mode.DONT_INLINE)
@@ -700,7 +705,6 @@ public void meSoHotNoInline() {
   result = b == 1;
   // SP poll, method exit
 }
-
 
 @Benchmark
 public void meSoHotInline() {
@@ -921,19 +925,19 @@ void AsyncGetCallTrace(ASGCT_CallTrace *trace, // pre-allocated trace to fill
 
 `ucontext`参数就是信号处理程序传给你的（信号处理程序是一个回调，函数定义是`handle(int signum，siginfo_t * info，void  * context)`）。AGCT将在此挖掘出中断时的**指令/帧/堆栈指针值**，并尽最大努力找出您所处的位置。
 
-**Jeremy Manson**就是采用此种方法，他解释了基础架构，（以一种概念验证、非确定的方式）[开源了基础的Profiler](https://code.google.com/archive/p/lightweight-java-profiler/)，他在此问题上有一系列精彩文章：
+**Jeremy Manson** 就是采用此种方法，他解释了基础架构，（以一种概念验证、非确定的方式）[开源了基础的Profiler](https://code.google.com/archive/p/lightweight-java-profiler/)，他在此问题上有一系列精彩文章：
 
 - [Profiling with JVMTI/JVMPI, SIGPROF and AsyncGetCallTrace](http://jeremymanson.blogspot.co.za/2007/05/profiling-with-jvmtijvmpi-sigprof-and.html)
 - [More about profiling with SIGPROF](http://jeremymanson.blogspot.co.za/2007/06/more-about-profiling-with-sigprof.html)
 - [More thoughts on SIGPROF, JVMTI and stack traces](http://jeremymanson.blogspot.co.za/2007/06/more-thoughts-on-sigprof-jvmti-and.html)
 - [Why Many Profilers have Serious Problems (More on Profiling with Signals)](http://jeremymanson.blogspot.co.za/2010/07/why-many-profilers-have-serious.html)
 
-然后，**Richard Warburton**基于相同的代码，进一步改进和稳定了 [Honest-Profiler](https://github.com/RichardWarburton/honest-profiler)（我对此做出了一些贡献）。Honest Profiler致力于成为一个最初的产品原型，并辅以一些使整个产品可用的工具。通过预先分配`ASGCT_CallTrace`，辅以无锁的**MPSC**环形缓冲区（即预先分配<u>调用帧数组</u>），解决了信号处理程序中的序列化问题。然后，在后续的线程中读取<u>调用追踪信息</u>，并收集一些额外的信息（如将**BCI**转换为行号，将**jmethodIds**转换为类名/文件名等）写入日志文件。更多详细信息请参见项目Wiki。
+然后，**Richard Warburton** 基于相同的代码，进一步改进和稳定了 [Honest-Profiler](https://github.com/RichardWarburton/honest-profiler)（我对此做出了一些贡献）。Honest Profiler致力于成为一个最初的产品原型，并辅以一些使整个产品可用的工具。通过预先分配`ASGCT_CallTrace`，辅以无锁的 **MPSC** 环形缓冲区（即预先分配<u>调用帧数组</u>），解决了信号处理程序中的序列化问题。然后，在后续的线程中读取<u>调用追踪信息</u>，并收集一些额外的信息（如将**BCI**转换为行号，将**jmethodIds**转换为类名/文件名等）写入日志文件。更多详细信息请参见项目Wiki。
 
 > 1. MPSC：multi-producer, single consumer
 > 2. BCI：Byte Code Instrument
 
-离线分析日志文件，可获取细分的热点方法和相关调用树（即在另一个时间另一台机器上，由另一个进程来处理。请注意，也可在Profile JVM时处理该文件，无需等待它终止）。本文中，我将使用Honest-Profiler，如果你想尝试，则需要自己[构建](https://github.com/RichardWarburton/honest-profiler/wiki/How-to-build)（在 [OpenJDK](http://openjdk.java.net/)/[Zulu](https://www.azul.com/products/zulu/) 6/7/8 + [Oracle JVM](http://www.oracle.com/technetwork/java/javase/downloads/index.html)s + 最近的 [Zing](https://www.azul.com/products/zing/) 版本上好使）。我将用JMC来对比相同的实验，需要在Oracle JVM 1.7u40及更高版本上尝试。 
+离线分析日志文件，可获取细分的热点方法和相关调用树（即在另一个时间另一台机器上，由另一个进程来处理。请注意，也可在Profile JVM时处理该文件，无需等待它终止）。本文中，我将使用Honest-Profiler，如果你想尝试，则需要自己[构建](https://github.com/RichardWarburton/honest-profiler/wiki/How-to-build)（在 [OpenJDK](http://openjdk.java.net/)/[Zulu](https://www.azul.com/products/zulu/) 6/7/8 + [Oracle JVM](http://www.oracle.com/technetwork/java/javase/downloads/index.html)s + 最近的 [Zing](https://www.azul.com/products/zing/) 版本上好使）。我将用 JMC 来对比相同的实验，需要在Oracle JVM 1.7u40及更高版本上尝试。 
 
 ## AGCT做啥？
 

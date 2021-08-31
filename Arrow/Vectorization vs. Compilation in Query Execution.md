@@ -203,12 +203,12 @@ Figure 2 shows that compilation of conjunctive Select is inferior to the pure ve
 > 
 > // (4.) non−branching 1 ,2 ,3 , (”compute−all ”)
 > idx c0004(idx n ,T* res, T* col1, T* col2, T* col3, T* v1, T* v2, T* v3) {
->   idx i , j =0;
->   for ( i =0; i<n ; i++) {
->      res[j] = i ;
->      j+= (col1[i] < *v1 & col2[i] < *v2 & col3[i] < *v3 )
->   }
->   return j ;
+>     idx i , j =0;
+>     for ( i =0; i<n ; i++) {
+>        res[j] = i ;
+>        j+= (col1[i] < *v1 & col2[i] < *v2 & col3[i] < *v3 )
+>     }
+>     return j ;
 > }
 > ```
 
@@ -220,14 +220,152 @@ Our last micro-benchmark concerns Hash Joins:
 
 
 ```SQL
-SELECT build.col1, build.col2, build.col3 WHERE probe.key1 = build.key1 AND probe.key2 = build.key2 FROM probe, build
+SELECT
+  build.col1, build.col2, build.col3 
+WHERE 
+  probe.key1 = build.key1 AND 
+  probe.key2 = build.key2 
+FROM probe, build
 ```
 
 We focus on an equi-join condition involving keys consisting of two (integer) columns, because such composite keys are more challenging for vectorized executors. This discussion assumes simple bucket-chaining, such as used in VectorWise, presented in Figure 3. This means that keys are hashed on buckets in an array B with size N which is a power of two. Each bucket contains the offset of a tuple in a value space V . This space can either be organized using DSM or NSM layout; VectorWise supports both [14]. It contains the values of the build relation, as well as a next-offset, which implements the bucket chain. A bucket may have a chain of length > 1 either due to hash collisions, or because there are multiple tuples in the build relation with the same key.
 
-**Vectorized Hash Probing.** For space reasons we only discuss the probe phase in Algorithm 4, we show code for the DSM data representation and we focus on the scenario when there is at most one hit for each probe tuple (as is common with relations joined with a foreign-key referential constraint). Probing starts by vectorized computation of a hash number from a key in a column-by-column fashion using map-primitives. A map_hash_T_col primitive first hashes each key of type T onto a lng long integer. If the key is composite, we iteratively refine the hash value using a map_rehash_lng_col_T_col primitive, passing in the previously computed hash values and the next key column. A bitwise-and map-primitive is used to compute a bucket number from the hash values: H&(N-1).
+```C
+// Algorithm 4 Vectorized implementation of hash probing.
 
-To read the positions of heads of chains for the calculated buckets we use a special primitive ht_lookup_initial. It behaves like a selection primitive, creating a selection vector Ma~tch of positions in the bucket number vector H for which a match was found. Also, it fills the P~os vector with positions of the candidate matching tuples in the hash table. If the value (offset) in the bucket is 0, there is no key in the hash table – these tuples store 0 in P~os and are not part of Match.
+/* 初始计算第一列的哈希值 */
+map_hash_T_col(idx n , idx* res, T* col1 ){
+  for (idx i=0; i<n ; i++)
+    res[i] = HASH(col1[i]) ;
+}
+/* 计算其他列的哈希值，使用 ^ 组合其他列的哈希值 */
+map_rehash_idx_col_T_col(idx n , idx* res, idx* col1, T* col2) {
+  for (idx i=0; i<n ; i++)
+    res[i] = col1[i] ˆ HASH(col2[i]) ;
+}
+
+map_fetch_idx_col_T_col(idx n , T* res, idx* col1, T* base, idx* sel){
+  if(sel) {
+    for (idx i=0; i<n ; i++)
+      res[sel[i]] = base[col1[sel[i]]] ;
+  } else {
+    /* sel == NULL, omitted  */
+  }
+}
+
+/*是否真正匹配*/
+map_check_T_col_idx_col_col_T_col(idx n, chr* res, T* keys, T* base, idx* pos, 
+                                  idx* sel) {
+  /*
+  keys => build relation key
+  base => probe relation key
+  pos  => found chain head position in HT 
+  sel  => 哈希值数组的索引，也是 build relation key 数组的索引
+  n    => 是根据 sel 的长度来定的
+  */
+  if (sel) {
+    for (idx i=0; i<n ; i++)
+      res[sel[i]] = (keys[sel[i]] != base[pos[sel[i]]]);
+  } else {
+    /* sel == NULL, omitted  */
+  }
+}
+
+map_recheck_chr_col_T_col_idx_col_T_col(idx n, chr* res, chr* col1, T* keys,
+                                        T* base, idx* pos, idx* sel) {
+  if(sel){
+    for (idx i=0; i<n ; i++)
+      res[sel[i]] = col1[sel[i]] || (keys[sel[i]] != base[pos[sel[i]]]) ;
+  } else {
+    /* sel == NULL, omitted  */
+  }
+}
+
+ht_lookup_initial(idx n, idx* pos, idx* match, idx* H, idx* B) {
+  /* H: hash 值，其实就是哈希数组 B 的索引值 */
+  for (idx i=0, k=0; i<n; i++) {
+    // saving found chain head position in HT
+    pos[i] = B[H[i]] ;
+    // saving to a sel.vector if non−zero
+    if (pos[i]) {
+      match[k++] = i;
+    }
+  }
+}
+
+ht_lookup_next (idx n, idx* pos, idx* match, idx* next ) {
+  for (idx i=0, k=0; i<n ; i++) {
+    // advancing to next in chain
+    pos[match[i]] = next[pos[match[i]]];
+    // saving to a sel.vec. if non−empty
+    if (pos[match[i]]) {
+      match[k++] = match[i]; 
+    }
+  }
+}
+/* ----------------------------------------------------*/
+procedure HTprobe(V, B[0..N − 1],K1..k(in),R1..v(out))
+
+// Iterative hash-number computation
+H <- map_hash(K1)
+for each remaining key vectors Ki do
+  H <- map_rehash(H , Ki)  
+H <- map_bitwise_and(H, N−1)
+  
+// Initial lookup of candidate matches
+Pos,Match <- ht_lookup_initial(H,B)
+while Match not empty do
+  // Candidate value verification
+  Check <- map_check(K1, V_key1, Pos, Match)
+  for each remaining key vector Ki do
+    Check <- map_recheck(Check, Ki, Vkeyi, Pos, Match)
+    Match <- sel_nonzero(Check,Match)
+    // Chain following
+    Pos, Match <- ht_lookup_next(Pos,Match, Vnext)
+
+Hits <- sel_nonzero(Pos)
+// Fetching the non-key attributes
+for each result vector Ri do
+  Ri <- map_fetch(Pos, Vvaluei, Hits)
+```
+
+**Vectorized Hash Probing**. For space reasons we only discuss the probe phase in Algorithm 4, we show code for the DSM data representation and we focus on the scenario when there is at most one hit for each probe tuple (as is common with relations joined with a foreign-key referential constraint). Probing starts by vectorized computation of a hash number from a key in a column-by-column fashion using map-primitives. A `map_hash_T_col` primitive first hashes each key of type T onto a lng long integer. If the key is composite, we iteratively refine the hash value using a `map_rehash_lng_col_T_col` primitive, passing in the previously computed hash values and the next key column. A bitwise-and map-primitive is used to compute a bucket number from the hash values: H&(N-1).
+
+> **向量化哈希探测**。由于篇幅的原因，我们只讨论算法 4 中的探测阶段，我们展示的代码使用 DSM 布局的数据，并将重点放在每个探测元组最多命中一次的场景上（这对于用外键连接的关系（ 特别是有引用约束）很常见）。探测开始于使用 **map 原语**以逐列的方式，向量化计算 Key 的哈希值。 `map_hash_T_col` 原语首先将 T 类型的每个 Key 哈希到一个 `lng` 长整数。 如果是复合键，则传入先前计算的哈希值和下一个键列，使用 `map_rehash_lng_col_T_col` 原语依次细化每个哈希值，**bitwise-and 的 map 原语**用于从哈希值计算桶号：`H&(N-1)`。
+
+To read the positions of heads of chains for the calculated buckets we use a special primitive `ht_lookup_initial`. It behaves like a selection primitive, creating a selection vector *Match* of positions in the bucket number vector *H* for which a match was found. Also, it fills the *Pos* vector with positions of the candidate matching tuples in the hash table. If the value (offset) in the bucket is 0, there is no key in the hash table – these tuples store 0 in *Pos* and are not part of *Match*.
+
+> 为了读取计算出的==**桶**==的链头位置，我们使用了一个特殊的原语 `ht_lookup_initial`。其行为就像一个**选择原语**，在**桶编号**向量 *H* 中找到匹配的位置，并创建一个选择向量 *Match*。此外，它用哈希表中**候选匹配元组**的位置填充 *Pos* 向量。如果桶中的值（偏移量）为 0，则表示哈希表中没有该键 —— 这些元组在 *Pos* 中存储 0，不是 *Match* 的一部分。
+
+Having identified the indices of possible matching tuples, the next task is to “check” if the key values actually match. This is implemented using a specialized map primitive that combines fetching a value by offset with testing for nonequality: `map_check`. Similar to hashing, composite keys are supported using a `map_recheck` primitive which gets the boolean output of the previous check as an extra first parameter. The resulting booleans mark positions for which the check failed. The positions can then be selected using a `select sel_nonzero` primitive, overwriting the selection vector *Match* with positions for which probing should advance to the “next”position in the chain. Advancing is done by a special primitive `ht_lookup_next`, which for each probe tuple in *Match* fills *Pos* with the next position in the bucket-chain of *V* . It also guards for ends of chain by reducing *Match* to its subset for which the resulting position in *Pos* was non-zero.
+
+> 在确定了可能匹配元组的索引之后，下一个任务是“检查”键值是否真正匹配。这用到一个专门的 `map` 原语：`map_check`，它**<u>将通过偏移量获取值</u>**与<u>**测试不相等性**</u>相结合。 与哈希类似，使用 `map_recheck` 原语支持复合键，该原语将<u>前面检查的布尔输出</u>作为额外的第一个参数。结果布尔值标记检查失败的位置。然后可以使用 `select sel_nonzero` 原语选择位置，如果需要前进到 <u>hash 链</u>中的“下一个”位置，则覆盖选择向量 *Match* 中对应的位置。这由一个特殊的原语 `ht_lookup_next` 完成，对于 *Match* 中每个探测元组，它用 *V* 的桶链中的下一个位置填充 *Pos*。它还通过将 *Match* 减少到其在 *Pos* 中的结果位置不为零的子集来保护链的末端。
+>
+
+The loop finishes when the *Match* selection vector becomes empty, either because of reaching end of chain (element in *Pos* equals 0, a miss) or because checking succeeded (element in *Pos* pointing to a position in *V* , a hit).
+
+Hits can be found by selecting the elements of *Pos* which ultimately produced a match with a `sel_nonzero` primitive. *Pos* with selection vector *Hits* becomes a pivot vector for fetching. This pivot is subsequently used to fetch (non-key) result values from the build value area into the hash join result vectors; using one fetch primitive for each result column.
+
+**Partial Compilation**. There are three opportunities to apply compilation to vectorized hashing. The first is to compile the full sequence of hash/rehash/bitwise-and and bucket fetch into a single primitive. The second combines the check and iterative re-check (in case of composite keys) and the select > 0 into a single select-primitive. Since the test for a key in a well-tuned hash table has a selectivity around 75%, we can restrict ourselves to a non-branching implementation. These two opportunities re-iterate the compilation benefits of Project and Select primitives, as discussed in the previous sections, so we omit the code.
+
+The third opportunity is in the fetch code. Here, we can generate a composite fetch primitive that, given a vector of positions, fetches multiple columns. The main benefit of this is obtained in case of NSM organisation of the value space V . Vectorization fetches values column-at-a-time, hence passes over the NSM value space as many times as there are result columns (here: 3), accessing random positions from the value space on each pass. On efficient vector-sizes, the amount of random accesses is surely larger than TLB cache size and may even exceed the amount of cache lines, such that TLB and cache trashing occurs, with pages and cache lines from the previous pass being already evicted from the caches before the next. The compiled fetch fetches all columns from the same position at once, achieving more data locality. Figure 4 shows that in normal vectorized hashing performance of NSM and DSM is similar, but compilation makes NSM clearly superior.
+
+---
+
+我们最后一个**==微观基准==**涉及哈希连接：
+```SQL
+SELECT
+  build.col1, build.col2, build.col3 
+WHERE 
+  probe.key1 = build.key1 AND 
+  probe.key2 = build.key2 
+FROM probe, build
+```
+我们关注包含两个（整数）列的 equi-join ，因为这样的复合键对于向量化执行器更具挑战性。此讨论假设简单的 **bucket 链接**，在 VectorWise 中使用，如图 3 所示。这意味着 Key 在大小为 N 的数组 B 上散列，N 是 2 的幂。每个 bucket 包含**==值空间==** V 中一个元组的偏移量。可以使用 DSM 或 NSM 布局来自组织值空间；VectorWise 同时支持两者[14]。<u>它包含==构建关系==的值，以及实现==桶链的下一个偏移量==</u>。 由于哈希冲突，或者由于构建关系中有多个具有相同键的元组，bucket 的链长度可能大于1。
+
+```c
+
+```
 
 ## 5. CONCLUSIONS
 
@@ -237,7 +375,7 @@ Our main message is that one does not need to choose between compilation and vec
 
 Thus, a simple compilation strategy is not enough; **state-of-the art algorithmic methods** may use certain complex transformations of the problem at hand, sometimes require run-time adaptivity, and always benefit from careful tuning. To reach the same level of **sophistication**, compilation based query engines would require significant added complexity, possibly even higher than that of interpreted engines. Also, it shows that vectorized execution, which is an evolution of the iterator model, thanks to enhancing it with compilation further evolves into an even more efficient and more flexible solution without making dramatic changes to the DBMS architecture. It obtains very good performance while maintaining clear modularization, simplified testing and easy performance and quality tracking, which are key properties of a software product.
 
-> 对于寻求提高数据库引擎计算性能的数据库架构师来说，似乎可以在向量化表达式引擎和编译表达式之间进行选择。向量化是一种面向块的处理形式，如果系统已经有了一次处理一个元组的运算符 API，那么除了表达式计算之外，还需要进行许多更改，特别是在所有查询运算符和存储层中。如果以高计算性能为目标，那么无法避免这种深刻的变化，正如我们所展示的那样，如果坚持使用一次处理一个元组的 API，那么表达式编译就只能提供很小的改进。
+> 对于寻求提高数据库引擎计算性能的数据库架构师来说，似乎可以在**向量化表达式引擎**和**编译表达式**之间进行选择。向量化是一种面向块的处理形式，如果系统已经有了一次处理一个元组的运算符 API，那么除了表达式计算之外，还需要进行许多更改，特别是在所有查询运算符和存储层中。==如果以高计算性能为目标，那么无法避免这种深刻的变化，正如我们所展示的那样，如果坚持使用一次处理一个元组的 API，那么表达式编译就只能提供很小的改进==。
 >
 > 主要结论是，不需要在编译和矢量化之间进行选择，因为我们表明，如果将两者结合起来，将获得最佳结果。<u>关于这种结合的必要性</u>，我们已证明，==普通的向量化技术==可能比最新提出的**循环编译技术**好，因为它具有更好的（i）SIMD对齐，（ii）避免分支预测失误的能力，以及（iii）并行内存访问。因此，在这种情况下，最好将编译分成多个循环，以实现中间结果向量化。此外，我们还指出了这样的情况：解释的（但向量化的）计算策略有优化机会，比如动态选择谓词求值方法或谓词求值顺序，而编译的非常困难。
 >

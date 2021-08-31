@@ -19,27 +19,27 @@ The name derives from the mathematics: a [lattice](https://en.wikipedia.org/wiki
 
 [[HRU96](https://calcite.apache.org/docs/lattice.html#ref-hru96)] observed that the set of possible materializations of a data cube forms a lattice, and presented an algorithm to choose a good set of materializations. Calcite’s recommendation algorithm is derived from this.
 
-The lattice definition uses a SQL statement to represent the star. SQL is a useful short-hand to represent several tables joined together, and assigning aliases to the column names (**it more convenient than inventing a new language to represent relationships, join conditions and cardinalities**).
+**The lattice definition uses a SQL statement to represent the star**. SQL is a useful short-hand to represent several tables joined together, and assigning aliases to the column names (**it more convenient than inventing a new language to represent relationships, join conditions and cardinalities**).
 
-**Unlike regular SQL, order is important. If you put A before B in the FROM clause, and make a join between A and B, you are saying that there is a ==many-to-one foreign== key relationship from A to B**. (E.g. <u>in the example lattice, the Sales fact table occurs before the Time dimension table, and before the Product dimension table. The Product dimension table occurs before the ProductClass outer dimension table, further down an arm of a snowflake</u>.)
+**Unlike regular SQL, order is important. If you put A before B in the FROM clause, and make a join between A and B, you are saying that there is a ==many-to-one== foreign key relationship from A to B**. (E.g. <u>in the example lattice, the Sales fact table occurs before the Time dimension table, and before the Product dimension table. The Product dimension table occurs before the ProductClass outer dimension table, further down an arm of a snowflake</u>.)
 
 > ~~在示例格中，Sales事实表出现在Time维度表之前，在Product维度表之前。Product维度表出现在ProductClass外部维度表之前，再向下一个雪花臂~~
 
-**A lattice implies constraints. In the A to B relationship, there is a foreign key on A (i.e. every value of A’s foreign key has a corresponding value in B’s key), and a unique key on B (i.e. no key value occurs more than once)**. These constraints are really important, because it allows the planner to remove joins to tables whose columns are not being used, and know that the query results will not change.
+**A lattice implies constraints**. In the A to B relationship, there is a foreign key on A (i.e. every value of A’s foreign key has a corresponding value in B’s key), and a unique key on B (i.e. no key value occurs more than once). <u>These constraints are really important, because it allows the planner to remove joins to tables whose columns are not being used, and know that the query results will not change</u>.
 
 **==Calcite does not check these constraints. If they are violated, Calcite will return wrong results==**.
 
 A lattice is a big, virtual join view. It is not materialized (it would be several times larger than the star schema, because of denormalization) and you probably wouldn’t want to query it (far too many columns). So what is it useful for? As we said above, **(a)** the lattice declares some very useful primary and foreign key constraints, **(b)** it helps the query planner map user queries onto filter-join-aggregate materialized views (the most useful kind of materialized view for DW queries), **(c)** gives Calcite a framework within which to gather stats about data volumes and user queries, **(d)** allows Calcite to automatically design and populate materialized views.
 
-> **（a） **lattice声明了一些非常有用的主键和外键约束，**（b）**它帮助查询规划器将用户查询映射到filter-join聚合物化视图（DW查询最有用的物化视图），**（c）**为Calcite提供了一个框架，在该框架内可以收集有关数据量和用户查询的统计信息，**（d）**允许方解石自动设计和填充物化视图。
+> **（a） **lattice声明了一些非常有用的主键和外键约束，**（b）**它帮助查询规划器将用户查询映射到 filter-join聚合物化视图（DW查询最有用的物化视图），**（c）**为Calcite提供了一个框架，在该框架内可以收集有关数据量和用户查询的统计信息，**（d）**允许 *Calcite* 自动设计和填充物化视图。
 
-Most star schema models force you to choose whether a column is a dimension or a measure. In a lattice, every column is a dimension column. (That is, it can become one of the columns in the GROUP BY clause to query the star schema at a particular dimensionality). Any column can also be used in a measure; you define measures by giving the column and an aggregate function.
+Most star schema models force you to choose whether a column is a dimension or a measure. In a lattice, every column is a dimension column. (That is, it can become one of the columns in the GROUP BY clause to query the star schema at a particular dimensionality). ==Any column can also be used in a measure; you define measures by giving the column and an aggregate function==.
 
-If “unit_sales” tends to be used much more often as a measure rather than a dimension, that’s fine. Calcite’s algorithm should notice that it is rarely aggregated, and not be inclined to create **tiles** that aggregate on it. (By “should” I mean “could and one day will”. The algorithm does not currently take query history into account when designing tiles.)
+If “`unit_sales`” tends to be used much more often as a measure rather than a dimension, that’s fine. Calcite’s algorithm should notice that it is rarely aggregated, and not be inclined to create **tiles** that aggregate on it. (By “should” I mean “could and one day will”. The algorithm does not currently take query history into account when designing tiles.)
 
 But someone might want to know whether orders with fewer than 5 items were more or less profitable than orders with more than 100. All of a sudden, “unit_sales” has become a dimension. If there’s virtually zero cost to declaring a column a dimension column, I figured let’s make them all dimension columns.
 
-> 但有人可能想知道，5件以下的订单是否比100件以上的订单更有利可图。突然，“单位销售额”成了一个维度。如果将列声明为维度列的成本几乎为零，那么我想让它们都成为维度列。
+> 但有人可能想知道，5 件以下的订单是否比 100 件以上的订单更有利可图。突然，`单位销售额`成了一个维度。如果将列声明为维度列的成本几乎为零，那么我想让它们都成为维度列。
 
 The model allows for a particular table to be used more than once, with a different table alias. You could use this to model say OrderDate and ShipDate, with two uses to the Time dimension table.
 
@@ -50,6 +50,8 @@ Most SQL systems require that the column names in a view are unique. This is har
 - [“order_date”, “time_id”]
 
 **A “tile” is a materialized table in a lattice, with a particular dimensionality**. The “tiles” attribute of the [lattice JSON element](https://calcite.apache.org/docs/model.html#lattice) defines an initial set of tiles to materialize.
+
+> **tile 是 lattice 中具有特定维度的物化表**。lattice JSON 元素的 tiles 属性定义了初始要物化的 tile s集。
 
 ## Demonstration
 
