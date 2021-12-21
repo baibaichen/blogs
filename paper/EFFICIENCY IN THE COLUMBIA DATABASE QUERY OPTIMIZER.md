@@ -158,9 +158,91 @@ Cascades 使用表达式表示模式和替代。**模式总是逻辑表达式**�
 
 > - [ ] Figure 8. Two types of Rules
 
+## Chapter 3. Related Work
+Pioneering work in query optimization can be traced back to two decades ago. IBM’s System R optimizer [SAC+79] succeeded and worked so well that it has served as the foundation for many current commercial optimizers.
+
+Database systems and applications evolve and demand new generations of optimizers to handle new extensions to database systems. The relational data model is extended with more features, such as supporting new data types and new operations. The object oriented data model is introduced to handle more complex data. Since early optimizers were designed to use with a relatively simple relational data model, new generations of extensible optimizers were developed to meet the requirements of evolving database systems. The new generations of optimizers focus on extensibility as well as the difficult goal of all optimizers: efficiency. This chapter will look at some notable optimizers that contribute significantly to the query optimization literature.
+
+### 3.1 The System R and Starburst Optimizer
+
+### 3.2 The Exodus and Volcano Optimizer Generators
+
+The Exodus optimizer generator [GrD87] was the first extensible optimizer framework using top-down optimization. The goal of Exodus is to build an infrastructure and tool for query optimization with minimal assumptions about the data model. The input into Exodus is a model description file, which describes a set of operators, a set of methods to be considered when building and comparing access plans, transformation rules (defining the transformations of the query tree) and implementation rules (defining the correspondence between operators and methods). To implement a query optimizer for a new data model, the DBI10 writes a model description file and a set of C procedures. The generator transforms the model file into a C program which is compiled and linked with the set of C procedures to generate a data model specific optimizer. The generated optimizer transforms the initial query tree step by step, maintaining information about all the alternatives explored so far in a data structure called MESH. At any time during the optimization there can be a set of possible next transformations, which are stored in a queue structure, called OPEN. When the OPEN is not empty, the optimizer will select a transformation from OPEN, apply it to the correct nodes in MESH, do cost estimation for the new nodes and add newly enable transformation into OPEN.
+
+The main contribution of Exodus is the top-down optimizer generator framework which separates the search strategy of an optimizer from the data model and separates transformation rules and logical operators from implementation rules and physical operators. Although it was difficult to construct efficient optimizers, it contributed as a useful foundation for the next generation of extensible optimizers.
+
+With the primary goal of improving the efficiency of Exodus, Volcano Optimizer Generator [GrM93] is designed to achieve more efficiency, further extensibility and effectiveness. Efficiency was achieved by combing dynamic programming with directed search based on physical properties, branch-and-bound pruning and heuristic guidance into a new search algorithm that is called directed dynamic programming. The search strategy in Volcano is a top-down, goal-oriented control strategy: sub expressions are optimized only if warranted. That is, only those expressions and plans that truly participate in promising larger plans are considered for optimization. It also uses dynamic programming to store all optimal sub plans as well as optimization failures until a query is completely optimized. Since it is very goal-oriented though the use of physical properties ( a generalization of “interesting properties” used in System R) and derives only those expressions and plans which are promising, the search algorithm is efficient. More extensibility in Volcano was achieved by generating optimizer source code from data model specifications and by encapsulating costs as well as logical and physical properties into abstract data types. Effectiveness was achieved by permitting exhaustive search, which is pruned only at the discretion of the optimizer implementers.
+
+The efficiency of the Volcano search strategy permitted the generation of real optimizers, one for an object-oriented database system [BMG93] and one for a prototype scientific database system with many rules [Wog93].
+
+### 3.3 The Cascades Optimizer Framework
+
+> The Cascades Optimizer Framework [Gra95] is an extensible query optimization framework that resolves many short-comings of the EXODUS and Volcano optimizer generators. It achieves a substantial improvement over its predecessors in functionality, ease-of-use, and robustness without giving up extensibility, dynamic programming and memoization. The choosing of Cascades as the foundation for new query optimizers in Tandem’s NonStop SQL product [Cel96] and in Microsoft’s SQL Server product [Gra96] demonstrated that Cascades satisfies the requirements and demands of modern commercial database systems. The following list some of advantages of Cascades:
+>
+> - Optimization tasks as data structures
+> - Rules as objects
+> - Rules to place property enforcers such as sort operations
+> - Ordering of moves by promise
+> - Predicates as operators that is both logical and physical
+> - Abstract interface class defining the DBI-optimizer interface and permitting DBI-defined subclass hierarchies.
+> - More robust code written in C++ and a clean interface making full use of the abstraction mechanisms of C++
+> - Extensive tracing support and better documentation to assist the DBI
+>
+>In Cascades, the optimization algorithm is broken into several parts, which are called “tasks”. Tasks are realized as objects in which a “perform” method is defined for them. All such task objects are collected in a task structure that is realized as a Last-In-First-Out stack^11^. Scheduling a task is very similar to invoking a function: the task is popped out of the stack and the “perform” method of the task is invoked. At any time during the optimization there is a stack of tasks waiting to be performed. Performing a task may result in more tasks being placed on the stack.
+>
+>> 11. As [Gra95] pointed out, other task structures can easily be envisioned. In particular, task objects can be reordered very easily at any point, enabling very flexible mechanisms for heuristic guidance, Moreover, There are more advantages in representing the task structure by a graph that captures dependencies or the topological ordering among tasks and permit efficient parallel search (using shared memory).
+>
+>The Cascades optimizer first copies the original query into the initial search space (**in Cascades, the search space is called “memo” which is inherited from Volcano**). The entire optimization process is then triggered by a task to optimize the top group of the initial search space, which in turn triggers optimization of smaller and smaller subgroups in the search space. Optimizing a group means finding the best plan in the group (which is called an “optimization goal”) and therefore applies rules to all expressions. In this process, new tasks are placed into the task stack and new groups and expressions are added into the search space. After the task of optimizing the top group is completed, which requires all the subgroups of the top group to complete their optimization, the best plan of the top group can be found, hence the optimization is done.
+>
+>Like the Volcano optimizer generator, Cascades begins the optimization process from the top group and is considered to use a top-down search strategy. Dynamic programming and memoization are also used in the task of optimizing a group. Before initiating optimization of all a group’s expressions, ==it checks whether the same optimization goal has been pursued already==; if so, it simply returns the plan found in the earlier search. One major difference between the search strategies in Cascades and Volcano is that Cascades only explores a group on demand while Volcano always generates all equivalent logical expressions exhaustively in the first pre-optimization phase before the actual optimization phase begin. In Cascades, there is no separation into two phases. It is not useful to derive all logically equivalent forms of all expressions, e.g., of a predicate. A group is explored using transformation rules only on demand, and it is explored only to create all members of the group that match a given pattern. Since it explores groups only for truly useful patterns, Cascades search strategy is more efficient^12^.
+>
+>> 12. In the worst case, exploration of Cascades is exhaustive. Thus in the worst case the efficiency of the Cascades search will equal that of the Volcano search strategy.
+>
+>Compared to the Volcano optimizer generator’s cumbersome user interface, Cascades provides a clean data structure abstraction and interface between DBI and optimizer. Each of the classes that makes up the interface between the Cascades optimizer and the DBI is designed to become the root of a subclass hierarchy. The optimizer relies only on the method defined in this interface; the DBI is free to add additional methods when defining subclasses. Some important interfaces include operators, cost model and rules. This clear interface is important in that it makes the optimizer more robust and makes it easier for a DBI to implement or extend an optimizer.
+>
+>[Bil97] describes an experimental optimizer, Model D, for optimizing the TPC-D queries [TPC95] developed under the Cascades optimizer framework. Model D has many logical operators which in turn require a number of rules and physical operators. The new operators and rules are defined and easily added to the optimizer by the DBI by deriving from the base interface class. With only a few changes to the Cascades search engine, Model D demonstrates the extensibility of the Cascade framework in the relational model.
+>
+>Cascades is just an optimizer framework. It proposed numerous performance improvements, but many features are currently unused or provided only in rudimentary form. The current design and implementation of Cascades leaves room for many improvements. The strong separation of optimizer framework and the DBI’s specification, extensive use of virtual methods, very frequent object allocation and deallocation can cause performance problems. Some pruning techniques can be applied to the top-down optimization to dramatically improve search performance. All these observations motivate our research in Cascades and development of a new, more efficient optimizer – the Columbia optimizer.
+>
+
+Cascades 优化器框架 [Gra95] 是一个可扩展的查询优化框架，它解决了 EXODUS 和 Volcano 优化器生成器的许多缺点。 在不放弃可扩展性、动态编程和 memoization 的情况下，它在功能、易用性和健壮性方面比之前的版本有了实质性的改进。在 Tandem 的 NonStop SQL 产品 [Cel96] 和 Microsoft 的 SQL Server 产品 [Gra96] 中选择 Cascades 作为新查询优化器的基础，表明 Cascades 满足现代商业数据库系统的需求。下面列出了 Cascades 的一些优点：
+
+- 优化任务作为数据结构
+- 规则作为对象
+- 设置属性强制执行器的规则，如排序操作
+- 按承诺排序动作
+- 谓词作为逻辑和物理运算符
+- 定义 DBI 优化器接口并允许 DBI 定义的子类层次结构的抽象接口类。
+- 用 C++ 编写的更健壮的代码和一个干净的界面，充分利用 C++ 的抽象机制
+- 广泛的追踪支持和更好的文档来协助 DBI
+
+在 Cascades 中，优化算法分为几个部分，称为**任务**。任务被实现为对象，其中定义了一个 `perform` 方法。所有这些任务对象都收集在一个任务结构中，该结构实现为**后进先出**的堆栈^11^。调度任务非常类似于调用函数：将任务从堆栈中弹出，并调用任务的 `perform`方法。在优化期间的任何时候，都有一堆任务等待执行。执行一个任务可能会导致更多的任务被放置在堆栈上。
+
+> 11. 正如 [Gra95] 所指出的，可以很容易地设想其他任务结构。特别是，任务对象可以很容易地在任何点重新排序，这为启发式指导提供了非常灵活的机制。此外，用 **graph** 来表示任务结构更有优势，**graph** 可以捕获任务之间的依赖关系或拓扑排序，并允许高效的并行搜索(使用共享内存)。
+
+Cascades 优化器首先将原始查询复制到初始搜索空间（在 Cascades 中，搜索空间称为 **memo**，继承自 Volcano）。然后一个任务触发整个优化过程，优化==初始搜索空间的顶层组==，该任务反过来又触发对搜索空间中越来越小的子组进行优化。优化一个组意味着在组中找到最好的计划（称为“优化目标”），因此将规则应用于所有表达式。在此过程中，将新任务放入任务堆栈中，将新组和表达式添加到搜索空间中。当顶层组的优化任务完成后，需要顶层组的所有子组完成自己的优化，才能找到顶层组的最优方案，从而完成优化。
+
+和 Volcano 优化器生成器一样，Cascades 从最上层的组开始优化过程，使用自顶向下的搜索策略。动态规划和 **memoization** 也用于优化组的任务。在对所有组的表达式进行初始优化之前，==先检查是否已经追求了相同的优化目标==；如果是，它只返回在前面的搜索中找到的计划。Cascades 和 Volcano 中的搜索策略之间的一个主要区别在于，Cascades 仅按需探索一组，而 Volcano 总是在实际优化阶段开始之前的第一个预优化阶段详尽地生成所有等效的逻辑表达式。在 Cascades 中，没有分成两个阶段。推导出所有表达式（例如谓词）的所有逻辑等价形式是没有用的。只在需要时使用转换规则探索组，并且只在组的所有成员匹配给定模式时才探索该组。由于它只探索真正有用的模式组，因此 Cascades 搜索策略更有效^12^。
+
+> 12. 最坏的情况下 ， Cascades 彻底探索。 因此，在最坏的情况下，Cascades 搜索的效率将与 Volcano 搜索策略的效率相同。
+
+与 Volcano 优化器生成器繁琐的用户接口相比，Cascades 在 DBI 和优化器之间提供了一个干净的数据结构抽象和接口。构成 Cascades 优化器和 DBI 之间接口的每个类都被设计成**子类层次结构的根**。优化器仅依赖于该接口中定义的方法； DBI 在定义子类时可以自由添加额外的方法。一些重要的接口包括运算符、成本模型和规则。 这个清晰的接口很重要，因为它使优化器更加健壮，并使 DBI 更容易实现或扩展优化器。
+
+[Bil97] 描述了一个实验优化器 **Model D**，用于优化在 Cascades 优化器框架下开发的 TPC-D 查询 [TPC95]。**Model D** 有许多逻辑运算符，而这些逻辑运算符又需要许多规则和物理运算符。DBI 可以通过派生基类接口来定义新的操作符和规则，并很容易地将它们添加到优化器中。只需对 Cascades 搜索引擎进行少量更改，**Model D** 就展示了 Cascade 框架在关系模型中的可扩展性。
+
+Cascades 只是一个优化器框架。 它提出了许多性能改进，但许多功能目前未使用或仅以基本形式提供。目前 Cascades 的设计和实现仍有许多改进的空间。优化器框架和 DBI 规范的强分离、虚方法的广泛使用、非常频繁的对象分配和释放都会导致性能问题。一些修剪技术可以应用于自上而下的优化，以显着提高搜索性能。 所有这些观察结果都激发了我们对 Cascades 的研究和开发一种新的、更有效的优化器——哥伦比亚优化器。
+
 ## Chapter 4 . Structure of the Columbia Optimizer
 
+> Based on the Cascades framework, Columbia focuses on efficiency of optimization. This chapter will describe in detail the design and implementation of the Columbia optimizer. Comparison with Cascades will be discussed.
+
+Columbia 基于 Cascades 框架，专注于优化器效率。本章将详细介绍 Columbia 优化器的设计和实现。与 Cascades 的比较也将讨论。
+
 ### 4.1 Overview of the Columbia Optimizer
+
+> Figure 9 illustrates the interface of the Columbia optimizer. Columbia takes an initial query text file as input, uses a catalog and cost model information also written in text files provided by the DBI, and generates the optimal plan for the query as output.
+
+图 9 说明了哥伦比亚优化器的界面。 Columbia 将初始查询文本文件作为输入，使用同样写入 DBI 提供的文本文件中的目录和成本模型信息，并为查询生成最佳计划作为输出。
 
 ### 4.2 The Search Engine
 

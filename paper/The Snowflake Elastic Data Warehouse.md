@@ -1,28 +1,87 @@
 # The Snowflake Elastic Data Warehouse
 
+> **ABSTRACT** We live in the golden age of distributed computing. Public cloud platforms now offer virtually unlimited compute and storage resources on demand. At the same time, the Software-as-a-Service (SaaS) model brings enterprise-class systems to users who previously could not afford such systems due to their cost and complexity. Alas, traditional data warehousing systems are struggling to fit into this new environment. **For one thing, they have been designed for fixed resources and are thus unable to leverage the cloud’s elasticity. For another thing, their dependence on complex ETL pipelines and physical tuning is at odds with the flexibility and freshness requirements of the cloud’s new types of semi-structured data and rapidly evolving workloads.**
+>
+> We decided a fundamental redesign was in order. Our mission was to build an enterprise-ready data warehousing solution for the cloud. The result is the Snowflake Elastic Data Warehouse, or “Snowflake” for short. **Snowflake is a multi-tenant, transactional, secure, highly scalable and elastic system with full SQL support and built-in extensions for semi-structured and schema-less data.** The system is offered as a pay-as-you-go service in the Amazon cloud. Users upload their data to the cloud and can immediately manage and query it using familiar tools and interfaces. Implementation began in late 2012 and Snowflake has been generally available since June 2015. Today, Snowflake is used in production by a growing number of small and large organizations alike. The system runs several million queries per day over multiple petabytes of data.
+>
+> In this paper, we describe the design of Snowflake and its novel multi-cluster, shared-data architecture. The paper highlights some of the key features of Snowflake: extreme elasticity and availability, s÷emi-structured and schema-less data, time travel, and end-to-end security. It concludes with lessons learned and an outlook on ongoing work.
+>
+
+我们生活在分布式计算的黄金时代。公共云平台现在可以根据需要提供几乎无限的计算和存储资源。与此同时，SaaS (Software-as-a-Service)模型为以前因成本和复杂性而无法负担此类系统的用户提供了企业级系统。唉，**传统的数据仓库系统正在努力适应这个新环境。首先，它们是为固定资源设计的，因此无法利用云的弹性。另一方面，它们对复杂的ETL管道和物理调优的依赖与云的新类型半结构化数据和快速发展的工作负载的灵活性和新鲜度要求不一致。**
+
+我们决定进行一次根本性的重新设计。我们的任务是为云构建一个企业级数据仓库解决方案。结果就是雪花弹性数据仓库，简称“雪花”。**Snowflake是一个多租户，事务性，安全，高度可伸缩和弹性的系统，具有完全的SQL支持和半结构化和无模式数据的内置扩展。**该系统是亚马逊云计算中的一种现收现付服务。用户将他们的数据上传到云端，然后可以使用熟悉的工具和界面立即管理和查询数据。2012年底开始实施，雪花自2015年6月起全面推出。今天，雪花被越来越多的大小组织用于生产。该系统每天在数拍字节(等于1000太字节)的数据上运行数百万次查询。
+
+在本文中，我们描述了Snowflake的设计及其新颖的多集群、共享数据架构。本文重点介绍了Snowflake的一些关键特性:极端的弹性和可用性、半结构化和无模式数据、时间旅行和端到端安全性。文章最后总结了经验教训和对正在进行的工作的展望。
+
 
 ## 1.      INTRODUCTION
 
-The advent of the cloud marks a move away from software delivery and execution on local servers, and toward shared data centers and software-as-a-service solutions hosted by platform providers such as Amazon, Google, or Microsoft. The shared infrastructure of the cloud promises increased economies of scale, extreme scalability and availability, and a pay-as-you-go cost model that adapts to unpredictable usage demands. But these advantages can only be captured if the *software* itself is able to scale elastically over the pool of commodity resources that is the cloud. Traditional data warehousing solutions pre-date the cloud. They were designed to run on small, static clusters of well-behaved machines, making them a poor architectural fit.
+> The advent of the cloud marks a move away from software delivery and execution on local servers, and toward shared data centers and software-as-a-service solutions hosted by platform providers such as Amazon, Google, or Microsoft. The shared infrastructure of the cloud promises increased economies of scale, extreme scalability and availability, and a pay-as-you-go cost model that adapts to unpredictable usage demands. But these advantages can only be captured if the *software* itself is able to scale elastically over the pool of commodity resources that is the cloud. Traditional data warehousing solutions pre-date the cloud. They were designed to run on small, static clusters of well-behaved machines, making them a poor architectural fit.
+>
+> But not only the platform has changed. Data has changed as well. It used to be the case that most of the data in a data warehouse came from sources within the organization: transactional systems, enterprise resource planning (ERP) applications, customer relationship management (CRM) applications, and the like. The structure, volume, and rate of the data were all fairly predictable and well known. But with the cloud, a significant and rapidly growing share of data comes from less controllable or external sources: application logs, web applications, mobile devices, social media, sensor data (Internet of Things). In addition to the growing volume, this data frequently arrives in schema-less, semi-structured formats [[3](#_bookmark24)]. Traditional data warehousing solutions are struggling with this new data. These solutions depend on deep ETL pipelines and physical tuning that fundamentally assume predictable, slow-moving, and easily categorized data from largely internal sources.
+>
+> In response to these shortcomings, parts of the data warehousing community have turned to “Big Data” platforms such as Hadoop or Spark [[8](#_bookmark29), [11](#_bookmark32)]. While these are indispensable tools for data center-scale processing tasks, and the open source community continues to make big improvements such as the Stinger Initiative [[48](#_bookmark69)], they still lack much of the efficiency and feature set of established data warehousing technology. But most importantly, they require significant engineering effort to roll out and use [[16](#_bookmark37)].
+>
+> We believe that there is a large class of use cases and workloads which can benefit from the economics, elasticity, and service aspects of the cloud, but which are not well served by either traditional data warehousing technology or by Big Data platforms. So we decided to build a completely new data warehousing system specifically for the cloud. The system is called the Snowflake Elastic Data Warehouse, or “Snowflake”. In contrast to many other systems in the cloud data management space, Snowflake is not based on Hadoop, PostgreSQL or the like. The processing engine and most of the other parts have been developed from scratch.
+>
+> The key features of Snowflake are as follows.
+>
+> - **Pure Software-as-a-Service (SaaS) Experience** Users need not buy machines, hire database administrators, or install software. Users either already have their data in the cloud, or they upload (or mail [[14](#_bookmark35)]) it. They can then immediately manipulate and query their data using Snowflake’s graphical interface or standardized interfaces such as ODBC. In contrast to other Database- as-a-Service (DBaaS) offerings, Snowflake’s service aspect extends to the whole user experience. There are no tuning knobs, no physical design, no storage grooming tasks on the part of users.
+> - **Relational** Snowflake has comprehensive support for ANSI SQL and ACID transactions. Most users are able to migrate existing workloads with little to no changes.
+> - **Semi-Structured** Snowflake offers built-in functions and SQL extensions for traversing, flattening, and nesting of semi-structured data, with support for popular formats such as JSON and Avro. Automatic schema discovery and columnar storage make operations on schema-less, semi-structured data nearly as fast as over plain relational data, without any user effort.
+> - **Elastic** Storage and compute resources can be scaled in- dependently and seamlessly, without impact on data availability or performance of concurrent queries.
+> - **Highly Available** Snowflake tolerates node, cluster, and even full data center failures. There is no downtime during software or hardware upgrades.
+> - **Durable** Snowflake is designed for extreme durability with extra safeguards against accidental data loss: cloning, undrop, and cross-region backups.
+> - **Cost-efficient** Snowflake is highly compute-efficient and all table data is compressed. Users pay only for what storage and compute resources they actually use.
+> - **Secure** All data including temporary files and network traffic is encrypted end-to-end. No user data is ever ex- posed to the cloud platform. Additionally, role-based access control gives users the ability to exercise fine- grained access control on the SQL level.
+>
+>  Snowflake currently runs on the Amazon cloud (Amazon Web Services, AWS), but we may port it to other cloud platforms in the future. At the time of writing, Snowflake executes millions of queries per day over multiple petabytes of data, serving a rapidly growing number of small and large organizations from various domains.
 
-But not only the platform has changed. Data has changed as well. It used to be the case that most of the data in a data warehouse came from sources within the organization: transactional systems, enterprise resource planning (ERP) applications, customer relationship management (CRM) applications, and the like. The structure, volume, and rate of the data were all fairly predictable and well known. But with the cloud, a significant and rapidly growing share of data comes from less controllable or external sources: application logs, web applications, mobile devices, social media, sensor data (Internet of Things). In addition to the growing volume, this data frequently arrives in schema-less, semi-structured formats [[3](#_bookmark24)]. Traditional data warehousing solutions are struggling with this new data. These solutions depend on deep ETL pipelines and physical tuning that fundamentally assume predictable, slow-moving, and easily categorized data from largely internal sources.
 
-In response to these shortcomings, parts of the data warehousing community have turned to “Big Data” platforms such as Hadoop or Spark [[8](#_bookmark29), [11](#_bookmark32)]. While these are indispensable tools for data center-scale processing tasks, and the open source community continues to make big improvements such as the Stinger Initiative [[48](#_bookmark69)], they still lack much of the efficiency and feature set of established data warehousing technology. But most importantly, they require significant engineering effort to roll out and use [[16](#_bookmark37)].
 
-We believe that there is a large class of use cases and workloads which can benefit from the economics, elasticity, and service aspects of the cloud, but which are not well served by either traditional data warehousing technology or by Big Data platforms. So we decided to build a completely new data warehousing system specifically for the cloud. The system is called the Snowflake Elastic Data Warehouse, or “Snowflake”. In contrast to many other systems in the cloud data management space, Snowflake is not based on Hadoop, PostgreSQL or the like. The processing engine and most of the other parts have been developed from scratch.
+云的出现标志着软件交付和执行，从本地服务器转移到共享数据中心和由平台提供商(如Amazon、谷歌或Microsoft)托管的软件即服务解决方案。云的共享基础设施承诺增加规模经济、极大的可伸缩性和可用性，以及一种按需付费的成本模型，以适应不可预测的使用需求。但是，只有当软件本身能够在商品资源池(即云)上弹性伸缩时，这些优势才能得到体现。传统的数据仓库解决方案早于云计算。它们被设计为运行在性能良好的机器的小型静态集群上，这使得它们架构不适合☁️。
 
-The key features of Snowflake are as follows.
+但不仅仅是平台发生了变化。数据也发生了变化。过去的情况是，数据仓库中的大多数数据来自组织内部的源：事务系统、企业资源规划(ERP)应用程序、客户关系管理(CRM)应用程序等等。数据的结构、体积和速率都是相当可预测的，也是众所周知的。但有了云计算，越来越多的数据来自不太可控的外部来源：应用日志、网络应用、移动设备、社交媒体、传感器数据(物联网)。除了不断增长的容量外，这些数据通常以无模式、半结构化格式[3]出现。传统的数据仓库解决方案正在与这种新数据作斗争。这些解决方案依赖于深层的ETL管道和物理调优，从根本上假设可预测的、缓慢移动的、易于分类的数据，这些数据主要来自内部资源。
 
-- **Pure Software-as-a-Service (SaaS) Experience** Users need not buy machines, hire database administrators, or install software. Users either already have their data in the cloud, or they upload (or mail [[14](#_bookmark35)]) it. They can then immediately manipulate and query their data using Snowflake’s graphical interface or standardized interfaces such as ODBC. In contrast to other Database- as-a-Service (DBaaS) offerings, Snowflake’s service aspect extends to the whole user experience. There are no tuning knobs, no physical design, no storage grooming tasks on the part of users.
-- **Relational** Snowflake has comprehensive support for ANSI SQL and ACID transactions. Most users are able to migrate existing workloads with little to no changes.
-- **Semi-Structured** Snowflake offers built-in functions and SQL extensions for traversing, flattening, and nesting of semi-structured data, with support for popular formats such as JSON and Avro. Automatic schema discovery and columnar storage make operations on schema-less, semi-structured data nearly as fast as over plain relational data, without any user effort.
-- **Elastic** Storage and compute resources can be scaled in- dependently and seamlessly, without impact on data availability or performance of concurrent queries.
-- **Highly Available** Snowflake tolerates node, cluster, and even full data center failures. There is no downtime during software or hardware upgrades.
-- **Durable** Snowflake is designed for extreme durability with extra safeguards against accidental data loss: cloning, undrop, and cross-region backups.
-- **Cost-efficient** Snowflake is highly compute-efficient and all table data is compressed. Users pay only for what storage and compute resources they actually use.
-- **Secure** All data including temporary files and network traffic is encrypted end-to-end. No user data is ever ex- posed to the cloud platform. Additionally, role-based access control gives users the ability to exercise fine- grained access control on the SQL level.
+为了应对这些不足，部分数据仓库社区转向了**大数据**平台，如Hadoop或Spark[8,11]。尽管对于数据中心规模的处理任务来说，这些工具是必不可少的，而且开源社区也在不断地进行重大改进，比如Stinger Initiative[48]，但它们仍然缺乏现有数据仓库技术的效率和特性集。但最重要的是，要使用它们需要大量的工程工作[16]。
 
- Snowflake currently runs on the Amazon cloud (Amazon Web Services, AWS), but we may port it to other cloud platforms in the future. At the time of writing, Snowflake executes millions of queries per day over multiple petabytes of data, serving a rapidly growing number of small and large organizations from various domains.
+我们认为，有大量的用例和工作负载可以从云的经济、弹性和服务方面受益，但传统的数据仓库技术或大数据平台都不能很好地服务这些用例和工作负载。所以我们决定专门为云建立一个全新的数据仓库系统。该系统被称为 **Snowflake 弹性数据仓库**，或 **Snowflake**。与云数据管理领域的许多其他系统相比，Snowflake 不是基于Hadoop、PostgreSQL之类的。处理引擎和其他大部分部件都是从零开始开发的。
+
+Snowflake 主要特点如下。
+
+- 纯软件即服务(SaaS)体验
+
+  用户不需要购买机器、雇佣数据库管理员或安装软件。用户要么已经在云中保存了他们的数据，要么上传(或通过邮件[14])。然后，他们可以立即使用Snowflake的图形界面或ODBC等标准化界面操作和查询数据。与其他数据库即服务(Database-as-a-Service, DBaaS)产品相比，Snowflake的服务方面扩展到了整个用户体验。对于用户来说，没有调优旋钮，没有物理设计，没有存储修饰任务。
+
+- 关系
+
+  Snowflake全面支持ANSISQL和ACID事务。大多数用户能够迁移现有的工作负载，几乎不需要更改。
+
+- 半结构化
+
+  Snowflake提供了用于遍历、扁平化和嵌套半结构化数据的内置函数和SQL扩展，并支持JSON和Avro等流行格式。自动模式发现和柱状存储使得对无模式、半结构化数据的操作几乎与对普通关系数据的操作一样快，而无需用户付出任何努力。
+
+- 弹性
+
+  存储和计算资源可以独立无缝伸缩，不影响数据可用性和并发查询的性能。
+
+- 高可用
+
+  可用的Snowflake可以容忍节点、集群甚至全数据中心故障。在软件或硬件升级期间没有停机时间。
+
+- 耐用
+
+  Snowflake设计为极端的持久性与额外的保障意外数据丢失:克隆，undrop，和跨区域备份。
+
+- 成本效益
+
+  Snowflake计算效率很高，所有表数据都是压缩的。用户只需为实际使用的存储和计算资源付费。
+
+- 安全
+
+  所有数据包括临时文件和网络流量都是端到端加密的。从来没有用户数据暴露给云平台。此外，基于角色的访问控制使用户能够在SQL级别上执行细粒度的访问控制。
+
+Snowflake 目前运行在亚马逊云(AmazonWeb Services, AWS)上，但我们可能会在未来将其移植到其他云平台上。在撰写本文时，Snowflake每天在多个拍字节的数据上执行数百万次查询，为来自不同领域的快速增长的大小组织提供服务。
 
 ### Outline.
 
@@ -382,3 +441,5 @@ In addition to data encryption, Snowflake protects user data in the following wa
 4.   Two-factor- and federated authentication for secure access control.
 
 In summary, Snowflake provides a hierarchical key model rooted in AWS CloudHSM and uses key rotation and rekeying to ensure that encryption keys follow a standardized life cycle. Key management is entirely transparent to the user and requires no configuration, management, or downtime. It is part of a comprehensive security strategy that enables full end-to-end encryption and security.
+
+By providing a system that can e ciently store and process semi-structured data as-is|with a powerful SQL interface on top|we found Snowake replacing not only traditional database systems, but also Hadoop clusters.
